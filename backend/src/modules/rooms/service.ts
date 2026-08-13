@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
+import { roomHasActiveLease } from "@/modules/leases/service.js";
 import type { CreateRoomInput, ListRoomsQuery, UpdateRoomInput } from "./schema.js";
 
 /**
@@ -76,6 +77,12 @@ export async function updateRoom(id: string, input: UpdateRoomInput) {
 
 export async function retireRoom(id: string) {
   await getRoomById(id);
+
+  // An occupied room cannot be taken out of service while a tenant holds it.
+  if (await roomHasActiveLease(id)) {
+    throw new ConflictError("Cannot retire a room that has an active lease");
+  }
+
   return prisma.room.update({ where: { id }, data: { isActive: false } });
 }
 
