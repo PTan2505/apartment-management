@@ -9,9 +9,9 @@ import type { CreateRoomInput, ListRoomsQuery, UpdateRoomInput } from "./schema.
  * returns a clean 409 instead of a raw constraint violation.
  */
 async function assertRoomCodeAvailable(
-  buildingId: string,
+  buildingId: number,
   roomCode: string,
-  excludeRoomId?: string,
+  excludeRoomId?: number,
 ) {
   const clash = await prisma.room.findFirst({
     where: {
@@ -57,7 +57,7 @@ export async function listRooms(query: ListRoomsQuery) {
   });
 }
 
-export async function getRoomById(id: string) {
+export async function getRoomById(id: number) {
   const room = await prisma.room.findUnique({ where: { id } });
   if (!room) {
     throw new NotFoundError("Room not found");
@@ -65,7 +65,7 @@ export async function getRoomById(id: string) {
   return room;
 }
 
-export async function updateRoom(id: string, input: UpdateRoomInput) {
+export async function updateRoom(id: number, input: UpdateRoomInput) {
   const room = await getRoomById(id);
 
   if (input.roomCode && input.roomCode !== room.roomCode && room.isActive) {
@@ -75,7 +75,7 @@ export async function updateRoom(id: string, input: UpdateRoomInput) {
   return prisma.room.update({ where: { id }, data: input });
 }
 
-export async function retireRoom(id: string) {
+export async function retireRoom(id: number) {
   await getRoomById(id);
 
   // An occupied room cannot be taken out of service while a tenant holds it.
@@ -86,7 +86,7 @@ export async function retireRoom(id: string) {
   return prisma.room.update({ where: { id }, data: { isActive: false } });
 }
 
-export async function restoreRoom(id: string) {
+export async function restoreRoom(id: number) {
   const room = await getRoomById(id);
 
   // Retiring a room frees its code for reuse, so restoring can collide with a

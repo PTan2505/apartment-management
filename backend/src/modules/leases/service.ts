@@ -14,7 +14,7 @@ const occupantInclude = {
   },
 } as const;
 
-async function findLeaseOrThrow(id: string) {
+async function findLeaseOrThrow(id: number) {
   const lease = await prisma.lease.findUnique({
     where: { id },
     include: occupantInclude,
@@ -96,11 +96,11 @@ export async function listLeases(query: ListLeasesQuery) {
   });
 }
 
-export async function getLeaseById(id: string) {
+export async function getLeaseById(id: number) {
   return findLeaseOrThrow(id);
 }
 
-export async function updateLease(id: string, input: UpdateLeaseInput) {
+export async function updateLease(id: number, input: UpdateLeaseInput) {
   const lease = await findLeaseOrThrow(id);
 
   if (lease.moveOutDate !== null) {
@@ -111,7 +111,7 @@ export async function updateLease(id: string, input: UpdateLeaseInput) {
   return findLeaseOrThrow(id);
 }
 
-export async function recordMoveOut(id: string, moveOutDate: Date) {
+export async function recordMoveOut(id: number, moveOutDate: Date) {
   const lease = await findLeaseOrThrow(id);
 
   if (lease.moveOutDate !== null) {
@@ -134,12 +134,12 @@ export async function recordMoveOut(id: string, moveOutDate: Date) {
   return findLeaseOrThrow(id);
 }
 
-export async function listOccupants(leaseId: string) {
+export async function listOccupants(leaseId: number) {
   const lease = await findLeaseOrThrow(leaseId);
   return lease.occupants;
 }
 
-export async function addOccupant(leaseId: string, input: AddOccupantInput) {
+export async function addOccupant(leaseId: number, input: AddOccupantInput) {
   const lease = await findLeaseOrThrow(leaseId);
 
   if (lease.moveOutDate !== null) {
@@ -176,8 +176,8 @@ export async function addOccupant(leaseId: string, input: AddOccupantInput) {
 }
 
 export async function departOccupant(
-  leaseId: string,
-  occupantId: string,
+  leaseId: number,
+  occupantId: number,
   leftAt: Date,
 ) {
   const lease = await findLeaseOrThrow(leaseId);
@@ -212,7 +212,7 @@ export async function departOccupant(
   });
 }
 
-export async function transferPrimary(leaseId: string, customerId: string) {
+export async function transferPrimary(leaseId: number, customerId: number) {
   const lease = await findLeaseOrThrow(leaseId);
 
   if (lease.moveOutDate !== null) {
@@ -250,7 +250,7 @@ export async function transferPrimary(leaseId: string, customerId: string) {
 }
 
 /** Used by the rooms and buildings retire guards. */
-export async function roomHasActiveLease(roomId: string) {
+export async function roomHasActiveLease(roomId: number) {
   const lease = await prisma.lease.findFirst({
     where: { roomId, moveOutDate: null },
     select: { id: true },
@@ -258,7 +258,7 @@ export async function roomHasActiveLease(roomId: string) {
   return lease !== null;
 }
 
-export async function buildingHasActiveLease(buildingId: string) {
+export async function buildingHasActiveLease(buildingId: number) {
   const lease = await prisma.lease.findFirst({
     where: { moveOutDate: null, room: { buildingId } },
     select: { id: true },

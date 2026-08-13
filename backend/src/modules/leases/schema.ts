@@ -3,8 +3,8 @@ import { z } from "zod";
 const isoDate = z.coerce.date();
 
 export const createLeaseSchema = z.object({
-  roomId: z.string().min(1, "roomId is required"),
-  signatoryId: z.string().min(1, "signatoryId is required"),
+  roomId: z.coerce.number().int().positive("roomId is required"),
+  signatoryId: z.coerce.number().int().positive("signatoryId is required"),
   startDate: isoDate,
   durationMonths: z.coerce.number().int().min(1, "must be at least 1"),
   occupantCount: z.coerce.number().int().min(1, "must be at least 1"),
@@ -22,8 +22,8 @@ export const moveOutSchema = z.object({
 });
 
 export const listLeasesQuerySchema = z.object({
-  roomId: z.string().min(1).optional(),
-  customerId: z.string().min(1).optional(),
+  roomId: z.coerce.number().int().positive().optional(),
+  customerId: z.coerce.number().int().positive().optional(),
   active: z
     .enum(["true", "false"])
     .optional()
@@ -31,7 +31,7 @@ export const listLeasesQuerySchema = z.object({
 });
 
 export const addOccupantSchema = z.object({
-  customerId: z.string().min(1, "customerId is required"),
+  customerId: z.coerce.number().int().positive("customerId is required"),
   joinedAt: isoDate.optional(),
 });
 
@@ -40,7 +40,7 @@ export const departOccupantSchema = z.object({
 });
 
 export const transferPrimarySchema = z.object({
-  customerId: z.string().min(1, "customerId is required"),
+  customerId: z.coerce.number().int().positive("customerId is required"),
 });
 
 export type CreateLeaseInput = z.infer<typeof createLeaseSchema>;

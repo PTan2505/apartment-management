@@ -70,7 +70,7 @@ export async function listCustomers(query: ListCustomersQuery) {
   });
 }
 
-export async function getCustomerById(id: string) {
+export async function getCustomerById(id: number) {
   const customer = await prisma.user.findFirst({
     where: { id, role: "customer" },
     select: customerSelect,
@@ -82,7 +82,7 @@ export async function getCustomerById(id: string) {
   return customer;
 }
 
-export async function updateCustomer(id: string, input: UpdateCustomerInput) {
+export async function updateCustomer(id: number, input: UpdateCustomerInput) {
   await getCustomerById(id);
 
   if (input.phone) {

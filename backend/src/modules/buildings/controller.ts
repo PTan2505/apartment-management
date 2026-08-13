@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { ValidationError } from "@/lib/errors.js";
+import { parseIdParam } from "@/lib/parse-id.js";
 import {
   createBuildingSchema,
   updateBuildingSchema,
@@ -28,7 +29,7 @@ export async function listBuildingsHandler(req: Request, res: Response) {
 }
 
 export async function getBuildingHandler(req: Request, res: Response) {
-  const building = await buildingService.getBuildingById(req.params.id as string);
+  const building = await buildingService.getBuildingById(parseIdParam(req.params.id, "Building"));
   res.status(200).json(building);
 }
 
@@ -39,18 +40,18 @@ export async function updateBuildingHandler(req: Request, res: Response) {
   }
 
   const building = await buildingService.updateBuilding(
-    req.params.id as string,
+    parseIdParam(req.params.id, "Building"),
     parsed.data,
   );
   res.status(200).json(building);
 }
 
 export async function retireBuildingHandler(req: Request, res: Response) {
-  const building = await buildingService.retireBuilding(req.params.id as string);
+  const building = await buildingService.retireBuilding(parseIdParam(req.params.id, "Building"));
   res.status(200).json(building);
 }
 
 export async function restoreBuildingHandler(req: Request, res: Response) {
-  const building = await buildingService.restoreBuilding(req.params.id as string);
+  const building = await buildingService.restoreBuilding(parseIdParam(req.params.id, "Building"));
   res.status(200).json(building);
 }

@@ -22,15 +22,15 @@ export function addMonths(date: Date, months: number): Date {
 export type LeaseStatus = "active" | "finalized";
 
 interface OccupantRow {
-  userId: string;
+  userId: number;
   isPrimary: boolean;
   leftAt: Date | null;
-  user?: { id: string; fullName: string; phone: string | null } | null;
+  user?: { id: number; fullName: string; phone: string | null } | null;
 }
 
 interface LeaseRow {
-  id: string;
-  roomId: string;
+  id: number;
+  roomId: number;
   startDate: Date;
   durationMonths: number;
   occupantCount: number;
@@ -71,7 +71,7 @@ export function toLeaseResponse(lease: LeaseRow) {
 }
 
 export function toOccupantResponse(occupant: OccupantRow & {
-  id: string;
+  id: number;
   joinedAt: Date;
 }) {
   return {

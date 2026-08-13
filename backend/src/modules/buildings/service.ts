@@ -14,7 +14,7 @@ export async function listBuildings(includeInactive: boolean) {
   });
 }
 
-export async function getBuildingById(id: string) {
+export async function getBuildingById(id: number) {
   const building = await prisma.building.findUnique({ where: { id } });
   if (!building) {
     throw new NotFoundError("Building not found");
@@ -22,12 +22,12 @@ export async function getBuildingById(id: string) {
   return building;
 }
 
-export async function updateBuilding(id: string, input: UpdateBuildingInput) {
+export async function updateBuilding(id: number, input: UpdateBuildingInput) {
   await getBuildingById(id);
   return prisma.building.update({ where: { id }, data: input });
 }
 
-export async function retireBuilding(id: string) {
+export async function retireBuilding(id: number) {
   await getBuildingById(id);
 
   // A building with tenants still in place cannot be taken out of service.
@@ -42,7 +42,7 @@ export async function retireBuilding(id: string) {
   return prisma.building.update({ where: { id }, data: { isActive: false } });
 }
 
-export async function restoreBuilding(id: string) {
+export async function restoreBuilding(id: number) {
   await getBuildingById(id);
   return prisma.building.update({ where: { id }, data: { isActive: true } });
 }

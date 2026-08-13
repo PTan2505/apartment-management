@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { ValidationError } from "@/lib/errors.js";
+import { parseIdParam } from "@/lib/parse-id.js";
 import {
   registerCustomerSchema,
   updateCustomerSchema,
@@ -30,7 +31,7 @@ export async function listCustomersHandler(req: Request, res: Response) {
 }
 
 export async function getCustomerHandler(req: Request, res: Response) {
-  const customer = await customerService.getCustomerById(req.params.id as string);
+  const customer = await customerService.getCustomerById(parseIdParam(req.params.id, "Customer"));
   res.status(200).json(customer);
 }
 
@@ -41,7 +42,7 @@ export async function updateCustomerHandler(req: Request, res: Response) {
   }
 
   const customer = await customerService.updateCustomer(
-    req.params.id as string,
+    parseIdParam(req.params.id, "Customer"),
     parsed.data,
   );
   res.status(200).json(customer);

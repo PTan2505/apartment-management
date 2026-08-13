@@ -8,6 +8,7 @@ import { UnauthorizedError } from "@/lib/errors.js";
 const INVALID_CREDENTIALS_MESSAGE = "Invalid phone number or password";
 
 export interface AccessTokenPayload {
+  /** User id. Kept as a string because JWT `sub` is a StringOrURI per RFC 7519. */
   sub: string;
   role: string;
 }
@@ -38,7 +39,7 @@ export async function login(phone: string, password: string): Promise<LoginResul
     throw new UnauthorizedError(INVALID_CREDENTIALS_MESSAGE);
   }
 
-  const accessToken = signAccessToken({ sub: user.id, role: user.role });
+  const accessToken = signAccessToken({ sub: String(user.id), role: user.role });
 
   const rawRefreshToken = randomBytes(32).toString("hex");
   const refreshTokenExpiresAt = new Date(
@@ -71,7 +72,7 @@ export async function refresh(rawRefreshToken: string): Promise<RefreshResult> {
     throw new UnauthorizedError("Invalid or expired refresh token");
   }
 
-  const accessToken = signAccessToken({ sub: record.user.id, role: record.user.role });
+  const accessToken = signAccessToken({ sub: String(record.user.id), role: record.user.role });
 
   return { accessToken };
 }
