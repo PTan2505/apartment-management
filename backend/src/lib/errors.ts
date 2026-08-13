@@ -25,6 +25,11 @@ export class UnauthorizedError extends AppError {
   readonly code = "UNAUTHORIZED";
 }
 
+export class ForbiddenError extends AppError {
+  readonly status = 403;
+  readonly code = "FORBIDDEN";
+}
+
 export class ConflictError extends AppError {
   readonly status = 409;
   readonly code = "CONFLICT";
