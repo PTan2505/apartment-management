@@ -18,7 +18,7 @@ enum Role {
 }
 
 model User {
-  id String @id @default(uuid())
+  id           Int      @id @default(autoincrement())
   // Optional: occupants such as children need a stable identity but may have no
   // phone. Postgres allows many NULLs under a unique index, so it stays unique
   // where present. Owners always have a phone (login identifier).
@@ -34,8 +34,8 @@ model User {
 }
 
 model RefreshToken {
-  id        String    @id @default(uuid())
-  userId    String
+  id        Int       @id @default(autoincrement())
+  userId    Int
   user      User      @relation(fields: [userId], references: [id])
   tokenHash String    @unique
   createdAt DateTime  @default(now())
@@ -46,7 +46,7 @@ model RefreshToken {
 }
 
 model Building {
-  id                 String   @id @default(uuid())
+  id                 Int      @id @default(autoincrement())
   displayName        String
   address            String
   electricityRate    Decimal  @db.Decimal(12, 4)
@@ -59,8 +59,8 @@ model Building {
 }
 
 model Room {
-  id         String   @id @default(uuid())
-  buildingId String
+  id         Int      @id @default(autoincrement())
+  buildingId Int
   building   Building @relation(fields: [buildingId], references: [id])
   roomCode   String
   baseRent   Decimal  @db.Decimal(12, 2)
@@ -78,8 +78,8 @@ model Room {
 }
 
 model Lease {
-  id             String    @id @default(uuid())
-  roomId         String
+  id             Int       @id @default(autoincrement())
+  roomId         Int
   room           Room      @relation(fields: [roomId], references: [id])
   startDate      DateTime
   durationMonths Int
@@ -99,10 +99,10 @@ model Lease {
 }
 
 model LeaseOccupant {
-  id        String    @id @default(uuid())
-  leaseId   String
+  id        Int       @id @default(autoincrement())
+  leaseId   Int
   lease     Lease     @relation(fields: [leaseId], references: [id])
-  userId    String
+  userId    Int
   user      User      @relation(fields: [userId], references: [id])
   // Marks the lease signatory. Tenant-ness is a property of this relationship,
   // not of the person — the same user may be primary on one lease and an
