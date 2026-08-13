@@ -11,3 +11,32 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum Role {
+  owner
+  customer
+}
+
+model User {
+  id           String    @id @default(uuid())
+  phone        String    @unique
+  passwordHash String?
+  role         Role
+  fullName     String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  @@index([userId])
+}
