@@ -5,6 +5,9 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   PORT: z.coerce.number().int().positive().default(5000),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  JWT_SECRET: z.string().min(1, "JWT_SECRET is required"),
+  ACCESS_TOKEN_TTL: z.string().default("15m"),
+  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
 });
 
 export type Env = z.infer<typeof envSchema>;

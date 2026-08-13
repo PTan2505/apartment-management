@@ -4,10 +4,11 @@ Express + TypeScript API for the apartment management portal.
 
 ## Setup
 
-1. Copy `.env.example` to `.env` and fill in `DATABASE_URL` for a local PostgreSQL instance.
+1. Copy `.env.example` to `.env` and fill in `DATABASE_URL` for a local PostgreSQL instance, plus `JWT_SECRET` (any long random string in dev).
 2. Install dependencies: `npm install`
 3. Apply database migrations: `npm run prisma:migrate`
-4. Start the dev server: `npm run dev`
+4. Create the first owner account: `npm run seed:owner -- --phone <phone> --password <password> --name "<full name>"` (re-running with the same phone updates that account rather than duplicating it)
+5. Start the dev server: `npm run dev`
 
 ## Database / Prisma workflow
 
@@ -19,7 +20,8 @@ Schema lives at `prisma/schema.prisma`. The generated client is written to `src/
 
 ## Project structure
 
-- `src/modules/<domain>/` — one directory per domain module (`router.ts`, `controller.ts`, `service.ts`, `schema.ts`). Empty for now; auth, properties, rooms, leases, billing, and reports modules are added in later changes.
+- `src/modules/<domain>/` — one directory per domain module (`router.ts`, `controller.ts`, `service.ts`, `schema.ts`). `auth` is implemented; properties, rooms, leases, billing, and reports modules are added in later changes.
 - `src/config/` — environment loading and validation (`env.ts`).
-- `src/middleware/` — cross-cutting Express middleware (error handler, request logger).
+- `src/middleware/` — cross-cutting Express middleware (error handler, request logger, `authenticate`).
 - `src/lib/` — shared utilities (Prisma client singleton, typed error classes).
+- `scripts/` — one-off operational scripts (e.g. `seed-owner.ts`), run via `tsx`, not part of the HTTP API.
