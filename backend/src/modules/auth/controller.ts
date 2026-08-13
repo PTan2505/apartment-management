@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
-import { env } from "../../config/env.js";
-import { ValidationError, UnauthorizedError } from "../../lib/errors.js";
+import { env } from "@/config/env.js";
+import { ValidationError, UnauthorizedError } from "@/lib/errors.js";
 import { loginSchema } from "./schema.js";
 import * as authService from "./service.js";
 

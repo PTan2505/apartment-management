@@ -1,8 +1,8 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { env } from "../config/env.js";
-import { UnauthorizedError } from "../lib/errors.js";
-import type { AccessTokenPayload } from "../modules/auth/service.js";
+import { env } from "@/config/env.js";
+import { UnauthorizedError } from "@/lib/errors.js";
+import type { AccessTokenPayload } from "@/modules/auth/service.js";
 
 export function authenticate(req: Request, _res: Response, next: NextFunction) {
   const header = req.headers.authorization;

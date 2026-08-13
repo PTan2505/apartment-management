@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { AppError } from "../lib/errors.js";
+import { AppError } from "@/lib/errors.js";
 
 /**
  * Registered last, after all routes. Converts thrown errors into the

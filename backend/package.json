@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "tsc && tsc-alias",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -39,6 +39,7 @@
     "@types/node": "^26.2.0",
     "@types/pg": "^8.21.0",
     "prisma": "^7.9.1",
+    "tsc-alias": "^1.9.1",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2"
   }

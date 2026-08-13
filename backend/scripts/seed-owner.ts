@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import { prisma } from "../src/lib/prisma.js";
+import { prisma } from "@/lib/prisma.js";
 
 function readArg(flag: string): string | undefined {
   const index = process.argv.indexOf(flag);

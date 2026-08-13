@@ -1,9 +1,9 @@
 import { randomBytes, createHash } from "node:crypto";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { prisma } from "../../lib/prisma.js";
-import { env } from "../../config/env.js";
-import { UnauthorizedError } from "../../lib/errors.js";
+import { prisma } from "@/lib/prisma.js";
+import { env } from "@/config/env.js";
+import { UnauthorizedError } from "@/lib/errors.js";
 
 const INVALID_CREDENTIALS_MESSAGE = "Invalid phone number or password";
 
