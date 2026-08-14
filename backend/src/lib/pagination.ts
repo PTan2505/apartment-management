@@ -3,8 +3,10 @@ import { prisma } from "@/lib/prisma.js";
 import { z } from "zod";
 
 /**
- * Set above the size of a typical building's room list so the common view is
- * not split across pages.
+ * Deliberately small: a building with more than twenty rooms pages its list,
+ * so clients exercise paging from the start rather than working by accident
+ * until a collection outgrows the default. Callers wanting more can raise
+ * pageSize up to MAX_PAGE_SIZE.
  */
 export const DEFAULT_PAGE_SIZE = 20;
 

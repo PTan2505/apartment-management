@@ -28,7 +28,9 @@ Decisions locked before this design (from prior discussion, not reopened here): 
 
 **Occupant lists are paginated despite being small**: a lease will rarely have enough occupants to fill a page. Paginating anyway means every list response in the API has the same shape, so a client never has to remember which endpoints are special. The alternative — leaving one endpoint returning a bare array — is the kind of inconsistency that costs more in confusion than it saves in code.
 
-**Defaults chosen to keep existing calls working**: omitting both parameters yields page 1 at the default page size, so every current caller continues to function; only the response shape changes. The default is set well above the expected size of a single building's room list so the common view is not split across pages. Concretely: **default page size 50, maximum 200**. *(Values chosen during implementation and recorded here rather than left to the code — the spec requires the defaults to be documented.)*
+**Defaults chosen to keep existing calls working**: omitting both parameters yields page 1 at the default page size, so every current caller continues to function; only the response shape changes. Concretely: **default page size 20, maximum 200**.
+
+A default of 20 means a building with more than twenty rooms has its room list split across pages, which is the common view. That is a deliberate trade: a smaller default keeps every response light and makes clients exercise paging from day one, rather than working by accident until a building grows past the default and quietly starts truncating. Callers that genuinely want a whole list can raise `pageSize` up to the maximum.
 
 ## Risks / Trade-offs
 
