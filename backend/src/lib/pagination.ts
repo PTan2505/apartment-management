@@ -1,12 +1,12 @@
-import { z } from "zod";
-import { prisma } from "@/lib/prisma.js";
 import type { Prisma } from "@/generated/prisma/client.js";
+import { prisma } from "@/lib/prisma.js";
+import { z } from "zod";
 
 /**
  * Set above the size of a typical building's room list so the common view is
  * not split across pages.
  */
-export const DEFAULT_PAGE_SIZE = 50;
+export const DEFAULT_PAGE_SIZE = 20;
 
 /** Upper bound so no caller can request an unbounded response. */
 export const MAX_PAGE_SIZE = 200;
@@ -19,7 +19,12 @@ export const MAX_PAGE_SIZE = 200;
  */
 export const paginationQueryFields = {
   page: z.coerce.number().int().positive().default(1),
-  pageSize: z.coerce.number().int().positive().max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(MAX_PAGE_SIZE)
+    .default(DEFAULT_PAGE_SIZE),
 };
 
 export interface PageParams {
@@ -65,6 +70,9 @@ export async function paginate<T>(
 }
 
 /** Re-shapes an already-paginated result, for endpoints that map their rows. */
-export function mapPaginated<T, U>(page: Paginated<T>, fn: (item: T) => U): Paginated<U> {
+export function mapPaginated<T, U>(
+  page: Paginated<T>,
+  fn: (item: T) => U,
+): Paginated<U> {
   return { data: page.data.map(fn), meta: page.meta };
 }
