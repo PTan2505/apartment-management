@@ -39,7 +39,7 @@ The system SHALL reject a room whose code duplicates that of another active room
 - **THEN** the system creates the room successfully
 
 ### Requirement: Owner can list and retrieve rooms
-The system SHALL allow an authenticated `owner` to list rooms, filter them by building, search them by room code, and retrieve a single room by id. Listing SHALL return only active rooms unless retired rooms are explicitly requested. The room-code search SHALL match any room whose code contains the given text, SHALL ignore case, and SHALL be combinable with the other filters. Room codes SHALL NOT be usable in place of a room id, because the same code may exist in several buildings and may be reused after a room is retired.
+The system SHALL allow an authenticated `owner` to list rooms, filter them by building, search them by room code, and retrieve a single room by id. Listing SHALL return only active rooms unless retired rooms are explicitly requested. The room-code search SHALL match any room whose code contains the given text, SHALL ignore case, and SHALL be combinable with the other filters. Room codes SHALL NOT be usable in place of a room id, because the same code may exist in several buildings and may be reused after a room is retired. Listing SHALL be paginated using the shared paginated response contract, so the response carries a `data` array and a `meta` object describing the page and totals rather than a bare array.
 
 #### Scenario: Listing rooms in a building
 - **WHEN** an authenticated owner lists rooms filtered by a building id
@@ -76,6 +76,14 @@ The system SHALL allow an authenticated `owner` to list rooms, filter them by bu
 #### Scenario: Search with no match
 - **WHEN** an authenticated owner searches by text that no room code contains
 - **THEN** the system responds with HTTP 200 and an empty list
+
+#### Scenario: Room listing is paginated
+- **WHEN** an authenticated owner lists rooms
+- **THEN** the response is the shared paginated shape, with the rooms in `data` and the page, page size, and totals in `meta`
+
+#### Scenario: Paging applies to searched and filtered results
+- **WHEN** an authenticated owner searches rooms by code within a building and asks for a specific page
+- **THEN** the items and totals describe only the rooms matching that building and search
 ### Requirement: Owner can update a room
 The system SHALL allow an authenticated `owner` to update a room's code and base monthly rent. Changing the base rent SHALL NOT alter any invoice already issued, because each invoice records the amounts applied at the time it was created.
 

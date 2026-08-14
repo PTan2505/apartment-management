@@ -32,7 +32,7 @@ The system SHALL allow an authenticated `owner` to register a person by full nam
 - **THEN** the system responds with HTTP 400 identifying the invalid input
 
 ### Requirement: Owner can list and retrieve customers
-The system SHALL allow an authenticated `owner` to list customers and retrieve a single customer by id. Customer records SHALL never expose password material.
+The system SHALL allow an authenticated `owner` to list customers and retrieve a single customer by id. Customer records SHALL never expose password material. Listing SHALL be paginated using the shared paginated response contract, so the response carries a `data` array and a `meta` object describing the page and totals rather than a bare array.
 
 #### Scenario: Listing customers
 - **WHEN** an authenticated owner lists customers
@@ -46,6 +46,13 @@ The system SHALL allow an authenticated `owner` to list customers and retrieve a
 - **WHEN** an authenticated owner lists or retrieves customers
 - **THEN** no response includes a password or password hash field
 
+#### Scenario: Customer listing is paginated
+- **WHEN** an authenticated owner lists customers
+- **THEN** the response is the shared paginated shape, with the customers in `data` and the page, page size, and totals in `meta`
+
+#### Scenario: Paging applies to searched results
+- **WHEN** an authenticated owner searches customers and asks for a specific page
+- **THEN** the items and totals describe only the customers matching the search
 ### Requirement: Owner can update a customer
 The system SHALL allow an authenticated `owner` to update a customer's full name and phone number, including adding a phone number to a record that had none. A phone number already in use by a different user SHALL be rejected.
 
