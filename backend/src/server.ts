@@ -8,6 +8,8 @@ import { healthRouter } from "@/routes/health.js";
 import { authRouter } from "@/modules/auth/router.js";
 import { buildingsRouter } from "@/modules/buildings/router.js";
 import { roomsRouter } from "@/modules/rooms/router.js";
+import { customersRouter } from "@/modules/customers/router.js";
+import { leasesRouter } from "@/modules/leases/router.js";
 
 const app = express();
 
@@ -20,6 +22,8 @@ app.use(healthRouter);
 app.use("/auth", authRouter);
 app.use("/buildings", buildingsRouter);
 app.use("/rooms", roomsRouter);
+app.use("/customers", customersRouter);
+app.use("/leases", leasesRouter);
 
 app.use(errorHandler);
 

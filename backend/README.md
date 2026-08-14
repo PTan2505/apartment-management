@@ -24,4 +24,4 @@ Schema lives at `prisma/schema.prisma`. The generated client is written to `src/
 - `src/config/` — environment loading and validation (`env.ts`).
 - `src/middleware/` — cross-cutting Express middleware (error handler, request logger, `authenticate`).
 - `src/lib/` — shared utilities (Prisma client singleton, typed error classes).
-- `scripts/` — one-off operational scripts (e.g. `seed-owner.ts`), run via `tsx`, not part of the HTTP API.
+- `src/scripts/` — one-off operational scripts (e.g. `seed-owner.ts`), run via `tsx`, not part of the HTTP API. They live under `src/` so the `@/` alias resolves and they are covered by `tsc --noEmit`.

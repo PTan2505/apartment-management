@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { ValidationError } from "@/lib/errors.js";
+import { parseIdParam } from "@/lib/parse-id.js";
 import { createRoomSchema, updateRoomSchema, listRoomsQuerySchema } from "./schema.js";
 import * as roomService from "./service.js";
 
@@ -24,7 +25,7 @@ export async function listRoomsHandler(req: Request, res: Response) {
 }
 
 export async function getRoomHandler(req: Request, res: Response) {
-  const room = await roomService.getRoomById(req.params.id as string);
+  const room = await roomService.getRoomById(parseIdParam(req.params.id, "Room"));
   res.status(200).json(room);
 }
 
@@ -34,16 +35,16 @@ export async function updateRoomHandler(req: Request, res: Response) {
     throw new ValidationError("Invalid room payload", parsed.error.flatten());
   }
 
-  const room = await roomService.updateRoom(req.params.id as string, parsed.data);
+  const room = await roomService.updateRoom(parseIdParam(req.params.id, "Room"), parsed.data);
   res.status(200).json(room);
 }
 
 export async function retireRoomHandler(req: Request, res: Response) {
-  const room = await roomService.retireRoom(req.params.id as string);
+  const room = await roomService.retireRoom(parseIdParam(req.params.id, "Room"));
   res.status(200).json(room);
 }
 
 export async function restoreRoomHandler(req: Request, res: Response) {
-  const room = await roomService.restoreRoom(req.params.id as string);
+  const room = await roomService.restoreRoom(parseIdParam(req.params.id, "Room"));
   res.status(200).json(room);
 }

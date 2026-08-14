@@ -3,7 +3,7 @@ import { z } from "zod";
 const money = z.coerce.number().nonnegative("must not be negative");
 
 export const createRoomSchema = z.object({
-  buildingId: z.string().min(1, "buildingId is required"),
+  buildingId: z.coerce.number().int().positive("buildingId is required"),
   roomCode: z.string().min(1, "roomCode is required"),
   baseRent: money,
 });
@@ -16,7 +16,7 @@ export const updateRoomSchema = z
   .partial();
 
 export const listRoomsQuerySchema = z.object({
-  buildingId: z.string().min(1).optional(),
+  buildingId: z.coerce.number().int().positive().optional(),
   includeInactive: z
     .enum(["true", "false"])
     .optional()

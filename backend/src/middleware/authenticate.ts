@@ -14,7 +14,12 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
 
   try {
     const payload = jwt.verify(token, env.JWT_SECRET) as AccessTokenPayload;
-    req.user = { userId: payload.sub, role: payload.role };
+    // `sub` is a string per the JWT spec; ids are integers in this system.
+    const userId = Number(payload.sub);
+    if (!Number.isInteger(userId)) {
+      throw new UnauthorizedError("Invalid access token subject");
+    }
+    req.user = { userId, role: payload.role };
     next();
   } catch {
     throw new UnauthorizedError("Invalid or expired access token");
