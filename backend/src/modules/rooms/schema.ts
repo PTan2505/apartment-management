@@ -17,6 +17,10 @@ export const updateRoomSchema = z
 
 export const listRoomsQuerySchema = z.object({
   buildingId: z.coerce.number().int().positive().optional(),
+  // Partial, case-insensitive match on room code — a lookup affordance for
+  // scanning a list, matching the `search` parameter on /customers. Not an
+  // exact-identifier fetch: searching "10" surfaces 10, 101 and 102.
+  search: z.string().min(1).optional(),
   includeInactive: z
     .enum(["true", "false"])
     .optional()

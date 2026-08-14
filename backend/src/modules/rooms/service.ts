@@ -51,6 +51,12 @@ export async function listRooms(query: ListRoomsQuery) {
   return prisma.room.findMany({
     where: {
       ...(query.buildingId ? { buildingId: query.buildingId } : {}),
+      // Partial, case-insensitive. Without a building the same code can match
+      // one room per building, since a code identifies a room only within its
+      // building.
+      ...(query.search
+        ? { roomCode: { contains: query.search, mode: "insensitive" as const } }
+        : {}),
       ...(query.includeInactive ? {} : { isActive: true }),
     },
     orderBy: { createdAt: "asc" },
