@@ -9,6 +9,9 @@ export const createLeaseSchema = z.object({
   startDate: isoDate,
   durationMonths: z.coerce.number().int().min(1, "must be at least 1"),
   occupantCount: z.coerce.number().int().min(1, "must be at least 1"),
+  // Optional here: the service defaults it to the previous lease's closing
+  // reading, and rejects omission only when the room has no previous lease.
+  startMeterReading: z.coerce.number().int().nonnegative("must not be negative").optional(),
 });
 
 export const updateLeaseSchema = z
@@ -20,6 +23,7 @@ export const updateLeaseSchema = z
 
 export const moveOutSchema = z.object({
   moveOutDate: isoDate,
+  endMeterReading: z.coerce.number().int().nonnegative("must not be negative"),
 });
 
 export const listLeasesQuerySchema = z.object({

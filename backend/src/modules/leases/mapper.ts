@@ -35,6 +35,8 @@ interface LeaseRow {
   durationMonths: number;
   occupantCount: number;
   moveOutDate: Date | null;
+  startMeterReading: number;
+  endMeterReading: number | null;
   createdAt: Date;
   updatedAt: Date;
   occupants?: OccupantRow[];
@@ -57,6 +59,8 @@ export function toLeaseResponse(lease: LeaseRow) {
     expectedEndDate: addMonths(lease.startDate, lease.durationMonths),
     occupantCount: lease.occupantCount,
     moveOutDate: lease.moveOutDate,
+    startMeterReading: lease.startMeterReading,
+    endMeterReading: lease.endMeterReading,
     status: (lease.moveOutDate === null ? "active" : "finalized") satisfies LeaseStatus,
     tenant: primary
       ? {
