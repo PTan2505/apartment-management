@@ -17,6 +17,9 @@ export const updateRoomSchema = z
 
 export const listRoomsQuerySchema = z.object({
   buildingId: z.coerce.number().int().positive().optional(),
+  // Exact match, not a search: a code is an identifier, so filtering "10"
+  // must not return 101, 102 and 210.
+  roomCode: z.string().min(1).optional(),
   includeInactive: z
     .enum(["true", "false"])
     .optional()

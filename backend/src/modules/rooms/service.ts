@@ -51,6 +51,9 @@ export async function listRooms(query: ListRoomsQuery) {
   return prisma.room.findMany({
     where: {
       ...(query.buildingId ? { buildingId: query.buildingId } : {}),
+      // Exact equality. Without a building the same code can match one room per
+      // building, since a code identifies a room only within its building.
+      ...(query.roomCode ? { roomCode: query.roomCode } : {}),
       ...(query.includeInactive ? {} : { isActive: true }),
     },
     orderBy: { createdAt: "asc" },
