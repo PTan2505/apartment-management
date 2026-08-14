@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma.js";
+import { paginate, toSkipTake } from "@/lib/pagination.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import type {
   AddOccupantInput,
   CreateLeaseInput,
   ListLeasesQuery,
+  ListOccupantsQuery,
   UpdateLeaseInput,
 } from "./schema.js";
 
@@ -80,20 +82,27 @@ export async function createLease(input: CreateLeaseInput) {
 }
 
 export async function listLeases(query: ListLeasesQuery) {
-  return prisma.lease.findMany({
-    where: {
-      ...(query.roomId ? { roomId: query.roomId } : {}),
-      ...(query.active === undefined
-        ? {}
-        : query.active
-          ? { moveOutDate: null }
-          : { moveOutDate: { not: null } }),
-      // Matches any lease the person occupied, primary or not.
-      ...(query.customerId ? { occupants: { some: { userId: query.customerId } } } : {}),
-    },
-    include: occupantInclude,
-    orderBy: { createdAt: "asc" },
-  });
+  const where = {
+    ...(query.roomId ? { roomId: query.roomId } : {}),
+    ...(query.active === undefined
+      ? {}
+      : query.active
+        ? { moveOutDate: null }
+        : { moveOutDate: { not: null } }),
+    // Matches any lease the person occupied, primary or not.
+    ...(query.customerId ? { occupants: { some: { userId: query.customerId } } } : {}),
+  };
+
+  return paginate(
+    query,
+    prisma.lease.findMany({
+      where,
+      include: occupantInclude,
+      orderBy: { createdAt: "asc" },
+      ...toSkipTake(query),
+    }),
+    prisma.lease.count({ where }),
+  );
 }
 
 export async function getLeaseById(id: number) {
@@ -134,9 +143,20 @@ export async function recordMoveOut(id: number, moveOutDate: Date) {
   return findLeaseOrThrow(id);
 }
 
-export async function listOccupants(leaseId: number) {
-  const lease = await findLeaseOrThrow(leaseId);
-  return lease.occupants;
+export async function listOccupants(leaseId: number, query: ListOccupantsQuery) {
+  await findLeaseOrThrow(leaseId);
+  const where = { leaseId };
+
+  return paginate(
+    query,
+    prisma.leaseOccupant.findMany({
+      where,
+      include: { user: { select: { id: true, fullName: true, phone: true } } },
+      orderBy: { joinedAt: "asc" },
+      ...toSkipTake(query),
+    }),
+    prisma.leaseOccupant.count({ where }),
+  );
 }
 
 export async function addOccupant(leaseId: number, input: AddOccupantInput) {

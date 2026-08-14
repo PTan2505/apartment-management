@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma.js";
+import { paginate, toSkipTake } from "@/lib/pagination.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import { roomHasActiveLease } from "@/modules/leases/service.js";
 import type { CreateRoomInput, ListRoomsQuery, UpdateRoomInput } from "./schema.js";
@@ -48,19 +49,22 @@ export async function createRoom(input: CreateRoomInput) {
 }
 
 export async function listRooms(query: ListRoomsQuery) {
-  return prisma.room.findMany({
-    where: {
-      ...(query.buildingId ? { buildingId: query.buildingId } : {}),
-      // Partial, case-insensitive. Without a building the same code can match
-      // one room per building, since a code identifies a room only within its
-      // building.
-      ...(query.search
-        ? { roomCode: { contains: query.search, mode: "insensitive" as const } }
-        : {}),
-      ...(query.includeInactive ? {} : { isActive: true }),
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  const where = {
+    ...(query.buildingId ? { buildingId: query.buildingId } : {}),
+    // Partial, case-insensitive. Without a building the same code can match
+    // one room per building, since a code identifies a room only within its
+    // building.
+    ...(query.search
+      ? { roomCode: { contains: query.search, mode: "insensitive" as const } }
+      : {}),
+    ...(query.includeInactive ? {} : { isActive: true }),
+  };
+
+  return paginate(
+    query,
+    prisma.room.findMany({ where, orderBy: { createdAt: "asc" }, ...toSkipTake(query) }),
+    prisma.room.count({ where }),
+  );
 }
 
 export async function getRoomById(id: number) {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { paginationQueryFields } from "@/lib/pagination.js";
 
 const isoDate = z.coerce.date();
 
@@ -22,6 +23,7 @@ export const moveOutSchema = z.object({
 });
 
 export const listLeasesQuerySchema = z.object({
+  ...paginationQueryFields,
   roomId: z.coerce.number().int().positive().optional(),
   customerId: z.coerce.number().int().positive().optional(),
   active: z
@@ -43,6 +45,9 @@ export const transferPrimarySchema = z.object({
   customerId: z.coerce.number().int().positive("customerId is required"),
 });
 
+export const listOccupantsQuerySchema = z.object({ ...paginationQueryFields });
+
+export type ListOccupantsQuery = z.infer<typeof listOccupantsQuerySchema>;
 export type CreateLeaseInput = z.infer<typeof createLeaseSchema>;
 export type UpdateLeaseInput = z.infer<typeof updateLeaseSchema>;
 export type ListLeasesQuery = z.infer<typeof listLeasesQuerySchema>;
