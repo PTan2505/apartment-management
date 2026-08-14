@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma.js";
+import { paginate, toSkipTake } from "@/lib/pagination.js";
 import { ConflictError, NotFoundError } from "@/lib/errors.js";
 import type {
   ListCustomersQuery,
@@ -53,21 +54,28 @@ export async function registerCustomer(input: RegisterCustomerInput) {
 }
 
 export async function listCustomers(query: ListCustomersQuery) {
-  return prisma.user.findMany({
-    where: {
-      role: "customer",
-      ...(query.search
-        ? {
-            OR: [
-              { fullName: { contains: query.search, mode: "insensitive" as const } },
-              { phone: { contains: query.search } },
-            ],
-          }
-        : {}),
-    },
-    select: customerSelect,
-    orderBy: { createdAt: "asc" },
-  });
+  const where = {
+    role: "customer" as const,
+    ...(query.search
+      ? {
+          OR: [
+            { fullName: { contains: query.search, mode: "insensitive" as const } },
+            { phone: { contains: query.search } },
+          ],
+        }
+      : {}),
+  };
+
+  return paginate(
+    query,
+    prisma.user.findMany({
+      where,
+      select: customerSelect,
+      orderBy: { createdAt: "asc" },
+      ...toSkipTake(query),
+    }),
+    prisma.user.count({ where }),
+  );
 }
 
 export async function getCustomerById(id: number) {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { paginationQueryFields } from "@/lib/pagination.js";
 
 // Phone is optional: occupants such as children need a record but may have no
 // phone. Where present it must still be unique across all users.
@@ -15,6 +16,7 @@ export const updateCustomerSchema = z
   .partial();
 
 export const listCustomersQuerySchema = z.object({
+  ...paginationQueryFields,
   search: z.string().min(1).optional(),
 });
 

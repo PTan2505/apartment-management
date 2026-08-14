@@ -1,11 +1,13 @@
 import type { Request, Response } from "express";
 import { ValidationError } from "@/lib/errors.js";
 import { parseIdParam } from "@/lib/parse-id.js";
+import { mapPaginated } from "@/lib/pagination.js";
 import {
   createLeaseSchema,
   updateLeaseSchema,
   moveOutSchema,
   listLeasesQuerySchema,
+  listOccupantsQuerySchema,
   addOccupantSchema,
   departOccupantSchema,
   transferPrimarySchema,
@@ -30,7 +32,7 @@ export async function listLeasesHandler(req: Request, res: Response) {
   }
 
   const leases = await leaseService.listLeases(parsed.data);
-  res.status(200).json(leases.map(toLeaseResponse));
+  res.status(200).json(mapPaginated(leases, toLeaseResponse));
 }
 
 export async function getLeaseHandler(req: Request, res: Response) {
@@ -62,8 +64,16 @@ export async function moveOutHandler(req: Request, res: Response) {
 }
 
 export async function listOccupantsHandler(req: Request, res: Response) {
-  const occupants = await leaseService.listOccupants(parseIdParam(req.params.id, "Lease"));
-  res.status(200).json(occupants.map(toOccupantResponse));
+  const parsed = listOccupantsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    throw new ValidationError("Invalid query parameters", parsed.error.flatten());
+  }
+
+  const occupants = await leaseService.listOccupants(
+    parseIdParam(req.params.id, "Lease"),
+    parsed.data,
+  );
+  res.status(200).json(mapPaginated(occupants, toOccupantResponse));
 }
 
 export async function addOccupantHandler(req: Request, res: Response) {

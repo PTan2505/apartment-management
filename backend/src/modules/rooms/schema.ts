@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { paginationQueryFields } from "@/lib/pagination.js";
 
 const money = z.coerce.number().nonnegative("must not be negative");
 
@@ -16,6 +17,7 @@ export const updateRoomSchema = z
   .partial();
 
 export const listRoomsQuerySchema = z.object({
+  ...paginationQueryFields,
   buildingId: z.coerce.number().int().positive().optional(),
   // Partial, case-insensitive match on room code — a lookup affordance for
   // scanning a list, matching the `search` parameter on /customers. Not an

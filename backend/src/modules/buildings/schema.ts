@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { paginationQueryFields } from "@/lib/pagination.js";
 
 const rate = z.coerce.number().nonnegative("must not be negative");
 
@@ -19,6 +20,7 @@ export const updateBuildingSchema = z
   .partial();
 
 export const listBuildingsQuerySchema = z.object({
+  ...paginationQueryFields,
   includeInactive: z
     .enum(["true", "false"])
     .optional()

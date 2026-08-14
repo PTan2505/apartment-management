@@ -24,7 +24,7 @@ export async function listBuildingsHandler(req: Request, res: Response) {
     throw new ValidationError("Invalid query parameters", parsed.error.flatten());
   }
 
-  const buildings = await buildingService.listBuildings(parsed.data.includeInactive);
+  const buildings = await buildingService.listBuildings(parsed.data.includeInactive, parsed.data);
   res.status(200).json(buildings);
 }
 
