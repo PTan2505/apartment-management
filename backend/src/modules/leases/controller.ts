@@ -59,6 +59,7 @@ export async function moveOutHandler(req: Request, res: Response) {
   const lease = await leaseService.recordMoveOut(
     parseIdParam(req.params.id, "Lease"),
     parsed.data.moveOutDate,
+    parsed.data.endMeterReading,
   );
   res.status(200).json(toLeaseResponse(lease));
 }

@@ -78,20 +78,29 @@ model Room {
 }
 
 model Lease {
-  id             Int       @id @default(autoincrement())
-  roomId         Int
-  room           Room      @relation(fields: [roomId], references: [id])
-  startDate      DateTime
-  durationMonths Int
+  id                Int       @id @default(autoincrement())
+  roomId            Int
+  room              Room      @relation(fields: [roomId], references: [id])
+  startDate         DateTime
+  durationMonths    Int
   // Manually maintained and authoritative for billing. Deliberately NOT derived
   // from LeaseOccupant rows: an owner may know five people live in a room while
   // holding details for only two. See design.md.
-  occupantCount  Int
-  moveOutDate    DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  occupantCount     Int
+  moveOutDate       DateTime?
+  // The meter reading this tenancy starts from. Defaulted from the previous
+  // lease's endMeterReading but overridable, so electricity used while the room
+  // stood empty is not charged to the incoming tenant, and a meter replaced
+  // between tenancies is just a lower number rather than a special case.
+  startMeterReading Int
+  // Captured at move-out: closes this tenancy's electricity and becomes the
+  // default starting point for the room's next lease.
+  endMeterReading   Int?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   occupants LeaseOccupant[]
+  invoices  Invoice[]
 
   // One ACTIVE lease per room (moveOutDate IS NULL) is enforced by a partial
   // unique index added manually in the migration.
@@ -117,4 +126,61 @@ model LeaseOccupant {
   //   one active primary per lease, and no duplicate active occupant.
   @@index([leaseId])
   @@index([userId])
+}
+
+enum PaymentStatus {
+  pending
+  paid
+}
+
+enum PaymentMethod {
+  cash
+  bank_transfer
+}
+
+model Invoice {
+  id      Int   @id @default(autoincrement())
+  leaseId Int
+  lease   Lease @relation(fields: [leaseId], references: [id])
+
+  // The calendar month billed, and the days within it this tenancy occupied.
+  year        Int
+  month       Int
+  periodStart DateTime
+  periodEnd   DateTime
+
+  // Metered electricity. Never prorated — the readings already measure exactly
+  // what was consumed.
+  previousElectricityUse Int
+  currentElectricityUse  Int
+
+  // Inputs copied at issue time. The building and room specs require that
+  // changing a rate leaves issued invoices untouched.
+  electricityRate    Decimal @db.Decimal(12, 4)
+  waterRatePerPerson Decimal @db.Decimal(12, 4)
+  baseRent           Decimal @db.Decimal(12, 2)
+  occupantCount      Int
+
+  // Each charge is rounded to whole units; totalAmount is their sum, so the
+  // line items on a bill visibly add up.
+  rentAmount        Decimal @db.Decimal(14, 0)
+  electricityAmount Decimal @db.Decimal(14, 0)
+  waterAmount       Decimal @db.Decimal(14, 0)
+  totalAmount       Decimal @db.Decimal(14, 0)
+
+  paymentStatus PaymentStatus  @default(pending)
+  paymentMethod PaymentMethod?
+  // Distinct from year/month: a March bill paid in May is March's billing and
+  // May's cash. Revenue reporting needs both.
+  paidAt        DateTime?
+  // Voided invoices are retained as an audit trail, excluded from totals, and
+  // excluded from the uniqueness predicate so a replacement can be issued.
+  voidedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One non-voided invoice per lease per month is enforced by a partial unique
+  // index added manually in the migration.
+  @@index([leaseId])
 }
