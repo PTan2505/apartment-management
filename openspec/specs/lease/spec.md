@@ -5,7 +5,7 @@ Tracks rental agreements that bind people to a room for an agreed period, record
 ## Requirements
 
 ### Requirement: Owner can create a lease
-The system SHALL allow an authenticated `owner` to create a lease for an existing active room, naming an existing customer as the lease signatory and recording a start date, an agreed duration in whole months, an occupant count, and the electricity meter reading the tenancy starts from. Duration and occupant count MUST both be at least 1. Creating the lease SHALL also record the signatory as the lease's primary occupant, and the two SHALL be created together so a lease never exists without one. The starting meter reading SHALL default to the closing reading of the room's most recent finalized lease and MAY be overridden by the owner, so that electricity consumed while the room stood empty is not charged to the incoming tenant. Where the room has no previous lease, the reading MUST be supplied.
+The system SHALL allow an authenticated `owner` to create a lease for an existing active room, naming an existing customer as the lease signatory and recording a start date, an agreed duration in whole months, an occupant count, and the electricity meter reading the tenancy starts from. Duration and occupant count MUST both be at least 1. Creating the lease SHALL also record the signatory as the lease's primary occupant, and the two SHALL be created together so a lease never exists without one. The starting meter reading SHALL default to the room's latest known meter reading — the most recent of its previous lease's closing reading and any vacancy reading recorded since — and MAY be overridden by the owner, so that electricity consumed while the room stood empty is not charged to the incoming tenant. Where the room has no previous lease, the reading MUST be supplied.
 
 #### Scenario: Successful creation
 - **WHEN** an authenticated owner creates a lease for an active, unoccupied room naming an existing customer as signatory, with a valid start date, duration, occupant count, and starting meter reading
@@ -50,6 +50,10 @@ The system SHALL allow an authenticated `owner` to create a lease for an existin
 #### Scenario: Signatory has no phone number
 - **WHEN** an authenticated owner creates a lease naming a customer who has no phone number recorded
 - **THEN** the system responds with HTTP 400, because the person responsible for the agreement must be contactable
+
+#### Scenario: Default follows a vacancy reading recorded after the previous tenancy
+- **WHEN** an authenticated owner creates a lease for a room whose vacancy electricity was recorded after its previous lease ended, without supplying a starting reading
+- **THEN** the lease starts from the most recent vacancy reading rather than the previous lease's closing reading, because the owner has already paid for the consumption in between
 ### Requirement: A room has at most one active lease
 The system SHALL reject a new lease for a room that already has an active lease. Once the existing lease records a move-out, the room SHALL accept a new lease, and the previous lease SHALL be retained as history.
 
