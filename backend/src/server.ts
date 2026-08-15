@@ -12,6 +12,7 @@ import { customersRouter } from "@/modules/customers/router.js";
 import { leasesRouter } from "@/modules/leases/router.js";
 import { invoicesRouter } from "@/modules/invoices/router.js";
 import { expensesRouter } from "@/modules/expenses/router.js";
+import { reportsRouter } from "@/modules/reports/router.js";
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use("/customers", customersRouter);
 app.use("/leases", leasesRouter);
 app.use("/invoices", invoicesRouter);
 app.use("/expenses", expensesRouter);
+app.use("/reports", reportsRouter);
 
 app.use(errorHandler);
 
