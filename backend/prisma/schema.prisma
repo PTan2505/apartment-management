@@ -55,7 +55,8 @@ model Building {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  rooms Room[]
+  rooms    Room[]
+  expenses Expense[]
 }
 
 model Room {
@@ -68,7 +69,8 @@ model Room {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  leases Lease[]
+  leases   Lease[]
+  expenses Expense[]
 
   // Uniqueness of (buildingId, roomCode) among ACTIVE rooms is enforced by a
   // partial unique index added manually in the migration — Prisma's @@unique
@@ -183,4 +185,60 @@ model Invoice {
   // One non-voided invoice per lease per month is enforced by a partial unique
   // index added manually in the migration.
   @@index([leaseId])
+}
+
+enum ExpenseCategory {
+  vacancy_electricity
+  cleaning
+  repair
+  other
+}
+
+enum ExpenseOrigin {
+  system
+  manual
+}
+
+/// Which trigger produced a vacancy electricity record. Explicit rather than
+/// inferred from a null column, because the uniqueness index keys on it.
+enum VacancyReconciliation {
+  month_end
+  lease_start
+}
+
+model Expense {
+  id         Int      @id @default(autoincrement())
+  buildingId Int
+  building   Building @relation(fields: [buildingId], references: [id])
+  // Cleaning and vacancy electricity are room-level; lobby repairs are not.
+  roomId     Int?
+  room       Room?    @relation(fields: [roomId], references: [id])
+
+  category    ExpenseCategory
+  description String
+  incurredAt  DateTime
+  origin      ExpenseOrigin   @default(manual)
+
+  // Present for measured costs. When both are set the amount is computed from
+  // them, so the recorded figure can never disagree with what it came from.
+  quantity Decimal? @db.Decimal(14, 2)
+  unitRate Decimal? @db.Decimal(12, 4)
+  amount   Decimal  @db.Decimal(14, 0)
+
+  // Vacancy electricity only. The readings keep the room's meter chain
+  // unbroken between tenancies; quantity always equals their difference.
+  reconciliation  VacancyReconciliation?
+  year            Int?
+  month           Int?
+  previousReading Int?
+  currentReading  Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // A month end can be recorded only once per room, enforced by a partial
+  // unique index added manually in the migration. Turnover records are
+  // deliberately excluded: a room may be re-let more than once in a month.
+  @@index([buildingId])
+  @@index([roomId])
 }
