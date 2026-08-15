@@ -14,3 +14,6 @@ build/
 # Logs & OS
 *.log
 .DS_Store
+
+# Local-only docs (feature overview, OpenAPI spec for Postman)
+docs/
