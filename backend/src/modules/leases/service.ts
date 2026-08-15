@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma.js";
 import { paginate, toSkipTake } from "@/lib/pagination.js";
+import { findLatestKnownReading } from "@/lib/meter-history.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import type {
   AddOccupantInput,
@@ -30,32 +31,32 @@ async function findLeaseOrThrow(id: number) {
 /**
  * A lease opens from its own meter reading rather than the room's latest, so a
  * new tenant is never charged for electricity used while the room stood empty.
- * The previous tenancy's closing reading is only a default — the owner reads
- * the meter at move-in and overrides it when the room consumed anything in
- * between, or when the meter was replaced (which shows up as a lower number).
+ *
+ * The room's latest known reading is always fetched, even when the owner
+ * supplies one — the difference between the two is exactly the vacancy the
+ * owner absorbs, so returning early on a supplied value would make it
+ * uncomputable.
  */
 async function resolveStartMeterReading(roomId: number, supplied?: number) {
-  if (supplied !== undefined) {
-    return supplied;
+  const latest = await findLatestKnownReading(roomId);
+
+  if (supplied === undefined) {
+    if (latest === null) {
+      throw new ValidationError(
+        "startMeterReading is required: this room has no previous reading to fall back on",
+      );
+    }
+    return { startMeterReading: latest.reading, latestKnown: latest.reading };
   }
 
-  const previous = await prisma.lease.findFirst({
-    where: { roomId, endMeterReading: { not: null } },
-    orderBy: { moveOutDate: "desc" },
-    select: { endMeterReading: true },
-  });
-
-  if (previous?.endMeterReading === undefined || previous?.endMeterReading === null) {
-    throw new ValidationError(
-      "startMeterReading is required: this room has no previous lease to take a closing reading from",
-    );
-  }
-
-  return previous.endMeterReading;
+  return { startMeterReading: supplied, latestKnown: latest?.reading ?? null };
 }
 
 export async function createLease(input: CreateLeaseInput) {
-  const room = await prisma.room.findUnique({ where: { id: input.roomId } });
+  const room = await prisma.room.findUnique({
+    where: { id: input.roomId },
+    include: { building: true },
+  });
   if (!room) {
     throw new NotFoundError("Room not found");
   }
@@ -81,10 +82,18 @@ export async function createLease(input: CreateLeaseInput) {
     throw new ConflictError("That room already has an active lease");
   }
 
-  const startMeterReading = await resolveStartMeterReading(
+  const { startMeterReading, latestKnown } = await resolveStartMeterReading(
     input.roomId,
     input.startMeterReading,
   );
+
+  // Any advance beyond the room's last known reading happened while nobody
+  // lived there, so the owner absorbs it. A lower reading means the meter was
+  // replaced — a new baseline, not a credit.
+  const vacancyUnits =
+    latestKnown !== null && startMeterReading > latestKnown
+      ? startMeterReading - latestKnown
+      : 0;
 
   // The lease and its primary occupant are written together so a lease never
   // exists without someone responsible for it.
@@ -107,6 +116,30 @@ export async function createLease(input: CreateLeaseInput) {
         joinedAt: input.startDate,
       },
     });
+
+    // Written in the same transaction: a lease that succeeded while its
+    // vacancy cost failed would lose that cost with nothing to notice it by.
+    if (vacancyUnits > 0 && latestKnown !== null) {
+      const rate = room.building.electricityRate;
+      await tx.expense.create({
+        data: {
+          buildingId: room.buildingId,
+          roomId: room.id,
+          category: "vacancy_electricity",
+          origin: "system",
+          reconciliation: "lease_start",
+          description: `Vacancy electricity before lease start: ${vacancyUnits} kWh`,
+          incurredAt: input.startDate,
+          year: input.startDate.getUTCFullYear(),
+          month: input.startDate.getUTCMonth() + 1,
+          previousReading: latestKnown,
+          currentReading: startMeterReading,
+          quantity: vacancyUnits,
+          unitRate: rate,
+          amount: rate.mul(vacancyUnits).toDecimalPlaces(0),
+        },
+      });
+    }
 
     return created;
   });
