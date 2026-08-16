@@ -2,14 +2,26 @@ import { prisma } from "@/lib/prisma.js";
 import { paginate, toSkipTake, type PageParams } from "@/lib/pagination.js";
 import { ConflictError, NotFoundError } from "@/lib/errors.js";
 import { buildingHasActiveLease } from "@/modules/leases/service.js";
-import type { CreateBuildingInput, UpdateBuildingInput } from "./schema.js";
+import type {
+  CreateBuildingInput,
+  ListBuildingsQuery,
+  UpdateBuildingInput,
+} from "./schema.js";
 
 export async function createBuilding(input: CreateBuildingInput) {
   return prisma.building.create({ data: input });
 }
 
-export async function listBuildings(includeInactive: boolean, page: PageParams) {
-  const where = includeInactive ? {} : { isActive: true };
+export async function listBuildings(query: ListBuildingsQuery, page: PageParams) {
+  const where = {
+    ...(query.includeInactive ? {} : { isActive: true }),
+    ...(query.ward
+      ? { ward: { contains: query.ward, mode: "insensitive" as const } }
+      : {}),
+    ...(query.city
+      ? { city: { contains: query.city, mode: "insensitive" as const } }
+      : {}),
+  };
   return paginate(
     page,
     prisma.building.findMany({ where, orderBy: { createdAt: "asc" }, ...toSkipTake(page) }),
