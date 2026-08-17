@@ -15,7 +15,7 @@ This change deliberately stops short of authentication and of any domain screen.
 - Add client-side routing with a shell layout, and a **responsive application shell**: a permanently visible navigation sidebar on desktop, replaced by a dismissible drawer behind a menu button on narrow screens.
 - Add React Query as the single owner of server state, with shared defaults, plus an axios instance that all requests go through.
 - Establish the **API client contract** that every later change depends on: how the base path is resolved, how the backend's `{ status, code, message, details? }` error shape becomes a typed client-side error, and how money values are handled.
-- Add placeholder routes for the eight domains so the navigation and its responsive behavior are demonstrable and testable before any real screen exists.
+- Add placeholder routes for the seven domains so the navigation and its responsive behavior are demonstrable and testable before any real screen exists.
 
 ### The two decisions that drive everything downstream
 

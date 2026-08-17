@@ -151,7 +151,7 @@ Whether both variants are mounted with CSS visibility, or one is chosen via a `u
 
 **Tables become cards under `md`.** Not part of this change — there is no data yet — but the shell must not prevent it, so the content area imposes no fixed minimum width and no horizontal overflow of its own. Wide content scrolls inside its own container. This is why the spec requires the shell never to scroll horizontally: a single overflowing table on one screen otherwise breaks the layout of every screen.
 
-Placeholder routes for all eight domains exist so this behavior is demonstrable and verifiable now, rather than being asserted and first exercised three changes later.
+Placeholder routes for all seven domains exist so this behavior is demonstrable and verifiable now, rather than being asserted and first exercised three changes later.
 
 ### TypeScript conversion over a fresh scaffold
 
@@ -177,4 +177,4 @@ Rollback is discarding the branch; no backend, database, or published artifact i
 
 ## Open Questions
 
-- Whether the eight nav destinations should be flat or grouped (property / tenancy / money) is a presentation choice that can be made once real screens exist. It changes no requirement and no task.
+- Whether the seven nav destinations should be flat or grouped (property / tenancy / money) is a presentation choice that can be made once real screens exist. It changes no requirement and no task.
