@@ -23,8 +23,10 @@ Web-based property management portal: building owners/managers manage buildings,
 
 - Branch structure: `main` → `dev` → `feature/<change-name>` (e.g. `feature/api-auth`, `feature/api-properties`).
 - Create one feature branch per OpenSpec change, branched from `dev`.
-- Commit atomically as `tasks.md` items are completed — group related completed tasks into one commit rather than one commit per checkbox, but never bundle unrelated task groups into a single commit.
-- Full permission is granted to run git commands (branch, commit) as part of implementing OpenSpec changes. Destructive operations (force-push, reset --hard, branch deletion of non-empty branches) still require explicit confirmation.
+- **Never commit or push without being asked.** Finish the work, update `tasks.md`, report what changed, and stop there so it can be reviewed. Wait for an explicit instruction ("commit", "archive and merge", "push") before running `git commit`, `git merge`, or `git push`. An instruction covers only the action named: "commit" is not permission to push.
+- Creating and switching branches is fine without asking — it changes no history and keeps work off `dev`.
+- When a commit is requested, group related completed tasks into one commit rather than one commit per checkbox, and never bundle unrelated task groups into a single commit.
+- Destructive operations (force-push, `reset --hard`, branch deletion of non-empty branches) always require explicit confirmation.
 
 ## OpenSpec process
 

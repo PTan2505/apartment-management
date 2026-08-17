@@ -45,6 +45,19 @@ export async function refreshHandler(req: Request, res: Response) {
   res.status(200).json({ accessToken: result.accessToken });
 }
 
+export async function meHandler(req: Request, res: Response) {
+  // Identity comes from the verified token and nowhere else. Reading an id from
+  // req.params, req.query, or req.body here would let any caller read another
+  // user's account.
+  const userId = req.user?.userId;
+  if (userId === undefined) {
+    throw new UnauthorizedError("Not authenticated");
+  }
+
+  const user = await authService.getCurrentUser(userId);
+  res.status(200).json(user);
+}
+
 export async function logoutHandler(req: Request, res: Response) {
   const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
   if (refreshToken) {

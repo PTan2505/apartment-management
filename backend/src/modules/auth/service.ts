@@ -77,6 +77,35 @@ export async function refresh(rawRefreshToken: string): Promise<RefreshResult> {
   return { accessToken };
 }
 
+// Explicit selection so password material can never leak into a response by
+// being added to the model later. Mirrors `customerSelect` in the customers
+// module.
+const meSelect = {
+  id: true,
+  phone: true,
+  fullName: true,
+  role: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+export async function getCurrentUser(userId: number) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: meSelect,
+  });
+
+  // The token verified, but its subject no longer exists — the account was
+  // removed after the token was issued. That is an authentication failure, not
+  // a missing resource: the caller is nobody, so 401 rather than 404 or a 500
+  // from returning null.
+  if (!user) {
+    throw new UnauthorizedError("Account no longer exists");
+  }
+
+  return user;
+}
+
 export async function logout(rawRefreshToken: string): Promise<void> {
   const tokenHash = hashRefreshToken(rawRefreshToken);
   const record = await prisma.refreshToken.findUnique({ where: { tokenHash } });
