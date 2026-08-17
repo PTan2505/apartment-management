@@ -48,7 +48,12 @@ model RefreshToken {
 model Building {
   id                 Int      @id @default(autoincrement())
   displayName        String
+  // The street line only — house number and street. The administrative levels
+  // below are held separately so buildings can be filtered by location.
   address            String
+  ward               String
+  city               String
+  country            String   @default("Vietnam")
   electricityRate    Decimal  @db.Decimal(12, 4)
   waterRatePerPerson Decimal  @db.Decimal(12, 4)
   isActive           Boolean  @default(true)
