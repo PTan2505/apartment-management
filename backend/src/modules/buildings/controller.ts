@@ -5,6 +5,7 @@ import {
   createBuildingSchema,
   updateBuildingSchema,
   listBuildingsQuerySchema,
+  buildingLocationsQuerySchema,
 } from "./schema.js";
 import * as buildingService from "./service.js";
 
@@ -26,6 +27,18 @@ export async function listBuildingsHandler(req: Request, res: Response) {
 
   const buildings = await buildingService.listBuildings(parsed.data, parsed.data);
   res.status(200).json(buildings);
+}
+
+export async function listBuildingLocationsHandler(req: Request, res: Response) {
+  const parsed = buildingLocationsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    throw new ValidationError("Invalid query parameters", parsed.error.flatten());
+  }
+
+  const locations = await buildingService.listBuildingLocations(parsed.data);
+  // Deliberately not wrapped in the shared paginated shape: this is a bounded
+  // summary, not a listing.
+  res.status(200).json({ locations });
 }
 
 export async function getBuildingHandler(req: Request, res: Response) {
