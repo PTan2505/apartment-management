@@ -38,6 +38,17 @@ export const listBuildingsQuerySchema = z.object({
     .transform((value) => value === "true"),
 });
 
+// Deliberately the same shape as the listing filter above: a location offered
+// as a filter choice must not produce an empty result, so the two have to agree
+// on what counts as visible.
+export const buildingLocationsQuerySchema = z.object({
+  includeInactive: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
+});
+
+export type BuildingLocationsQuery = z.infer<typeof buildingLocationsQuerySchema>;
 export type CreateBuildingInput = z.infer<typeof createBuildingSchema>;
 export type UpdateBuildingInput = z.infer<typeof updateBuildingSchema>;
 export type ListBuildingsQuery = z.infer<typeof listBuildingsQuerySchema>;
