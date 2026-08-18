@@ -15,6 +15,7 @@ import MenuIcon from '@mui/icons-material/Menu'
 
 import { DESTINATIONS } from '@/app/navigation'
 import { DRAWER_WIDTH, MOBILE_BREAKPOINT } from '@/app/theme'
+import { AccountMenu } from '@/features/auth/AccountMenu'
 
 /**
  * The responsive application shell.
@@ -118,9 +119,10 @@ export function AppShell() {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="h1">
+          <Typography variant="h6" noWrap component="h1" sx={{ flexGrow: 1 }}>
             {activeDestination?.label ?? 'Apartment Management'}
           </Typography>
+          <AccountMenu />
         </Toolbar>
       </AppBar>
 

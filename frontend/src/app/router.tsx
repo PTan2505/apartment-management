@@ -4,30 +4,53 @@ import { AppShell } from '@/layouts/AppShell'
 import { DEFAULT_PATH, DESTINATIONS } from '@/app/navigation'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
+import { AuthProvider } from '@/features/auth/AuthProvider'
+import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
+import { LoginPage } from '@/features/auth/pages/LoginPage'
 
 /**
- * Every destination nests under the shell, so navigation and the not-found page
- * are always rendered within it. Domain changes replace each placeholder
- * element with that domain's real routes.
+ * Three layers, and the order matters:
+ *
+ *   AuthProvider      knows whether there is a session. A layout route rather
+ *   └── /login        than a wrapper around RouterProvider, because a data
+ *   └── ProtectedRoute  router takes no children and the provider needs
+ *        └── AppShell    useNavigate.
+ *             └── …
+ *
+ * /login sits outside AppShell: a sign-in screen with a navigation sidebar to
+ * pages you cannot reach is nonsense. ProtectedRoute sits above AppShell so the
+ * shell never paints for a visitor who is about to be redirected.
  */
 export const router = createBrowserRouter([
   {
-    path: '/',
-    element: <AppShell />,
+    element: <AuthProvider />,
     children: [
-      { index: true, element: <Navigate to={DEFAULT_PATH} replace /> },
+      { path: '/login', element: <LoginPage /> },
 
-      ...DESTINATIONS.map((destination) => ({
-        path: destination.path.replace(/^\//, ''),
-        element: (
-          <PlaceholderPage
-            title={destination.label}
-            providedBy={destination.providedBy}
-          />
-        ),
-      })),
+      {
+        path: '/',
+        element: <ProtectedRoute />,
+        children: [
+          {
+            element: <AppShell />,
+            children: [
+              { index: true, element: <Navigate to={DEFAULT_PATH} replace /> },
 
-      { path: '*', element: <NotFoundPage /> },
+              ...DESTINATIONS.map((destination) => ({
+                path: destination.path.replace(/^\//, ''),
+                element: (
+                  <PlaceholderPage
+                    title={destination.label}
+                    providedBy={destination.providedBy}
+                  />
+                ),
+              })),
+
+              { path: '*', element: <NotFoundPage /> },
+            ],
+          },
+        ],
+      },
     ],
   },
 ])
