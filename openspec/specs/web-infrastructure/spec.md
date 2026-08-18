@@ -73,6 +73,8 @@ The API transports them as numbers, so the application SHALL rely on that rather
 
 Identifiers, room codes, phone numbers, and any other digit-bearing text SHALL remain text, because coercing them would corrupt values whose leading zeros or length are significant.
 
+Displaying a monetary value SHALL NOT change it. Values are recorded at differing precisions — whole-unit amounts and fractional rates — and a single display rule cannot be correct for both: rounding applied to an amount is harmless, while the same rounding applied to a rate shows a value that was never entered. Formatting SHALL therefore preserve the precision the value carries.
+
 #### Scenario: A monetary value is a number in application code
 
 - **WHEN** application code reads a monetary field from an API response
@@ -97,6 +99,11 @@ Identifiers, room codes, phone numbers, and any other digit-bearing text SHALL r
 
 - **WHEN** a monetary value is shown to the user
 - **THEN** it is formatted as currency for presentation, and that formatting does not alter the underlying value used for arithmetic or ordering
+
+#### Scenario: A fractional value is not rounded away by display
+
+- **WHEN** a monetary value carrying a fractional part is displayed
+- **THEN** the displayed figure represents that value including its fraction, rather than a rounded figure the user never entered
 
 ### Requirement: The application shell adapts its navigation to viewport width
 
