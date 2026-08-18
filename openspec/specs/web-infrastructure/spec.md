@@ -67,9 +67,11 @@ Because a proxy stands between the browser and the API, a request that fails to 
 
 ### Requirement: Monetary values are numbers before any screen uses them
 
-The backend transports monetary values as strings. The application SHALL convert them to numbers at the boundary between the API client and application code, so that no screen performs arithmetic, comparison, or sorting on a monetary string.
+Monetary values SHALL be numbers wherever application code reads them, so that no screen performs arithmetic, comparison, or sorting on a monetary string.
 
-Conversion SHALL be applied only to values that are monetary. Identifiers, room codes, phone numbers, and any other digit-bearing text SHALL be left as text, because coercing them would corrupt values whose leading zeros or length are significant.
+The API transports them as numbers, so the application SHALL rely on that rather than converting them itself. A client-side conversion step would be a second place for the rule to be applied inconsistently, and would silently mask the API regressing.
+
+Identifiers, room codes, phone numbers, and any other digit-bearing text SHALL remain text, because coercing them would corrupt values whose leading zeros or length are significant.
 
 #### Scenario: A monetary value is a number in application code
 
@@ -89,7 +91,12 @@ Conversion SHALL be applied only to values that are monetary. Identifiers, room 
 #### Scenario: An absent monetary value survives conversion
 
 - **WHEN** a monetary field is absent or null in an API response
-- **THEN** it remains absent or null rather than becoming zero or a non-numeric value
+- **THEN** application code reads it as absent or null rather than as zero
+
+#### Scenario: Amounts are formatted for display without being reinterpreted
+
+- **WHEN** a monetary value is shown to the user
+- **THEN** it is formatted as currency for presentation, and that formatting does not alter the underlying value used for arithmetic or ordering
 
 ### Requirement: The application shell adapts its navigation to viewport width
 
