@@ -1,5 +1,10 @@
-import axios, { AxiosError } from 'axios'
+import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { ApiError, type ApiErrorCode } from '@/lib/api-error'
+import {
+  clearAccessToken,
+  getAccessToken,
+  setAccessToken,
+} from '@/features/auth/token-store'
 
 /**
  * The single HTTP instance every API request goes through.
@@ -99,7 +104,29 @@ export function normalizeError(error: unknown): ApiError {
       })
     }
 
-    // Case 2: a response we did not expect. Keep the status — it is still the
+    // Case 2a: the request never reached the application.
+    //
+    // A proxy sits between the browser and the backend, so "the backend is
+    // down" does not arrive as a network error — the proxy answers instead,
+    // with 502 and an empty body. Classifying that as a server rejection would
+    // tell the user their session had ended whenever the backend was simply
+    // not running, which is the exact confusion `kind` exists to prevent.
+    //
+    // A genuine backend fault is distinguishable: it carries the backend's own
+    // JSON error body and is handled by case 1 above. Only a gateway status
+    // *without* that body means nothing was reached.
+    const GATEWAY_STATUSES = [502, 503, 504]
+    if (GATEWAY_STATUSES.includes(response.status)) {
+      return new ApiError({
+        kind: 'transport',
+        status: response.status,
+        code: 'NETWORK_ERROR',
+        message:
+          'Could not reach the server. Check your connection and that the backend is running.',
+      })
+    }
+
+    // Case 2b: a response we did not expect. Keep the status — it is still the
     // most useful thing we know — and do not propagate a raw HTML body as a
     // user-facing message.
     return new ApiError({
@@ -119,9 +146,83 @@ export function normalizeError(error: unknown): ApiError {
   })
 }
 
-// Every rejection leaves the client as an ApiError, so no screen ever sees an
-// AxiosError.
+/* ─── Authentication ────────────────────────────────────────────────────────
+ *
+ * The access token is attached here, and an expired one is renewed here, so no
+ * screen ever thinks about either.
+ *
+ * This lives in the client rather than in features/auth because it must run
+ * *before* error normalization: once a failure has become an ApiError it no
+ * longer carries the axios config, and the original request cannot be retried.
+ * Axios runs response interceptors in registration order, so this one has to be
+ * the same one.
+ *
+ * The refresh call is issued inline instead of importing features/auth/api,
+ * which would import this module back.
+ */
+
+const REFRESH_PATH = '/auth/refresh'
+
+/** Marks a request that has already been retried after a renewal. */
+interface RetryableConfig extends InternalAxiosRequestConfig {
+  _retriedAfterRenewal?: boolean
+}
+
+/**
+ * Called when a session ends because renewal failed — not when the user signs
+ * out deliberately. The distinction is what lets the sign-in screen explain
+ * itself in one case and stay quiet in the other.
+ */
+let onSessionExpired: (() => void) | null = null
+
+export function setOnSessionExpired(handler: (() => void) | null): void {
+  onSessionExpired = handler
+}
+
+apiClient.interceptors.request.use((config) => {
+  const token = getAccessToken()
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
 apiClient.interceptors.response.use(
   (response) => response,
-  (error: unknown) => Promise.reject(normalizeError(error)),
+  async (error: unknown) => {
+    if (!axios.isAxiosError(error) || !error.response || !error.config) {
+      return Promise.reject(normalizeError(error))
+    }
+
+    const config = error.config as RetryableConfig
+    const isRefreshCall = config.url?.endsWith(REFRESH_PATH) ?? false
+
+    // Two guards, both load-bearing. Dropping either produces an unbounded
+    // renewal cycle that presents as a hung page:
+    //   - a retried request must not be retried again
+    //   - the renewal call must not itself trigger a renewal
+    const renewable =
+      error.response.status === 401 && !config._retriedAfterRenewal && !isRefreshCall
+
+    if (!renewable) {
+      return Promise.reject(normalizeError(error))
+    }
+
+    try {
+      // Bare axios, not apiClient: this must not pass back through the
+      // interceptor chain. withCredentials carries the refresh cookie.
+      const { data } = await axios.post<{ accessToken: string }>(
+        `${apiClient.defaults.baseURL}${REFRESH_PATH}`,
+        undefined,
+        { withCredentials: true },
+      )
+      setAccessToken(data.accessToken)
+
+      config._retriedAfterRenewal = true
+      return await apiClient(config)
+    } catch {
+      // Renewal failed, so the session is genuinely over.
+      clearAccessToken()
+      onSessionExpired?.()
+      return Promise.reject(normalizeError(error))
+    }
+  },
 )
