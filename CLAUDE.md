@@ -6,6 +6,7 @@ Web-based property management portal: building owners/managers manage buildings,
 
 - **API-first**: design and build the backend REST API, database schema, and business services completely before touching frontend UI. Do not start frontend work until told otherwise.
 - Work proceeds as a sequence of OpenSpec changes in backend-dependency order: `api-core-setup` → `api-auth-module` → `api-property-room` → `api-lease-management` → `api-billing-operations` → `api-revenue-reports`.
+- **Fix data-shape problems at the source.** When the frontend needs data in a different shape than the API provides, first ask whether the API should provide it that way — we own both sides, so an API-shaped problem gets an API-shaped fix. A frontend adapter is the right answer only when the API's shape is deliberate and the frontend's need is genuinely local. The warning sign is writing a helper, a convention, and a cautionary comment to defend every future caller against a shape: that much scaffolding usually means the shape itself is wrong.
 
 ## Backend architecture
 
