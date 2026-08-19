@@ -16,6 +16,10 @@ export type ApiErrorCode =
   | 'NOT_FOUND'
   | 'CONFLICT'
   | 'INTERNAL_SERVER_ERROR'
+  /** An optional feature is not set up on this deployment. */
+  | 'NOT_CONFIGURED'
+  /** A service the API depends on did not answer usefully. */
+  | 'UPSTREAM_UNAVAILABLE'
   /** Assigned by the client when the request never got an answer. */
   | 'NETWORK_ERROR'
   /** Assigned by the client when a response did not match the backend shape. */

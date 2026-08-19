@@ -15,6 +15,8 @@ export interface Building {
   ward: string
   city: string
   country: string
+  /** The place the address was resolved from; null when typed by hand. */
+  placeId: string | null
   electricityRate: number
   waterRatePerPerson: number
   isActive: boolean

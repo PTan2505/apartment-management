@@ -13,8 +13,15 @@ import TextField from '@mui/material/TextField'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
 
+import Box from '@mui/material/Box'
+import Link from '@mui/material/Link'
+import Typography from '@mui/material/Typography'
+
 import { isApiError } from '@/lib/api-error'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
+import { AddressCandidates } from '@/features/addresses/AddressCandidates'
+import { useAddressLookupAvailable } from '@/features/addresses/hooks'
+import { resolveAddress } from '@/features/addresses/api'
 import {
   buildingFormSchema,
   type BuildingFormOutput,
@@ -40,6 +47,7 @@ const EMPTY: BuildingFormValues = {
   country: 'Vietnam',
   electricityRate: 0,
   waterRatePerPerson: 0,
+  placeId: null,
 }
 
 export function BuildingFormDialog({
@@ -60,22 +68,106 @@ export function BuildingFormDialog({
   const isEdit = building !== null
   const isSubmitting = createMutation.isPending || updateMutation.isPending
 
+  /**
+   * Whether the address fields describe a place that was chosen.
+   *
+   * Unlocked is the default and the fallback: hand entry always works, which is
+   * what keeps an optional, sometimes-wrong, sometimes-absent lookup from being
+   * a prerequisite for creating a building.
+   */
+  const [locked, setLocked] = useState(false)
+  const [resolveError, setResolveError] = useState<string | null>(null)
+  const [isResolving, setIsResolving] = useState(false)
+
+  const lookup = useAddressLookupAvailable()
+
+
+  /**
+   * Groups a run of searches with the resolution that follows, so the provider
+   * bills one session per address rather than one per keystroke. Regenerated
+   * each time the dialog opens, since that is one address entry.
+   */
+  const [sessionToken, setSessionToken] = useState(() => crypto.randomUUID())
+
   const {
     register,
     handleSubmit,
     reset,
     setError,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<BuildingFormValues>({
     resolver: zodResolver(buildingFormSchema),
     defaultValues: EMPTY,
   })
 
+  // The street address field is the search. Its value updates the form on every
+  // keystroke — so a fast submit is never missing what was typed — while only
+  // the *lookup* waits for typing to settle.
+  const addressValue = watch('address') ?? ''
+  const [searchTerm, setSearchTerm] = useState('')
+  useEffect(() => {
+    if (locked) return
+    const timer = setTimeout(() => setSearchTerm(addressValue), 350)
+    return () => clearTimeout(timer)
+  }, [addressValue, locked])
+
+  /**
+   * MUI floats a label only when it believes the field has content, and it does
+   * not know about a value written by `setValue`. Without this the label sits
+   * on top of the filled text.
+   */
+  const shrink = (name: 'address' | 'ward' | 'city' | 'country') =>
+    Boolean(watch(name)) || undefined
+
+  /**
+   * Unlocking drops the recorded place: `placeId` claims these values came from
+   * it, and once they can be edited that claim no longer holds.
+   */
+  function unlockAddress() {
+    setValue('placeId', null)
+    setResolveError(null)
+    setLocked(false)
+    // Editing resumes from what is there; do not re-search it unprompted.
+    setSearchTerm('')
+  }
+
+  async function handleChooseAddress(candidate: { placeId: string }) {
+    setResolveError(null)
+    setIsResolving(true)
+    try {
+      const address = await resolveAddress(candidate.placeId, sessionToken)
+      // These are what will be saved, and the next state shows them — the owner
+      // sees the values rather than only the description they picked.
+      setValue('address', address.address, { shouldValidate: true })
+      setValue('ward', address.ward, { shouldValidate: true })
+      setValue('city', address.city, { shouldValidate: true })
+      setValue('country', address.country, { shouldValidate: true })
+      setValue('placeId', address.placeId)
+      setLocked(true)
+      // Stop the newly filled street from immediately searching for itself.
+      setSearchTerm('')
+    } catch (error) {
+      // Resolving failed after the place was chosen. Manual entry is the way
+      // through, so say so rather than leaving a search that led nowhere.
+      setResolveError(
+        isApiError(error)
+          ? `${error.message} You can enter the address manually.`
+          : 'Could not load that address. You can enter it manually.',
+      )
+    } finally {
+      setIsResolving(false)
+    }
+  }
+
   // Refill whenever the dialog opens, so editing one building then another does
   // not show the previous one's values.
   useEffect(() => {
     if (!open) return
     setFormError(null)
+    setResolveError(null)
+    setSessionToken(crypto.randomUUID())
     reset(
       building
         ? {
@@ -86,9 +178,14 @@ export function BuildingFormDialog({
             country: building.country,
             electricityRate: building.electricityRate,
             waterRatePerPerson: building.waterRatePerPerson,
+            placeId: building.placeId,
           }
         : EMPTY,
     )
+    // Always unlocked on open. An existing building's address is editable
+    // whether or not it was once resolved: it is recorded data now, and the
+    // useful action on it is correction.
+    setLocked(false)
   }, [open, building, reset])
 
   async function onSubmit(values: BuildingFormValues) {
@@ -148,18 +245,74 @@ export function BuildingFormDialog({
             helperText={errors.displayName?.message}
             {...register('displayName')}
           />
-          <TextField
-            label="Street address"
-            fullWidth
-            helperText={errors.address?.message ?? 'House number and street only'}
-            error={Boolean(errors.address)}
-            {...register('address')}
-          />
+          {/* ── Address ──────────────────────────────────────────────────
+              The street address field is also the search: typing an address
+              looks for it, and choosing a suggestion fills the ward, city and
+              country beneath. All four stay visible and are editable by
+              default, so a building can always be entered by hand — lookup is
+              optional and its data is incomplete.
+
+              Choosing a place locks the four, since they then describe that
+              place. Unlocking discards the recorded place, because the values
+              may no longer be the ones it supplied. */}
+          {lookup.notConfigured && (
+            <Alert severity="info">
+              Address lookup is not configured on this server. Type the address
+              below.
+            </Alert>
+          )}
+
+          {isResolving && (
+            <Alert severity="info" icon={<CircularProgress size={16} />}>
+              Loading the chosen address…
+            </Alert>
+          )}
+
+          {resolveError && <Alert severity="warning">{resolveError}</Alert>}
+
+          {locked && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                Address filled from the place you chose.
+              </Typography>
+              <Link component="button" type="button" variant="body2" onClick={unlockAddress}>
+                Edit manually
+              </Link>
+            </Box>
+          )}
+
+          <Box>
+            <TextField
+              label="Street address"
+              fullWidth
+              error={Boolean(errors.address)}
+              helperText={
+                errors.address?.message ??
+                (lookup.available && !locked
+                  ? 'Start typing to search, or enter it yourself'
+                  : 'House number and street only')
+              }
+              slotProps={{
+                input: { readOnly: locked },
+                inputLabel: { shrink: shrink('address') },
+              }}
+              {...register('address')}
+            />
+            {lookup.available && !locked && (
+              <AddressCandidates
+                term={searchTerm}
+                sessionToken={sessionToken}
+                onChoose={handleChooseAddress}
+              />
+            )}
+          </Box>
+
           <TextField
             label="Ward"
             fullWidth
             error={Boolean(errors.ward)}
             helperText={errors.ward?.message}
+            slotProps={{ input: { readOnly: locked }, inputLabel: { shrink: shrink('ward') } }}
             {...register('ward')}
           />
           <TextField
@@ -167,6 +320,7 @@ export function BuildingFormDialog({
             fullWidth
             error={Boolean(errors.city)}
             helperText={errors.city?.message}
+            slotProps={{ input: { readOnly: locked }, inputLabel: { shrink: shrink('city') } }}
             {...register('city')}
           />
           <TextField
@@ -174,8 +328,10 @@ export function BuildingFormDialog({
             fullWidth
             error={Boolean(errors.country)}
             helperText={errors.country?.message}
+            slotProps={{ input: { readOnly: locked }, inputLabel: { shrink: shrink('country') } }}
             {...register('country')}
           />
+
           <TextField
             label="Electricity rate"
             type="number"
