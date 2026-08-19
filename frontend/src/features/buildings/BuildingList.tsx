@@ -10,8 +10,10 @@ import TableContainer from '@mui/material/TableContainer'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import Typography from '@mui/material/Typography'
+import Link from '@mui/material/Link'
+import { Link as RouterLink } from 'react-router'
 
-import { formatRate } from '@/lib/format'
+import { formatMoney } from '@/lib/format'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
 import { BuildingRowActions } from '@/features/buildings/BuildingRowActions'
 import type { Building } from '@/features/buildings/types'
@@ -27,13 +29,13 @@ function RetiredChip() {
   return <Chip label="Retired" size="small" color="default" variant="outlined" />
 }
 
-/** Rates use formatRate, never formatMoney: they are fractional. */
+/** One formatter: it shows a rate's fraction and leaves a whole value whole. */
 function Rates({ building }: { building: Building }) {
   return (
     <>
-      <Typography variant="body2">⚡ {formatRate(building.electricityRate)} / kWh</Typography>
+      <Typography variant="body2">⚡ {formatMoney(building.electricityRate)} / kWh</Typography>
       <Typography variant="body2" color="text.secondary">
-        💧 {formatRate(building.waterRatePerPerson)} / person
+        💧 {formatMoney(building.waterRatePerPerson)} / person
       </Typography>
     </>
   )
@@ -78,9 +80,15 @@ export function BuildingList({ buildings, onEdit, onRetire, onRestore }: Buildin
             {buildings.map((building) => (
               <TableRow key={building.id} hover>
                 <TableCell>
-                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {/* The way into a building's own page, and thereby its rooms. */}
+                  <Link
+                    component={RouterLink}
+                    to={`/buildings/${building.id}`}
+                    variant="body2"
+                    sx={{ fontWeight: 500 }}
+                  >
                     {building.displayName}
-                  </Typography>
+                  </Link>
                   <Typography variant="body2" color="text.secondary">
                     {building.address}
                   </Typography>
@@ -115,9 +123,14 @@ export function BuildingList({ buildings, onEdit, onRetire, onRestore }: Buildin
             <CardContent sx={{ pb: 1.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
                 <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                  <Link
+                    component={RouterLink}
+                    to={`/buildings/${building.id}`}
+                    variant="subtitle1"
+                    sx={{ fontWeight: 500 }}
+                  >
                     {building.displayName}
-                  </Typography>
+                  </Link>
                   <Typography variant="body2" color="text.secondary">
                     {building.address}
                   </Typography>

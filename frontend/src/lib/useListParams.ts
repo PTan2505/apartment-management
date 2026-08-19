@@ -44,9 +44,23 @@ export interface ListParams<F extends Record<string, string | undefined>> {
   hasFilters: boolean
 }
 
+/**
+ * Filters whose changes should replace the current history entry rather than
+ * push a new one.
+ *
+ * A dropdown pushes: choosing a city is a step, and back should undo it. A
+ * search field must not, or typing five characters leaves five entries and back
+ * removes one character at a time instead of leaving the search.
+ */
+export interface ListParamsOptions<F> {
+  replaceKeys?: readonly (keyof F & string)[]
+}
+
 export function useListParams<F extends Record<string, string | undefined>>(
   filterKeys: readonly (keyof F & string)[],
+  options: ListParamsOptions<F> = {},
 ): ListParams<F> {
+  const replaceKeys = options.replaceKeys ?? []
   const [searchParams, setSearchParams] = useSearchParams()
 
   const filters = useMemo(() => {
@@ -67,19 +81,28 @@ export function useListParams<F extends Record<string, string | undefined>>(
 
   const setFilters = useCallback(
     (values: Partial<Record<keyof F & string, string | undefined>>) => {
-      setSearchParams((current) => {
-        const next = new URLSearchParams(current)
-        for (const [key, value] of Object.entries(values)) {
-          if (value === undefined || value === '') next.delete(key)
-          else next.set(key, value)
-        }
-        // See the note above: a narrowed result set can be shorter than the
-        // page being viewed.
-        next.delete(PAGE_PARAM)
-        return next
-      })
+      const changed = Object.keys(values) as (keyof F & string)[]
+      // Replace only when every key in this update is one that replaces —
+      // a mixed update is a real step and should be undoable.
+      const replace =
+        changed.length > 0 && changed.every((key) => replaceKeys.includes(key))
+
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current)
+          for (const [key, value] of Object.entries(values)) {
+            if (value === undefined || value === '') next.delete(key)
+            else next.set(key, value)
+          }
+          // See the note above: a narrowed result set can be shorter than the
+          // page being viewed.
+          next.delete(PAGE_PARAM)
+          return next
+        },
+        { replace },
+      )
     },
-    [setSearchParams],
+    [setSearchParams, replaceKeys],
   )
 
   const setFilter = useCallback(

@@ -18,6 +18,14 @@ export function useBuildings(params: ListBuildingsParams) {
   })
 }
 
+export function useBuilding(id: number) {
+  return useQuery({
+    queryKey: [...BUILDINGS_KEY, 'detail', id],
+    queryFn: () => buildingsApi.getBuilding(id),
+    retry: false,
+  })
+}
+
 export function useBuildingLocations(includeInactive: boolean) {
   return useQuery({
     queryKey: [...BUILDINGS_KEY, 'locations', includeInactive],

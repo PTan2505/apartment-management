@@ -5,52 +5,44 @@
  * numbers already (the backend serialises its Decimal columns that way), so
  * nothing here converts anything — it only renders a number for a human.
  *
- * ── Why there are two money formatters ──────────────────────────────────────
+ * ── Why there is one money formatter and not two ────────────────────────────
  *
- * Amounts and rates are stored at different precisions, and one rounding rule
- * cannot be right for both:
+ * There were briefly two, split on the theory that amounts are whole and rates
+ * fractional. Measured against every value this system stores, the two agree
+ * everywhere except where the amount formatter rounds — and every one of those
+ * cases is wrong:
  *
- *     amounts   Decimal(14,0)   always whole      3.000.000 ₫
- *     rates     Decimal(12,4)   often fractional  3.500,5 ₫
+ *     3.000.000    →  3.000.000 ₫    3.000.000 ₫     same
+ *     25.000       →  25.000 ₫       25.000 ₫        same
+ *     3500,5       →  3.501 ₫        3.500,5 ₫       one of these is wrong
+ *     3.000.000,5  →  3.000.001 ₫    3.000.000,5 ₫   one of these is wrong
  *
- * Rounding an amount is harmless because it has nothing to round. Rounding a
- * rate shows a figure the owner never entered — `formatMoney(3500.5)` renders
- * `3.501 ₫`, a different number, with nothing to signal it.
+ * Rent settled it: `baseRent` is stored to two decimal places, so it is neither
+ * an amount nor a rate under that split. The distinction does not exist. What
+ * does exist is a value's own precision, and showing it is always correct.
  *
- * The alternative was one function with an optional `decimals` argument. That
- * was rejected because its default would stay lossy: any call site that forgot
- * the argument would silently round a rate, which is the exact defect these two
- * names exist to prevent. Pick by name, not by remembering an option.
+ * So: one function, showing decimals when the value carries them. Correct for
+ * invoice totals, rents, rates, and unit prices alike. Do not reintroduce a
+ * rounding variant — its default would be lossy, and a call site that forgot to
+ * opt out would silently show a figure nobody entered.
  */
 
-const DONG = { style: 'currency', currency: 'VND' } as const
+/** Matches the four decimal places the API records rates at, so nothing is lost. */
+const MAX_FRACTION_DIGITS = 4
 
 /**
- * Formats a whole-unit amount — an invoice total, a rent, an expense.
+ * Formats a monetary value as Vietnamese dong.
  *
- * Do not use for rates: see the note above.
+ * A whole value is shown whole; a fractional one keeps its fraction. Absent
+ * values render as a dash rather than zero — an unrecorded amount and a zero
+ * amount are different things.
  */
 export function formatMoney(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—'
   return new Intl.NumberFormat('vi-VN', {
-    ...DONG,
-    maximumFractionDigits: 0,
-  }).format(value)
-}
-
-/**
- * Formats a rate or unit price, keeping any fractional part.
- *
- * A whole rate is shown without a fractional part rather than padded to
- * `3.500,0000` — the precision shown follows the value, not the column.
- */
-export function formatRate(value: number | null | undefined): string {
-  if (value === null || value === undefined) return '—'
-  return new Intl.NumberFormat('vi-VN', {
-    ...DONG,
+    style: 'currency',
+    currency: 'VND',
     minimumFractionDigits: 0,
-    // Matches the Decimal(12,4) the API records rates at, so no stored
-    // precision is lost on the way to the screen.
-    maximumFractionDigits: 4,
+    maximumFractionDigits: MAX_FRACTION_DIGITS,
   }).format(value)
 }
