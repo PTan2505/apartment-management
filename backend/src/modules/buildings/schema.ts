@@ -13,6 +13,10 @@ export const createBuildingSchema = z.object({
   country: z.string().min(1).default("Vietnam"),
   electricityRate: rate,
   waterRatePerPerson: rate,
+  // Where the address was resolved from. Optional: an address may be typed by
+  // hand, and then no such place exists. Recording it makes a future
+  // re-resolution possible without re-entering the address from memory.
+  placeId: z.string().min(1).optional(),
 });
 
 export const updateBuildingSchema = z
@@ -24,6 +28,10 @@ export const updateBuildingSchema = z
     country: z.string().min(1),
     electricityRate: rate,
     waterRatePerPerson: rate,
+    // Nullable as well as optional: clearing it is meaningful. After an address
+    // is corrected by hand, leaving the identifier would claim the address came
+    // from a place it no longer matches.
+    placeId: z.string().min(1).nullable(),
   })
   .partial();
 

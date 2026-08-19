@@ -54,6 +54,12 @@ model Building {
   ward               String
   city               String
   country            String   @default("Vietnam")
+  // The address provider's identifier for the place this address was resolved
+  // from. Null means the address was typed by hand — which is also the right
+  // state after someone corrects one, since a stale identifier would claim the
+  // address came from a place it no longer matches. Deliberately not a foreign
+  // key and not validated: a note about provenance, not a reference.
+  placeId            String?
   electricityRate    Decimal  @db.Decimal(12, 4)
   waterRatePerPerson Decimal  @db.Decimal(12, 4)
   isActive           Boolean  @default(true)

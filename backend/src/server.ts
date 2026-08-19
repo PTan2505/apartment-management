@@ -13,6 +13,7 @@ import { leasesRouter } from "@/modules/leases/router.js";
 import { invoicesRouter } from "@/modules/invoices/router.js";
 import { expensesRouter } from "@/modules/expenses/router.js";
 import { reportsRouter } from "@/modules/reports/router.js";
+import { addressesRouter } from "@/modules/addresses/router.js";
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use("/leases", leasesRouter);
 app.use("/invoices", invoicesRouter);
 app.use("/expenses", expensesRouter);
 app.use("/reports", reportsRouter);
+app.use("/addresses", addressesRouter);
 
 app.use(errorHandler);
 

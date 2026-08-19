@@ -34,3 +34,28 @@ export class ConflictError extends AppError {
   readonly status = 409;
   readonly code = "CONFLICT";
 }
+
+/**
+ * An optional feature is not set up on this deployment.
+ *
+ * Distinct from a fault: nothing is broken and the caller did nothing wrong —
+ * the capability simply was not configured. 503 rather than 500 so it does not
+ * read as an unexpected failure.
+ */
+export class NotConfiguredError extends AppError {
+  readonly status = 503;
+  readonly code = "NOT_CONFIGURED";
+}
+
+/**
+ * A service this endpoint depends on did not answer usefully.
+ *
+ * Deliberately NOT reported as the caller being unauthenticated, even when the
+ * upstream rejected *our* credentials: the caller is fine, our own credential is
+ * not, and a 401 would send a signed-in user to a login screen for a fault they
+ * cannot fix.
+ */
+export class UpstreamUnavailableError extends AppError {
+  readonly status = 502;
+  readonly code = "UPSTREAM_UNAVAILABLE";
+}
