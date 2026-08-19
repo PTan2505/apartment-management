@@ -8,6 +8,8 @@ import { AuthProvider } from '@/features/auth/AuthProvider'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { BuildingsPage } from '@/features/buildings/BuildingsPage'
+import { BuildingDetailPage } from '@/features/buildings/BuildingDetailPage'
+import { RoomsPage } from '@/features/rooms/RoomsPage'
 
 /**
  * Three layers, and the order matters:
@@ -38,10 +40,14 @@ export const router = createBrowserRouter([
               { index: true, element: <Navigate to={DEFAULT_PATH} replace /> },
 
               { path: 'buildings', element: <BuildingsPage /> },
+              { path: 'buildings/:id', element: <BuildingDetailPage /> },
+              { path: 'rooms', element: <RoomsPage /> },
 
               // The remaining destinations are still placeholders; each is
               // replaced by its own change.
-              ...DESTINATIONS.filter((destination) => destination.path !== '/buildings').map(
+              ...DESTINATIONS.filter(
+                (destination) => !['/buildings', '/rooms'].includes(destination.path),
+              ).map(
                 (destination) => ({
                   path: destination.path.replace(/^\//, ''),
                   element: (

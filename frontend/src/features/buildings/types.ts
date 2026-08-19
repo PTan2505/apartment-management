@@ -4,8 +4,8 @@ import type { PageMeta } from '@/components/Pagination'
  * Money is `number`, not `string`: the backend serialises its Decimal columns
  * as JSON numbers (see api-money-as-numbers), so nothing converts here.
  *
- * `electricityRate` and `waterRatePerPerson` are rates and can be fractional —
- * display them with `formatRate`, not `formatMoney`.
+ * `electricityRate` and `waterRatePerPerson` can be fractional; `formatMoney`
+ * shows a value's own precision, so nothing is rounded away.
  */
 export interface Building {
   id: number

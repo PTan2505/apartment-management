@@ -58,6 +58,11 @@ export async function listBuildingLocations(
  * Updating: null is a value — it clears a place recorded earlier, which is what
  * correcting an address by hand has to do.
  */
+export async function getBuilding(id: number): Promise<Building> {
+  const { data } = await apiClient.get<Building>(`/buildings/${id}`)
+  return data
+}
+
 export async function createBuilding(input: BuildingFormOutput): Promise<Building> {
   const { placeId, ...rest } = input
   const body = placeId ? { ...rest, placeId } : rest
