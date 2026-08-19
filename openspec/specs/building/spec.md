@@ -7,6 +7,10 @@ Lets an owner define and maintain the apartment buildings they manage, including
 ### Requirement: Owner can create a building
 The system SHALL allow an authenticated `owner` to create a building with a display name, a street address, a ward, a city, an electricity rate per kWh, and a water rate per person. Rate values MUST NOT be negative. The country SHALL default to Vietnam when not supplied. Ward and city are required, because a building missing either could not be found by the filters that exist to locate it.
 
+A building MAY additionally record the identifier of the place its address was resolved from. It is optional, because an address may be typed by hand and then no such place exists. It is recorded so an address resolved today can be resolved again later — for instance after administrative boundaries change again — without the address having to be re-entered from memory.
+
+Recording that identifier SHALL NOT change how the address itself is validated. The address, ward, and city are the record; the identifier only says where they came from.
+
 #### Scenario: Successful creation
 - **WHEN** an authenticated owner submits a valid display name, address, electricity rate, and water rate
 - **THEN** the system creates the building as active and responds with HTTP 201 and the created building
@@ -34,6 +38,14 @@ The system SHALL allow an authenticated `owner` to create a building with a disp
 #### Scenario: Address holds the street line only
 - **WHEN** an authenticated owner creates a building
 - **THEN** the address records the house number and street, with the ward, city, and country held separately rather than repeated inside it
+
+#### Scenario: Creating with a resolved place identifier
+- **WHEN** an authenticated owner creates a building supplying the identifier of the place its address was resolved from
+- **THEN** the building records that identifier and reports it on the created building
+
+#### Scenario: Creating without a resolved place identifier
+- **WHEN** an authenticated owner creates a building without supplying such an identifier
+- **THEN** the building is created and records no identifier, indicating an address that was not resolved from a place
 
 ### Requirement: Owner can list and retrieve buildings
 The system SHALL allow an authenticated `owner` to list buildings, filter them by ward and by city, and retrieve a single building by id. Listing SHALL return only active buildings unless retired buildings are explicitly requested. The ward and city filters SHALL match any building whose value contains the given text, SHALL ignore case, and SHALL be combinable with each other and with the other filters. Listing SHALL be paginated using the shared paginated response contract, so the response carries a `data` array and a `meta` object describing the page and totals rather than a bare array.
@@ -85,6 +97,8 @@ The system SHALL allow an authenticated `owner` to list buildings, filter them b
 ### Requirement: Owner can update a building
 The system SHALL allow an authenticated `owner` to update a building's display name, street address, ward, city, country, and utility rates. Changing a rate SHALL NOT alter any invoice already issued, because each invoice records the rate that was applied at the time it was created.
 
+The identifier of the place the address was resolved from MAY also be updated, so that re-resolving an address records where the new values came from. It MAY be cleared, for an address subsequently corrected by hand — leaving it in place would claim the address came from a place it no longer matches.
+
 #### Scenario: Successful update
 - **WHEN** an authenticated owner updates an existing building with valid values
 - **THEN** the system saves the changes and responds with HTTP 200 and the updated building
@@ -100,6 +114,14 @@ The system SHALL allow an authenticated `owner` to update a building's display n
 #### Scenario: Clearing a required location field
 - **WHEN** an authenticated owner updates a building setting its ward or city to an empty value
 - **THEN** the system responds with HTTP 400 and does not apply the change
+
+#### Scenario: Updating the resolved place identifier
+- **WHEN** an authenticated owner updates a building supplying a new resolved place identifier
+- **THEN** the building records the new identifier
+
+#### Scenario: Clearing the resolved place identifier
+- **WHEN** an authenticated owner updates a building clearing its resolved place identifier
+- **THEN** the building records no identifier, and its address fields are unaffected
 
 ### Requirement: Owner can retire and restore a building
 The system SHALL allow an authenticated `owner` to retire a building by marking it inactive, and to restore a retired building. The system SHALL NOT support permanently deleting a building, so that leases and invoices referencing it retain their history. The system SHALL reject retiring a building while any of its rooms has an active lease, so a building with tenants still in place cannot be taken out of service.
