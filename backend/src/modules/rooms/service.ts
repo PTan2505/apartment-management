@@ -5,6 +5,33 @@ import { roomHasActiveLease } from "@/modules/leases/service.js";
 import type { CreateRoomInput, ListRoomsQuery, UpdateRoomInput } from "./schema.js";
 
 /**
+ * Every room reports the building it belongs to.
+ *
+ * A room code identifies a room only within its building — the same code may
+ * exist in several buildings, and the search deliberately returns one entry per
+ * matching building. A room returned without its building is therefore
+ * ambiguous, and `buildingId` alone is not something a client can display.
+ *
+ * Limited to what identifies the building. Its rates, address, and active state
+ * belong to the building's own representation; embedding them here would
+ * duplicate data into every room and go stale the moment a rate changes.
+ *
+ * `buildingId` is kept alongside, so callers reading it are unaffected.
+ */
+const roomSelect = {
+  id: true,
+  buildingId: true,
+  roomCode: true,
+  baseRent: true,
+  isActive: true,
+  createdAt: true,
+  updatedAt: true,
+  building: {
+    select: { id: true, displayName: true },
+  },
+} as const;
+
+/**
  * Room codes must be unique among ACTIVE rooms in a building. A partial unique
  * index enforces this in the database; this check runs first so the common case
  * returns a clean 409 instead of a raw constraint violation.
@@ -45,7 +72,7 @@ export async function createRoom(input: CreateRoomInput) {
 
   await assertRoomCodeAvailable(input.buildingId, input.roomCode);
 
-  return prisma.room.create({ data: input });
+  return prisma.room.create({ data: input, select: roomSelect });
 }
 
 export async function listRooms(query: ListRoomsQuery) {
@@ -62,13 +89,18 @@ export async function listRooms(query: ListRoomsQuery) {
 
   return paginate(
     query,
-    prisma.room.findMany({ where, orderBy: { createdAt: "asc" }, ...toSkipTake(query) }),
+    prisma.room.findMany({
+      where,
+      orderBy: { createdAt: "asc" },
+      select: roomSelect,
+      ...toSkipTake(query),
+    }),
     prisma.room.count({ where }),
   );
 }
 
 export async function getRoomById(id: number) {
-  const room = await prisma.room.findUnique({ where: { id } });
+  const room = await prisma.room.findUnique({ where: { id }, select: roomSelect });
   if (!room) {
     throw new NotFoundError("Room not found");
   }
@@ -82,7 +114,7 @@ export async function updateRoom(id: number, input: UpdateRoomInput) {
     await assertRoomCodeAvailable(room.buildingId, input.roomCode, room.id);
   }
 
-  return prisma.room.update({ where: { id }, data: input });
+  return prisma.room.update({ where: { id }, data: input, select: roomSelect });
 }
 
 export async function retireRoom(id: number) {
@@ -93,7 +125,11 @@ export async function retireRoom(id: number) {
     throw new ConflictError("Cannot retire a room that has an active lease");
   }
 
-  return prisma.room.update({ where: { id }, data: { isActive: false } });
+  return prisma.room.update({
+    where: { id },
+    data: { isActive: false },
+    select: roomSelect,
+  });
 }
 
 export async function restoreRoom(id: number) {
@@ -103,5 +139,9 @@ export async function restoreRoom(id: number) {
   // newer active room that has since taken that code.
   await assertRoomCodeAvailable(room.buildingId, room.roomCode, room.id);
 
-  return prisma.room.update({ where: { id }, data: { isActive: true } });
+  return prisma.room.update({
+    where: { id },
+    data: { isActive: true },
+    select: roomSelect,
+  });
 }
