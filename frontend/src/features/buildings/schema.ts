@@ -23,6 +23,10 @@ export const buildingFormSchema = z.object({
   country: z.string().trim().min(1, 'Country is required').default('Vietnam'),
   electricityRate: rate,
   waterRatePerPerson: rate,
+  // Which place the address was resolved from. Absent for an address typed by
+  // hand, and cleared when a resolved one is corrected — the identifier claims
+  // the values came from that place, and once edited that is no longer true.
+  placeId: z.string().min(1).nullish(),
 })
 
 export type BuildingFormValues = z.input<typeof buildingFormSchema>

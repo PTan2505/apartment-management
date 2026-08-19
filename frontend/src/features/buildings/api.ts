@@ -48,8 +48,20 @@ export async function listBuildingLocations(
   return data.locations
 }
 
+/**
+ * Create and update differ on how "no place" is expressed, and the difference
+ * is meaningful rather than an inconsistency.
+ *
+ * Creating: there is nothing to clear, so an absent place is simply omitted.
+ * The API accepts the field as optional and rejects an explicit null.
+ *
+ * Updating: null is a value — it clears a place recorded earlier, which is what
+ * correcting an address by hand has to do.
+ */
 export async function createBuilding(input: BuildingFormOutput): Promise<Building> {
-  const { data } = await apiClient.post<Building>('/buildings', input)
+  const { placeId, ...rest } = input
+  const body = placeId ? { ...rest, placeId } : rest
+  const { data } = await apiClient.post<Building>('/buildings', body)
   return data
 }
 
