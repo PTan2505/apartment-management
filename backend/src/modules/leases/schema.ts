@@ -12,6 +12,16 @@ export const createLeaseSchema = z.object({
   // Optional here: the service defaults it to the previous lease's closing
   // reading, and rejects omission only when the room has no previous lease.
   startMeterReading: z.coerce.number().int().nonnegative("must not be negative").optional(),
+  // Optional for the same reason: the service defaults it to the room's current
+  // base rent. Supplying it records a rent negotiated with this tenant without
+  // changing what the room asks of the next one.
+  baseRent: z.coerce.number().nonnegative("must not be negative").optional(),
+  // Required, and zero is allowed. Defaulting a missing value to zero would
+  // make "no deposit" and "forgot to record the deposit" the same record.
+  depositMonths: z.coerce
+    .number({ message: "depositMonths is required" })
+    .int("must be a whole number of months")
+    .nonnegative("must not be negative"),
 });
 
 export const updateLeaseSchema = z

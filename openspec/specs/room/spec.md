@@ -116,7 +116,9 @@ The reported building SHALL be limited to what identifies it. Its rates, address
 - **THEN** the items and totals describe only the rooms matching that building and search
 
 ### Requirement: Owner can update a room
-The system SHALL allow an authenticated `owner` to update a room's code and base monthly rent. Changing the base rent SHALL NOT alter any invoice already issued, because each invoice records the amounts applied at the time it was created.
+The system SHALL allow an authenticated `owner` to update a room's code and base monthly rent. A room's base rent is what the room asks of a prospective tenant; it is not what any current tenant pays, because a lease records its own agreed rent when it is created.
+
+Changing the base rent SHALL therefore affect only leases created afterwards. It SHALL NOT alter any invoice already issued, and SHALL NOT change what an existing lease is billed, whether that lease is running or finished.
 
 #### Scenario: Successful update
 - **WHEN** an authenticated owner updates an existing room with valid values
@@ -129,6 +131,14 @@ The system SHALL allow an authenticated `owner` to update a room's code and base
 #### Scenario: Updating a room that does not exist
 - **WHEN** an authenticated owner updates a room id that does not exist
 - **THEN** the system responds with HTTP 404
+
+#### Scenario: A running lease is unaffected by a rent change
+- **WHEN** an authenticated owner changes the base rent of a room that has an active lease
+- **THEN** that lease's agreed rent is unchanged, and invoices generated for it afterwards still charge the agreed rent
+
+#### Scenario: A new lease picks up the changed rent
+- **WHEN** an authenticated owner changes a room's base rent and then creates a new lease for that room without supplying an agreed rent
+- **THEN** the new lease records the changed rent
 
 ### Requirement: Owner can retire and restore a room
 The system SHALL allow an authenticated `owner` to retire a room by marking it inactive, and to restore a retired room. The system SHALL NOT support permanently deleting a room, so that leases and invoices referencing it retain their history. The system SHALL reject retiring a room that has an active lease, so an occupied room cannot be taken out of service while a tenant still holds it.

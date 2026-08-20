@@ -1,3 +1,5 @@
+import type { Prisma } from "@/generated/prisma/client.js";
+
 /**
  * Adds whole months to a date, clamping to the last valid day of the target
  * month. 31 January + 1 month is 28 (or 29) February, never 3 March — a naive
@@ -37,6 +39,8 @@ interface LeaseRow {
   moveOutDate: Date | null;
   startMeterReading: number;
   endMeterReading: number | null;
+  baseRent: Prisma.Decimal;
+  depositMonths: number;
   createdAt: Date;
   updatedAt: Date;
   occupants?: OccupantRow[];
@@ -58,9 +62,15 @@ export function toLeaseResponse(lease: LeaseRow) {
     durationMonths: lease.durationMonths,
     expectedEndDate: addMonths(lease.startDate, lease.durationMonths),
     occupantCount: lease.occupantCount,
-    moveOutDate: lease.moveOutDate,
-    startMeterReading: lease.startMeterReading,
-    endMeterReading: lease.endMeterReading,
+    baseRent: lease.baseRent,
+    depositMonths: lease.depositMonths,
+    // Derived, never stored. A stored amount could disagree with the two values
+    // it comes from — a rent corrected after the fact would leave a deposit
+    // matching neither the months agreed nor the rent agreed.
+    //
+    // Multiplied as Decimal rather than in floating point: this is money, and
+    // the result is what an owner is holding on someone's behalf.
+    depositAmount: lease.baseRent.mul(lease.depositMonths),
     status: (lease.moveOutDate === null ? "active" : "finalized") satisfies LeaseStatus,
     tenant: primary
       ? {

@@ -87,6 +87,11 @@ export async function createLease(input: CreateLeaseInput) {
     input.startMeterReading,
   );
 
+  // Read once, here, and never again: the room's rent is what it asks of the
+  // next tenant, and this lease is fixing its own. A later edit to the room
+  // must not reach back into an agreement already made.
+  const baseRent = input.baseRent ?? room.baseRent;
+
   // Any advance beyond the room's last known reading happened while nobody
   // lived there, so the owner absorbs it. A lower reading means the meter was
   // replaced — a new baseline, not a credit.
@@ -105,6 +110,8 @@ export async function createLease(input: CreateLeaseInput) {
         durationMonths: input.durationMonths,
         occupantCount: input.occupantCount,
         startMeterReading,
+        baseRent,
+        depositMonths: input.depositMonths,
       },
     });
 

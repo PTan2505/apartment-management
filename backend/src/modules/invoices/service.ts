@@ -69,7 +69,10 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
   }
 
   const charges = computeCharges({
-    baseRent: lease.room.baseRent,
+    // The lease's own agreed rent, not the room's current asking rent. A tenant
+    // is billed what their agreement says, so editing the room after a lease
+    // was signed must not change what that lease is charged.
+    baseRent: lease.baseRent,
     electricityRate: lease.room.building.electricityRate,
     waterRatePerPerson: lease.room.building.waterRatePerPerson,
     occupantCount: lease.occupantCount,
@@ -91,7 +94,7 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
       // what this bill charged.
       electricityRate: lease.room.building.electricityRate,
       waterRatePerPerson: lease.room.building.waterRatePerPerson,
-      baseRent: lease.room.baseRent,
+      baseRent: lease.baseRent,
       occupantCount: lease.occupantCount,
       ...charges,
     },
