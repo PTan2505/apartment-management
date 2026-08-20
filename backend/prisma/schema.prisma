@@ -26,6 +26,14 @@ model User {
   passwordHash String?
   role         Role
   fullName     String
+  // A matching key derived from fullName, never entered by anyone and never
+  // returned: lowercased with diacritics folded away, so 'Nguyễn Văn A' is
+  // stored as 'nguyen van a' and a search typed without diacritics finds it.
+  // The database uses the C collation, which folds case for ASCII only, so
+  // neither case- nor accent-insensitive matching works on the name directly.
+  // Must be rewritten by every path that writes fullName, or it goes stale and
+  // the customer quietly stops being findable.
+  fullNameSearch String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

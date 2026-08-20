@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import { prisma } from "@/lib/prisma.js";
+import { normalizeVi } from "@/lib/normalize-vi.js";
 
 function readArg(flag: string): string | undefined {
   const index = process.argv.indexOf(flag);
@@ -21,10 +22,14 @@ async function main() {
 
   const passwordHash = await bcrypt.hash(password, 10);
 
+  // fullNameSearch goes in both branches: it is derived from fullName and must
+  // be rewritten wherever the name is, or it goes stale.
+  const fullNameSearch = normalizeVi(fullName);
+
   const owner = await prisma.user.upsert({
     where: { phone },
-    update: { passwordHash, fullName, role: "owner" },
-    create: { phone, passwordHash, fullName, role: "owner" },
+    update: { passwordHash, fullName, fullNameSearch, role: "owner" },
+    create: { phone, passwordHash, fullName, fullNameSearch, role: "owner" },
   });
 
   console.log(`Owner account ready: ${owner.phone} (${owner.id})`);

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma.js";
 import { paginate, toSkipTake } from "@/lib/pagination.js";
 import { ConflictError, NotFoundError } from "@/lib/errors.js";
+import { normalizeVi } from "@/lib/normalize-vi.js";
 import type {
   ListCustomersQuery,
   RegisterCustomerInput,
@@ -44,6 +45,7 @@ export async function registerCustomer(input: RegisterCustomerInput) {
   const customer = await prisma.user.create({
     data: {
       fullName: input.fullName,
+      fullNameSearch: normalizeVi(input.fullName),
       phone: input.phone ?? null,
       role: "customer",
     },
@@ -59,7 +61,14 @@ export async function listCustomers(query: ListCustomersQuery) {
     ...(query.search
       ? {
           OR: [
-            { fullName: { contains: query.search, mode: "insensitive" as const } },
+            // Matched against the derived key, not the name itself. The
+            // database's C collation folds case for ASCII only, so comparing
+            // the name directly is case-sensitive for exactly the letters
+            // Vietnamese names are made of. Both sides go through the same
+            // helper, so the query needs no preparation by the caller.
+            { fullNameSearch: { contains: normalizeVi(query.search) } },
+            // Deliberately not normalised: every character of a phone number is
+            // significant, and none of them has a case or a diacritic.
             { phone: { contains: query.search } },
           ],
         }
@@ -104,7 +113,17 @@ export async function updateCustomer(id: number, input: UpdateCustomerInput) {
 
   return prisma.user.update({
     where: { id },
-    data: input,
+    data: {
+      ...input,
+      // Only when the name is actually changing. Deriving the key
+      // unconditionally would blank it on an update that touches only the
+      // phone — `normalizeVi(undefined)` is not the issue, an empty key is: the
+      // customer would quietly stop matching any search, with nothing to show
+      // that anything went wrong.
+      ...(input.fullName === undefined
+        ? {}
+        : { fullNameSearch: normalizeVi(input.fullName) }),
+    },
     select: customerSelect,
   });
 }
