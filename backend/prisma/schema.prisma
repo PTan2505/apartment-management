@@ -104,6 +104,16 @@ model Lease {
   room              Room      @relation(fields: [roomId], references: [id])
   startDate         DateTime
   durationMonths    Int
+  // The rent this agreement fixed, defaulted from the room at creation and
+  // overridable. Deliberately a copy: the room's rent is what it asks of the
+  // next tenant, and changing it must not re-price a tenancy already agreed.
+  // Same precision as Room.baseRent so the copy cannot lose or gain digits.
+  baseRent          Decimal   @db.Decimal(12, 2)
+  // The deposit in MONTHS of rent, not currency — that is how it is agreed, and
+  // the amount is derived (depositMonths × baseRent) rather than stored, so the
+  // two can never disagree. Zero is a real value: a lease taken without a
+  // deposit, as distinct from one whose deposit was never recorded.
+  depositMonths     Int
   // Manually maintained and authoritative for billing. Deliberately NOT derived
   // from LeaseOccupant rows: an owner may know five people live in a room while
   // holding details for only two. See design.md.
