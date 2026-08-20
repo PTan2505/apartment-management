@@ -106,3 +106,57 @@ export function computeCharges(input: ChargeInputs): Charges {
 }
 
 export { Decimal };
+
+export interface LineItemRow {
+  kind: "rent" | "electricity" | "water";
+  description: string;
+  quantity: DecimalValue | null;
+  unitAmount: DecimalValue | null;
+  amount: DecimalValue;
+  position: number;
+}
+
+/**
+ * Turns computed charges into the rows that record them.
+ *
+ * Deliberately separate from `computeCharges`, which is untouched by this
+ * change: the figures are the same, only where they are written has moved.
+ *
+ * `quantity` and `unitAmount` are the FULL-MONTH basis. For a partial month
+ * `amount` is that basis reduced by the days occupied, so amount does not equal
+ * quantity times unitAmount — the invoice's own period accounts for the
+ * difference. Putting the fraction into quantity would lose the rate: 0.548387
+ * tells a reader nothing about the rent being 3,000,000.
+ *
+ * Rent carries no quantity. A fabricated 1 reads as information and is not.
+ */
+export function buildLineItems(input: ChargeInputs, charges: Charges): LineItemRow[] {
+  const consumption = input.currentElectricityUse - input.previousElectricityUse;
+
+  return [
+    {
+      kind: "rent",
+      description: "Rent",
+      quantity: null,
+      unitAmount: input.baseRent,
+      amount: charges.rentAmount,
+      position: 1,
+    },
+    {
+      kind: "electricity",
+      description: `Electricity ${consumption} kWh`,
+      quantity: new Decimal(consumption),
+      unitAmount: input.electricityRate,
+      amount: charges.electricityAmount,
+      position: 2,
+    },
+    {
+      kind: "water",
+      description: `Water, ${input.occupantCount} occupant(s)`,
+      quantity: new Decimal(input.occupantCount),
+      unitAmount: input.waterRatePerPerson,
+      amount: charges.waterAmount,
+      position: 3,
+    },
+  ];
+}

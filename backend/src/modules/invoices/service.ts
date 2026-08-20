@@ -1,11 +1,20 @@
 import { prisma } from "@/lib/prisma.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import { paginate, toSkipTake } from "@/lib/pagination.js";
-import { computeCharges, resolveOccupiedPeriod } from "./billing.js";
+import { buildLineItems, computeCharges, resolveOccupiedPeriod } from "./billing.js";
 import type { GenerateInvoiceInput, ListInvoicesQuery, MarkPaidInput } from "./schema.js";
 
+/**
+ * Every site that returns an invoice must carry its lines: the charges now live
+ * there, so an invoice without them is a total with nothing accounting for it.
+ * Ordered by position so the same invoice reads the same way twice.
+ */
+const invoiceInclude = {
+  lineItems: { orderBy: { position: "asc" } },
+} as const;
+
 async function findInvoiceOrThrow(id: number) {
-  const invoice = await prisma.invoice.findUnique({ where: { id } });
+  const invoice = await prisma.invoice.findUnique({ where: { id }, include: invoiceInclude });
   if (!invoice) {
     throw new NotFoundError("Invoice not found");
   }
@@ -68,7 +77,9 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
     );
   }
 
-  const charges = computeCharges({
+  // Named so the computation and the lines it produces read the same inputs —
+  // two copies could drift and the bill would stop explaining its own total.
+  const chargeInputs = {
     // The lease's own agreed rent, not the room's current asking rent. A tenant
     // is billed what their agreement says, so editing the room after a lease
     // was signed must not change what that lease is charged.
@@ -79,8 +90,12 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
     previousElectricityUse,
     currentElectricityUse: input.currentElectricityUse,
     period,
-  });
+  };
 
+  const charges = computeCharges(chargeInputs);
+
+  // The lines and the total are written together, in one statement, so a total
+  // never exists without the charges that account for it.
   return prisma.invoice.create({
     data: {
       leaseId: lease.id,
@@ -90,14 +105,12 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
       periodEnd: period.periodEnd,
       previousElectricityUse,
       currentElectricityUse: input.currentElectricityUse,
-      // Copied at issue time so later rate or occupant changes cannot rewrite
-      // what this bill charged.
-      electricityRate: lease.room.building.electricityRate,
-      waterRatePerPerson: lease.room.building.waterRatePerPerson,
-      baseRent: lease.baseRent,
-      occupantCount: lease.occupantCount,
-      ...charges,
+      totalAmount: charges.totalAmount,
+      // Each rate and count is copied onto the line it produced, at issue time,
+      // so a later rate or occupant change cannot rewrite what this bill charged.
+      lineItems: { create: buildLineItems(chargeInputs, charges) },
     },
+    include: invoiceInclude,
   });
 }
 
@@ -122,6 +135,7 @@ export async function listInvoices(query: ListInvoicesQuery) {
     query,
     prisma.invoice.findMany({
       where,
+      include: invoiceInclude,
       orderBy: [{ year: "asc" }, { month: "asc" }, { id: "asc" }],
       ...toSkipTake(query),
     }),
@@ -150,6 +164,7 @@ export async function markPaid(id: number, input: MarkPaidInput) {
       paymentMethod: input.paymentMethod,
       paidAt: input.paidAt,
     },
+    include: invoiceInclude,
   });
 }
 
@@ -165,5 +180,9 @@ export async function voidInvoice(id: number) {
     throw new ConflictError("That invoice has already been voided");
   }
 
-  return prisma.invoice.update({ where: { id }, data: { voidedAt: new Date() } });
+  return prisma.invoice.update({
+    where: { id },
+    data: { voidedAt: new Date() },
+    include: invoiceInclude,
+  });
 }
