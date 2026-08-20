@@ -74,8 +74,9 @@ model Building {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  rooms    Room[]
-  expenses Expense[]
+  rooms       Room[]
+  expenses    Expense[]
+  serviceFees BuildingServiceFee[]
 }
 
 model Room {
@@ -130,8 +131,9 @@ model Lease {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  occupants LeaseOccupant[]
-  invoices  Invoice[]
+  occupants   LeaseOccupant[]
+  invoices    Invoice[]
+  serviceFees LeaseServiceFee[]
 
   // One ACTIVE lease per room (moveOutDate IS NULL) is enforced by a partial
   // unique index added manually in the migration.
@@ -233,6 +235,58 @@ enum ExpenseOrigin {
 enum VacancyReconciliation {
   month_end
   lease_start
+}
+
+// What a building charges for beyond rent and metered utilities: parking,
+// internet, rubbish, shared cleaning. This is the catalogue the owner offers;
+// what a particular tenancy agreed to is LeaseServiceFee.
+model BuildingServiceFee {
+  id         Int      @id @default(autoincrement())
+  buildingId Int
+  building   Building @relation(fields: [buildingId], references: [id])
+
+  name String
+  // Charged per unit of the thing: one motorbike, one internet connection. A
+  // flat fee is simply one whose quantity is always 1.
+  unitAmount Decimal @db.Decimal(12, 2)
+  isActive   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leaseSelections LeaseServiceFee[]
+
+  // Name is unique among a building's OFFERED fees — a partial unique index
+  // added manually in the migration, same shape as Room.roomCode. Two entries
+  // called "Parking" in one building cannot be told apart when selecting one.
+  @@index([buildingId])
+}
+
+// A fee this tenancy agreed to, at the price it agreed.
+model LeaseServiceFee {
+  id      Int   @id @default(autoincrement())
+  leaseId Int
+  lease   Lease @relation(fields: [leaseId], references: [id])
+
+  buildingServiceFeeId Int
+  buildingServiceFee   BuildingServiceFee @relation(fields: [buildingServiceFeeId], references: [id])
+
+  // COPIED at selection, never looked up again. The lease keeps the terms it
+  // agreed, exactly as it does for baseRent: repricing the building's fee must
+  // not reach back into an agreement already made. It is also what makes
+  // retiring a fee harmless — there is nothing left to resolve at billing time.
+  unitAmount Decimal @db.Decimal(12, 2)
+  // How many of the thing. Changing this must NOT re-copy unitAmount: a tenant
+  // buying a second motorbike has not renegotiated the price of the first.
+  quantity   Int     @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // A lease selects a given fee at most once — more of a service is a quantity,
+  // not a second selection. Unique index added manually in the migration.
+  @@index([leaseId])
+  @@index([buildingServiceFeeId])
 }
 
 model Expense {

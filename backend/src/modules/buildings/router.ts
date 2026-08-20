@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "@/middleware/authenticate.js";
+import { buildingServiceFeesRouter } from "@/modules/service-fees/router.js";
 import { requireRole } from "@/middleware/require-role.js";
 import {
   createBuildingHandler,
@@ -24,3 +25,7 @@ buildingsRouter.get("/:id", getBuildingHandler);
 buildingsRouter.patch("/:id", updateBuildingHandler);
 buildingsRouter.post("/:id/retire", retireBuildingHandler);
 buildingsRouter.post("/:id/restore", restoreBuildingHandler);
+
+// A building's service fees. Two segments deep, so this cannot be captured by
+// the single-segment "/:id" routes above.
+buildingsRouter.use("/:buildingId/service-fees", buildingServiceFeesRouter);
