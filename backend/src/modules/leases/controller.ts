@@ -60,6 +60,7 @@ export async function moveOutHandler(req: Request, res: Response) {
     parseIdParam(req.params.id, "Lease"),
     parsed.data.moveOutDate,
     parsed.data.endMeterReading,
+    parsed.data.overdueCharges,
   );
   res.status(200).json(toLeaseResponse(lease));
 }

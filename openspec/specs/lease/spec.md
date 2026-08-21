@@ -5,7 +5,7 @@ Tracks rental agreements that bind people to a room for an agreed period, record
 ## Requirements
 
 ### Requirement: Owner can create a lease
-The system SHALL allow an authenticated `owner` to create a lease for an existing active room, naming an existing customer as the lease signatory and recording a start date, an agreed duration in whole months, an occupant count, the electricity meter reading the tenancy starts from, the agreed monthly rent, and the deposit expressed in months of rent. Duration and occupant count MUST both be at least 1. Creating the lease SHALL also record the signatory as the lease's primary occupant, and the two SHALL be created together so a lease never exists without one. The starting meter reading SHALL default to the room's latest known meter reading — the most recent of its previous lease's closing reading and any vacancy reading recorded since — and MAY be overridden by the owner, so that electricity consumed while the room stood empty is not charged to the incoming tenant. Where the room has no previous lease, the reading MUST be supplied.
+The system SHALL allow an authenticated `owner` to create a lease for an existing active room, naming an existing customer as the lease signatory and recording a start date, an agreed duration in whole months, an occupant count, the electricity meter reading the tenancy starts from, the agreed monthly rent, and the deposit expressed in months of rent. Duration and occupant count MUST both be at least 1. Creating the lease SHALL also record the signatory as the lease's primary occupant, and SHALL issue the lease's move-in invoice charging its deposit and its first month's rent. All three SHALL be created together, so a lease never exists without someone responsible for it or without the bill that starts it. The starting meter reading SHALL default to the room's latest known meter reading — the most recent of its previous lease's closing reading and any vacancy reading recorded since — and MAY be overridden by the owner, so that electricity consumed while the room stood empty is not charged to the incoming tenant. Where the room has no previous lease, the reading MUST be supplied.
 
 The agreed rent SHALL default to the room's base rent at the moment the lease is created, and MAY be overridden, so that rent negotiated with a particular tenant can be recorded without changing what the room asks of everyone else. It MUST NOT be negative.
 
@@ -13,7 +13,15 @@ The deposit SHALL be recorded as a whole number of months of the agreed rent, be
 
 #### Scenario: Successful creation
 - **WHEN** an authenticated owner creates a lease for an active, unoccupied room naming an existing customer as signatory, with a valid start date, duration, occupant count, starting meter reading, and deposit
-- **THEN** the system creates the lease as active, records the signatory as its primary occupant, and responds with HTTP 201 and the created lease
+- **THEN** the system creates the lease as active, records the signatory as its primary occupant, issues its move-in invoice, and responds with HTTP 201 and the created lease
+
+#### Scenario: Creating a lease issues its opening bill
+- **WHEN** an authenticated owner creates a lease
+- **THEN** a move-in invoice exists for it, charging the deposit agreed and the rent for the month the tenancy begins
+
+#### Scenario: A lease is not left without its opening bill
+- **WHEN** issuing the move-in invoice fails while a lease is being created
+- **THEN** no lease, occupant record or invoice is created
 
 #### Scenario: Agreed rent defaults to the room's rent
 - **WHEN** an authenticated owner creates a lease without supplying an agreed rent
@@ -272,11 +280,19 @@ The deposit amount SHALL be reported alongside the number of months it was agree
 - **THEN** that lease still reports a deposit amount derived from its own agreed rent
 
 ### Requirement: Owner can record a move-out
-The system SHALL allow an authenticated `owner` to record the date a tenant actually moved out together with the electricity meter reading taken at handover, which finalizes the lease and frees the room for a new one. The move-out date MUST NOT precede the lease start date. The closing meter reading MUST NOT be lower than the lease's starting reading, nor lower than the closing reading of that lease's most recent invoice. Finalizing a lease SHALL also mark its current occupants as departed on that date, so nobody is left recorded as living in a room that is no longer let. The closing reading SHALL both close the outgoing tenancy's electricity and provide the default starting point for the room's next lease.
+The system SHALL allow an authenticated `owner` to record the date a tenant actually moved out together with the electricity meter reading taken at handover, which finalizes the lease and frees the room for a new one. The move-out date MUST NOT precede the lease start date. The closing meter reading MUST NOT be lower than the lease's starting reading, nor lower than the closing reading of that lease's most recent invoice. Finalizing a lease SHALL also mark its current occupants as departed on that date, so nobody is left recorded as living in a room that is no longer let, and SHALL issue the lease's final invoice charging the utilities of that month up to the departure. Where the departure falls after the lease's expected end date, an overdue invoice SHALL be issued alongside it, carrying charges the owner names for the days beyond the term. All of it SHALL be recorded together, so a tenancy is never closed without its closing bill. The closing reading SHALL both close the outgoing tenancy's electricity and provide the default starting point for the room's next lease.
 
 #### Scenario: Recording a move-out
 - **WHEN** an authenticated owner records a move-out date and closing meter reading on an active lease
-- **THEN** the lease is reported as finalized, the closing reading is retained, and the room becomes available for a new lease
+- **THEN** the lease is reported as finalized, the closing reading is retained, its final invoice is issued, and the room becomes available for a new lease
+
+#### Scenario: A late departure also issues an overdue bill
+- **WHEN** an authenticated owner records a move-out dated after the lease's expected end date, naming charges for the extra days
+- **THEN** both a final invoice for the days within the term and an overdue invoice carrying those charges are issued
+
+#### Scenario: A tenancy is not closed without its closing bill
+- **WHEN** issuing the final invoice fails while a move-out is being recorded
+- **THEN** the move-out is not recorded and the lease remains active
 
 #### Scenario: Move-out closes the occupancy records
 - **WHEN** an authenticated owner records a move-out date on a lease that has current occupants
@@ -301,6 +317,7 @@ The system SHALL allow an authenticated `owner` to record the date a tenant actu
 #### Scenario: Move-out may precede the expected end date
 - **WHEN** an authenticated owner records a move-out date earlier than the lease's expected end date
 - **THEN** the system accepts it and finalizes the lease, because tenants may leave before their agreed term ends
+
 ### Requirement: Owner can list, filter, and retrieve leases
 The system SHALL allow an authenticated `owner` to retrieve a lease by id and to list leases filtered by room, by the people who have occupied them, by whether they are active, and by whether their agreed term has run out without a move-out being recorded. Listing SHALL be paginated using the shared paginated response contract, so the response carries a `data` array and a `meta` object describing the page and totals rather than a bare array.
 
