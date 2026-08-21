@@ -53,7 +53,21 @@ interface LeaseForIssue {
  * metered and neither charge belongs to a month of occupancy — the deposit
  * belongs to no span at all, and the rent's span is recorded on its own line.
  */
-export async function issueMoveInInvoice(tx: Tx, lease: LeaseForIssue, issueDate: Date) {
+export async function issueMoveInInvoice(
+  tx: Tx,
+  lease: LeaseForIssue,
+  issueDate: Date,
+  /**
+   * Overrides the deposit charged, for a tenancy that did not start from
+   * nothing. At an extension the predecessor's deposit carries over, so only
+   * the DIFFERENCE against what the new terms require is charged — which may be
+   * negative where a rent was lowered, handing part of the deposit back.
+   *
+   * Absent for an ordinary lease, where the deposit charged is the whole of
+   * what the terms agreed.
+   */
+  depositOverride?: { amount: Prisma.Decimal; description: string } | null,
+) {
   const expectedEndDate = addMonths(lease.startDate, lease.durationMonths);
   const rentPeriod = resolveFirstRentPeriod(lease.startDate, null, expectedEndDate);
   if (rentPeriod === null) {
@@ -79,16 +93,22 @@ export async function issueMoveInInvoice(tx: Tx, lease: LeaseForIssue, issueDate
     },
   ];
 
-  // A lease agreed without a deposit carries no deposit line — not a line of
-  // zero. A charge of nothing is noise on a bill.
-  if (lease.depositMonths > 0) {
-    const depositAmount = lease.baseRent.mul(lease.depositMonths).toDecimalPlaces(0);
+  const deposit = depositOverride ?? {
+    amount: lease.baseRent.mul(lease.depositMonths).toDecimalPlaces(0),
+    description: `Deposit, ${lease.depositMonths} month(s) of rent`,
+  };
+
+  // A deposit charge of nothing carries no line — not a line of zero. That
+  // covers a lease agreed without a deposit, and a renewal whose carried
+  // deposit already meets the new terms exactly. A charge of nothing is noise
+  // on a bill.
+  if (!deposit.amount.isZero()) {
     lines.push({
       kind: "deposit",
-      description: `Deposit, ${lease.depositMonths} month(s) of rent`,
-      quantity: new Decimal(lease.depositMonths),
-      unitAmount: lease.baseRent,
-      amount: depositAmount,
+      description: deposit.description,
+      quantity: depositOverride ? null : new Decimal(lease.depositMonths),
+      unitAmount: depositOverride ? null : lease.baseRent,
+      amount: deposit.amount,
       position: 2,
       // No period: a deposit is not charged for a span of time and must not
       // borrow the invoice's.

@@ -16,7 +16,11 @@ export const generateInvoiceSchema = z.object({
 });
 
 export const markPaidSchema = z.object({
-  paymentMethod: z.enum(["cash", "bank_transfer"]),
+  // deposit_deduction settles a bill out of money already held for the lease.
+  // The bill is genuinely collected — that money reached the owner months ago —
+  // and it differs from the others in where the money came from, not in whether
+  // it arrived.
+  paymentMethod: z.enum(["cash", "bank_transfer", "deposit_deduction"]),
   paidAt: z.coerce.date(),
 });
 

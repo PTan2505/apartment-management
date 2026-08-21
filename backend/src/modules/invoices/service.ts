@@ -10,6 +10,12 @@ import {
   resolveRentPeriod,
 } from "./billing.js";
 import { addMonths } from "@/modules/leases/mapper.js";
+import {
+  deductFromDeposit,
+  holdFromInvoice,
+  releaseFromInvoice,
+  restoreDeduction,
+} from "@/modules/deposits/holding.js";
 import type { GenerateInvoiceInput, ListInvoicesQuery, MarkPaidInput } from "./schema.js";
 
 /**
@@ -232,14 +238,29 @@ export async function markPaid(id: number, input: MarkPaidInput) {
     throw new ConflictError("That invoice has already been paid");
   }
 
-  return prisma.invoice.update({
-    where: { id },
-    data: {
-      paymentStatus: "paid",
-      paymentMethod: input.paymentMethod,
-      paidAt: input.paidAt,
-    },
-    include: invoiceInclude,
+  // Recording the payment and moving the holdings it touches happen together.
+  // An invoice recorded as paid whose deduction was never applied would report
+  // the same money collected twice.
+  return prisma.$transaction(async (tx) => {
+    // Settling out of the deposit spends money the owner has held since the
+    // tenancy began. Refused where the lease is not holding enough.
+    if (input.paymentMethod === "deposit_deduction") {
+      await deductFromDeposit(tx, invoice.leaseId, invoice.totalAmount);
+    }
+
+    // Whatever deposit this invoice charged becomes money held, now that it has
+    // been paid. An invoice with no deposit line moves nothing.
+    await holdFromInvoice(tx, invoice.leaseId, invoice.lineItems);
+
+    return tx.invoice.update({
+      where: { id },
+      data: {
+        paymentStatus: "paid",
+        paymentMethod: input.paymentMethod,
+        paidAt: input.paidAt,
+      },
+      include: invoiceInclude,
+    });
   });
 }
 
@@ -255,9 +276,21 @@ export async function voidInvoice(id: number) {
     throw new ConflictError("That invoice has already been voided");
   }
 
-  return prisma.invoice.update({
-    where: { id },
-    data: { voidedAt: new Date() },
-    include: invoiceInclude,
+  return prisma.$transaction(async (tx) => {
+    // A void only unwinds holdings the invoice actually moved, which is to say
+    // holdings it moved by being PAID. An unpaid invoice established nothing.
+    if (invoice.paymentStatus === "paid") {
+      await releaseFromInvoice(tx, invoice.leaseId, invoice.lineItems);
+
+      if (invoice.paymentMethod === "deposit_deduction") {
+        await restoreDeduction(tx, invoice.leaseId, invoice.totalAmount);
+      }
+    }
+
+    return tx.invoice.update({
+      where: { id },
+      data: { voidedAt: new Date() },
+      include: invoiceInclude,
+    });
   });
 }
