@@ -92,6 +92,48 @@ export function resolveOccupiedPeriod(
   return { periodStart, periodEnd, daysOccupied, daysInMonth: daysInMonth(year, month) };
 }
 
+/**
+ * The slice of the month AFTER the one being billed that the lease covers.
+ *
+ * Rent is paid before the month it covers, so a bill settling January's
+ * utilities carries February's rent. That rent is prorated against FEBRUARY —
+ * prorating it by January's occupancy would reduce February's rent for days
+ * January was empty, which is unrelated and produces a plausible wrong number.
+ *
+ * Returns null when the lease does not reach into that month at all, which is
+ * how a caller learns there is no rent left to charge and the month's utilities
+ * belong on a final invoice instead.
+ */
+export function resolveRentPeriod(
+  year: number,
+  month: number,
+  leaseStart: Date,
+  moveOutDate: Date | null,
+  expectedEndDate: Date,
+): OccupiedPeriod | null {
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  return resolveOccupiedPeriod(nextYear, nextMonth, leaseStart, moveOutDate, expectedEndDate);
+}
+
+/**
+ * The slice of the month a tenancy BEGINS in that it covers, from the start
+ * date to the end of that month. What a move-in invoice charges rent for.
+ */
+export function resolveFirstRentPeriod(
+  leaseStart: Date,
+  moveOutDate: Date | null,
+  expectedEndDate: Date,
+): OccupiedPeriod | null {
+  return resolveOccupiedPeriod(
+    leaseStart.getUTCFullYear(),
+    leaseStart.getUTCMonth() + 1,
+    leaseStart,
+    moveOutDate,
+    expectedEndDate,
+  );
+}
+
 export interface ChargeInputs {
   baseRent: DecimalValue;
   electricityRate: DecimalValue;
@@ -99,7 +141,14 @@ export interface ChargeInputs {
   occupantCount: number;
   previousElectricityUse: number;
   currentElectricityUse: number;
+  /** The billed month: what water is prorated against, and what electricity spans. */
   period: OccupiedPeriod;
+  /**
+   * The month rent is charged FOR, which is not the billed month once rent is
+   * paid in advance. Null charges no rent — a final invoice, whose month was
+   * already paid for on the invoice before it.
+   */
+  rentPeriod: OccupiedPeriod | null;
 }
 
 export interface Charges {
@@ -120,7 +169,7 @@ export interface Charges {
  * leave rent + electricity + water differing from the stated total.
  */
 export function computeCharges(input: ChargeInputs): Charges {
-  const { period } = input;
+  const { period, rentPeriod } = input;
   const isFullMonth = period.daysOccupied >= period.daysInMonth;
 
   const prorate = (amount: DecimalValue) =>
@@ -130,7 +179,14 @@ export function computeCharges(input: ChargeInputs): Charges {
 
   const consumption = input.currentElectricityUse - input.previousElectricityUse;
 
-  const rentAmount = prorate(input.baseRent).toDecimalPlaces(0);
+  // Rent against its OWN month, never against the billed one.
+  const rentAmount =
+    rentPeriod === null
+      ? new Decimal(0)
+      : (rentPeriod.daysOccupied >= rentPeriod.daysInMonth
+          ? input.baseRent
+          : input.baseRent.mul(rentPeriod.daysOccupied).div(rentPeriod.daysInMonth)
+        ).toDecimalPlaces(0);
   const waterAmount = prorate(
     input.waterRatePerPerson.mul(input.occupantCount),
   ).toDecimalPlaces(0);
@@ -147,12 +203,15 @@ export function computeCharges(input: ChargeInputs): Charges {
 export { Decimal };
 
 export interface LineItemRow {
-  kind: "rent" | "electricity" | "water" | "serviceFee";
+  kind: "rent" | "electricity" | "water" | "serviceFee" | "deposit";
   description: string;
   quantity: DecimalValue | null;
   unitAmount: DecimalValue | null;
   amount: DecimalValue;
   position: number;
+  /** The span this charge is for. Null for a deposit, which covers no span. */
+  periodStart: Date | null;
+  periodEnd: Date | null;
 }
 
 /**
@@ -171,33 +230,53 @@ export interface LineItemRow {
  */
 export function buildLineItems(input: ChargeInputs, charges: Charges): LineItemRow[] {
   const consumption = input.currentElectricityUse - input.previousElectricityUse;
+  const { period, rentPeriod } = input;
 
-  return [
-    {
+  const lines: LineItemRow[] = [];
+
+  // Rent carries the period it is FOR, which is a different month from the
+  // utilities beside it. Without that, a reader of the bill cannot tell.
+  if (rentPeriod !== null) {
+    lines.push({
       kind: "rent",
-      description: "Rent",
+      description: `Rent ${monthLabel(rentPeriod.periodStart)}`,
       quantity: null,
       unitAmount: input.baseRent,
       amount: charges.rentAmount,
       position: 1,
-    },
-    {
-      kind: "electricity",
-      description: `Electricity ${consumption} kWh`,
-      quantity: new Decimal(consumption),
-      unitAmount: input.electricityRate,
-      amount: charges.electricityAmount,
-      position: 2,
-    },
-    {
-      kind: "water",
-      description: `Water, ${input.occupantCount} occupant(s)`,
-      quantity: new Decimal(input.occupantCount),
-      unitAmount: input.waterRatePerPerson,
-      amount: charges.waterAmount,
-      position: 3,
-    },
-  ];
+      periodStart: rentPeriod.periodStart,
+      periodEnd: rentPeriod.periodEnd,
+    });
+  }
+
+  lines.push({
+    kind: "electricity",
+    description: `Electricity ${consumption} kWh`,
+    quantity: new Decimal(consumption),
+    unitAmount: input.electricityRate,
+    amount: charges.electricityAmount,
+    position: 2,
+    periodStart: period.periodStart,
+    periodEnd: period.periodEnd,
+  });
+
+  lines.push({
+    kind: "water",
+    description: `Water, ${input.occupantCount} occupant(s)`,
+    quantity: new Decimal(input.occupantCount),
+    unitAmount: input.waterRatePerPerson,
+    amount: charges.waterAmount,
+    position: 3,
+    periodStart: period.periodStart,
+    periodEnd: period.periodEnd,
+  });
+
+  return lines;
+}
+
+/** "2026-02", for a description a reader can place without opening the period. */
+function monthLabel(date: Date): string {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 export interface ServiceFeeCharge {
@@ -278,6 +357,7 @@ export function computeServiceFeeCharges(
 export function buildServiceFeeLineItems(
   charges: ServiceFeeCharge[],
   startPosition: number,
+  period: OccupiedPeriod,
 ): (LineItemRow & { buildingServiceFeeId: number })[] {
   return charges.map((charge, index) => ({
     kind: "serviceFee" as const,
@@ -286,6 +366,8 @@ export function buildServiceFeeLineItems(
     unitAmount: charge.unitAmount,
     amount: charge.amount,
     position: startPosition + index,
+    periodStart: period.periodStart,
+    periodEnd: period.periodEnd,
     buildingServiceFeeId: charge.buildingServiceFeeId,
   }));
 }

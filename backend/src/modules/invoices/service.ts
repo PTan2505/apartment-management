@@ -7,6 +7,7 @@ import {
   computeCharges,
   computeServiceFeeCharges,
   resolveOccupiedPeriod,
+  resolveRentPeriod,
 } from "./billing.js";
 import { addMonths } from "@/modules/leases/mapper.js";
 import type { GenerateInvoiceInput, ListInvoicesQuery, MarkPaidInput } from "./schema.js";
@@ -35,8 +36,12 @@ async function findInvoiceOrThrow(id: number) {
  * consumption and for whatever the meter recorded while the room was empty.
  */
 async function resolveOpeningReading(leaseId: number, startMeterReading: number) {
+  // Only invoices that metered something. A move-in invoice has no reading and
+  // no month either — and since NULL sorts FIRST under a DESC ordering in
+  // Postgres, leaving it in makes it win this query and hands back the lease's
+  // opening reading for every invoice after the first.
   const previous = await prisma.invoice.findFirst({
-    where: { leaseId, voidedAt: null },
+    where: { leaseId, voidedAt: null, currentElectricityUse: { not: null } },
     orderBy: [{ year: "desc" }, { month: "desc" }],
     select: { currentElectricityUse: true },
   });
@@ -87,6 +92,23 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
 
   // Named so the computation and the lines it produces read the same inputs —
   // two copies could drift and the bill would stop explaining its own total.
+  // Rent is charged for the month AFTER the one billed. No such month within
+  // the term means there is no rent left to charge, and that month's utilities
+  // belong on the final invoice — refused rather than silently issued without a
+  // rent line, because an invoice with no rent is what a FINAL invoice is.
+  const rentPeriod = resolveRentPeriod(
+    input.year,
+    input.month,
+    lease.startDate,
+    lease.moveOutDate,
+    addMonths(lease.startDate, lease.durationMonths),
+  );
+  if (rentPeriod === null) {
+    throw new ValidationError(
+      "The month after this one falls outside the lease's term, so there is no rent to charge — its utilities belong on the final invoice",
+    );
+  }
+
   const chargeInputs = {
     // The lease's own agreed rent, not the room's current asking rent. A tenant
     // is billed what their agreement says, so editing the room after a lease
@@ -98,6 +120,7 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
     previousElectricityUse,
     currentElectricityUse: input.currentElectricityUse,
     period,
+    rentPeriod,
   };
 
   const charges = computeCharges(chargeInputs);
@@ -136,7 +159,7 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
   );
 
   const baseLines = buildLineItems(chargeInputs, charges);
-  const feeLines = buildServiceFeeLineItems(feeCharges, baseLines.length + 1);
+  const feeLines = buildServiceFeeLineItems(feeCharges, baseLines.length + 1, period);
   const totalAmount = feeCharges.reduce(
     (running, charge) => running.add(charge.amount),
     charges.totalAmount,
