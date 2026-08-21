@@ -99,21 +99,31 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
   const rangeEnd = new Date(Date.UTC(q.to.year, q.to.month, 0, 23, 59, 59, 999));
 
   // Invoices reach a building only through lease -> room, and are attributed to
-  // the month they cover rather than the date they were paid. Voided invoices
-  // are excluded everywhere.
+  // the month they were ISSUED rather than the date they were paid. Voided
+  // invoices are excluded everywhere.
+  //
+  // Issued rather than covered, because not every invoice covers a month: a
+  // move-in invoice charges a deposit and rent and has no month of metered
+  // occupancy at all. Issuing is the one thing every invoice has. It also
+  // answers what an owner actually asks — what did I bill out in March — for a
+  // bill settling February's utilities beside March's rent, which belongs
+  // wholly to neither.
   const invoices = await prisma.invoice.findMany({
     where: {
       voidedAt: null,
-      OR: grid.map((g) => ({ year: g.year, month: g.month })),
+      issueDate: { gte: rangeStart, lte: rangeEnd },
       ...(buildingIds.length > 0
         ? { lease: { room: { buildingId: { in: buildingIds } } } }
         : {}),
     },
     select: {
-      year: true,
-      month: true,
-      totalAmount: true,
+      issueDate: true,
       paymentStatus: true,
+      // Summed from the charges rather than read from totalAmount: an invoice
+      // charging a deposit alongside rent has a total larger than the revenue
+      // it represents. totalAmount stays what the tenant owes, which is a real
+      // and different question.
+      lineItems: { select: { kind: true, amount: true } },
       lease: { select: { room: { select: { buildingId: true } } } },
     },
   });
@@ -137,15 +147,26 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
     m.set(k, (m.get(k) ?? ZERO()).add(v));
 
   for (const inv of invoices) {
-    const k = key(inv.lease.room.buildingId, inv.year, inv.month);
-    add(billed, k, inv.totalAmount);
+    const k = key(
+      inv.lease.room.buildingId,
+      inv.issueDate.getUTCFullYear(),
+      inv.issueDate.getUTCMonth() + 1,
+    );
+    // A deposit is money held on a tenant's behalf, not earned. Counting it
+    // would inflate the month a tenant arrives and leave a hole when it is
+    // returned — reporting an owner as having earned money they may owe back.
+    const revenue = inv.lineItems.reduce(
+      (running, line) => (line.kind === "deposit" ? running : running.add(line.amount)),
+      ZERO(),
+    );
+    add(billed, k, revenue);
     // Payment is atomic, so an invoice falls wholly into one bucket. Summing
     // outstanding directly rather than subtracting means the two can disagree
     // if the data is wrong — which is the point.
     if (inv.paymentStatus === "paid") {
-      add(collected, k, inv.totalAmount);
+      add(collected, k, revenue);
     } else {
-      add(outstanding, k, inv.totalAmount);
+      add(outstanding, k, revenue);
     }
   }
 
