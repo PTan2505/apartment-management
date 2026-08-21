@@ -2,6 +2,12 @@ import { prisma } from "@/lib/prisma.js";
 import { paginate, toSkipTake } from "@/lib/pagination.js";
 import { findLatestKnownReading } from "@/lib/meter-history.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
+import {
+  issueFinalInvoice,
+  issueMoveInInvoice,
+  issueOverdueInvoice,
+} from "@/modules/invoices/issue.js";
+import { addMonths } from "./mapper.js";
 import type {
   AddOccupantInput,
   CreateLeaseInput,
@@ -153,6 +159,24 @@ export async function createLease(input: CreateLeaseInput) {
       },
     });
 
+    // The bill that starts the tenancy, written with the lease and its primary
+    // occupant. A tenancy whose deposit was never charged is not a tenancy
+    // anybody has actually started, so a failure here takes all three back.
+    await issueMoveInInvoice(
+      tx,
+      {
+        id: created.id,
+        startDate: created.startDate,
+        durationMonths: created.durationMonths,
+        occupantCount: created.occupantCount,
+        startMeterReading: created.startMeterReading,
+        baseRent: created.baseRent,
+        depositMonths: created.depositMonths,
+        room: { buildingId: room.buildingId, building: room.building },
+      },
+      new Date(),
+    );
+
     // Written in the same transaction: a lease that succeeded while its
     // vacancy cost failed would lose that cost with nothing to notice it by.
     if (vacancyUnits > 0 && latestKnown !== null) {
@@ -256,6 +280,7 @@ export async function recordMoveOut(
   id: number,
   moveOutDate: Date,
   endMeterReading: number,
+  overdueCharges: { buildingServiceFeeId: number; amount: number }[] = [],
 ) {
   const lease = await findLeaseOrThrow(id);
 
@@ -273,25 +298,54 @@ export async function recordMoveOut(
 
   // The tenancy has already been billed up to its last invoice, so closing
   // below that point would contradict a bill already issued.
+  // Only invoices that actually metered something. A move-in invoice charges a
+  // deposit and rent and has no reading to compare against.
   const lastInvoice = await prisma.invoice.findFirst({
-    where: { leaseId: id, voidedAt: null },
+    where: { leaseId: id, voidedAt: null, currentElectricityUse: { not: null } },
     orderBy: [{ year: "desc" }, { month: "desc" }],
     select: { currentElectricityUse: true },
   });
-  if (lastInvoice && endMeterReading < lastInvoice.currentElectricityUse) {
+  if (lastInvoice?.currentElectricityUse != null && endMeterReading < lastInvoice.currentElectricityUse) {
     throw new ValidationError(
       "Closing meter reading cannot be below the reading already invoiced for this lease",
     );
   }
 
+  const room = await prisma.room.findUniqueOrThrow({
+    where: { id: lease.roomId },
+    include: { building: true },
+  });
+  const expectedEndDate = addMonths(lease.startDate, lease.durationMonths);
+  const forIssue = {
+    id: lease.id,
+    startDate: lease.startDate,
+    durationMonths: lease.durationMonths,
+    occupantCount: lease.occupantCount,
+    startMeterReading: lease.startMeterReading,
+    baseRent: lease.baseRent,
+    depositMonths: lease.depositMonths,
+    room: { buildingId: room.buildingId, building: room.building },
+  };
+
   // Finalizing the lease also closes its occupancy records, so nobody is left
-  // recorded as living in a room that is no longer let.
+  // recorded as living in a room that is no longer let, and issues the closing
+  // bill. A tenancy closed without its last month billed loses that money
+  // silently, so a failure anywhere here takes the whole move-out back.
   await prisma.$transaction(async (tx) => {
     await tx.lease.update({ where: { id }, data: { moveOutDate, endMeterReading } });
     await tx.leaseOccupant.updateMany({
       where: { leaseId: id, leftAt: null },
       data: { leftAt: moveOutDate },
     });
+
+    await issueFinalInvoice(tx, forIssue, moveOutDate, endMeterReading, new Date());
+
+    // Days beyond the agreed term get their own bill, because no agreement
+    // covers them and nothing can be calculated for them. Issued even when the
+    // owner names no charges: waiving the days should leave a record saying so.
+    if (moveOutDate > expectedEndDate) {
+      await issueOverdueInvoice(tx, forIssue, moveOutDate, overdueCharges, new Date());
+    }
   });
 
   return findLeaseOrThrow(id);

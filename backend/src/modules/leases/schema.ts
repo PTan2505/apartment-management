@@ -34,6 +34,21 @@ export const updateLeaseSchema = z
 export const moveOutSchema = z.object({
   moveOutDate: isoDate,
   endMeterReading: z.coerce.number().int().nonnegative("must not be negative"),
+  // Charges for days beyond the agreed term, named by the owner. Each picks a
+  // fee from the building's catalogue — so the name stays comparable with every
+  // other bill — while the amount is free, because no agreement covers those
+  // days and the fee's current price is a fact about today rather than them.
+  //
+  // Ignored where the departure falls within the term. An empty list is a
+  // deliberate waiver, not an omission.
+  overdueCharges: z
+    .array(
+      z.object({
+        buildingServiceFeeId: z.coerce.number().int().positive(),
+        amount: z.coerce.number().nonnegative("must not be negative"),
+      }),
+    )
+    .default([]),
 });
 
 export const listLeasesQuerySchema = z.object({
