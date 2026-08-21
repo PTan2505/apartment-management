@@ -1,3 +1,4 @@
+import { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
 import { paginate, toSkipTake } from "@/lib/pagination.js";
 import { findLatestKnownReading } from "@/lib/meter-history.js";
@@ -7,14 +8,18 @@ import {
   issueMoveInInvoice,
   issueOverdueInvoice,
 } from "@/modules/invoices/issue.js";
+import { carryHolding } from "@/modules/deposits/holding.js";
 import { addMonths } from "./mapper.js";
 import type {
   AddOccupantInput,
   CreateLeaseInput,
+  ExtendLeaseInput,
   ListLeasesQuery,
   ListOccupantsQuery,
   UpdateLeaseInput,
 } from "./schema.js";
+
+const Decimal = Prisma.Decimal;
 
 const occupantInclude = {
   occupants: {
@@ -274,6 +279,211 @@ export async function updateLease(id: number, input: UpdateLeaseInput) {
 
   await prisma.lease.update({ where: { id }, data: input });
   return findLeaseOrThrow(id);
+}
+
+/**
+ * Renewing a tenancy: the predecessor closes on its agreed end date and a
+ * successor opens the same day, carrying the deposit rather than charging it
+ * again.
+ *
+ * The two are written together. A tenancy closed without its successor leaves a
+ * room recorded as empty while somebody lives in it, and a successor opened
+ * without its predecessor closing collides with the one-active-lease-per-room
+ * rule.
+ *
+ * Closing behaves exactly as a move-out on the expected end date does, with one
+ * deliberate exception: **no overdue invoice**. Overdue days are days nobody
+ * agreed to — the tenancy ran on because neither party renewed. When the
+ * parties DO renew, those same days were covered all along by the agreement
+ * being signed; they are the successor's first days and its first month's rent
+ * already pays for them. Issuing an overdue invoice would charge for days the
+ * new lease also charges for.
+ *
+ * That is why a LATE extension is normalised rather than recorded as it
+ * happened: whenever the owner gets round to entering it, the predecessor still
+ * closes on its agreed end date and the successor still begins there. The
+ * visible consequence is that an owner extending a month late finds the
+ * successor already a month old, with a month of billing owed — which is
+ * correct, because the tenancy was a month old.
+ */
+export async function extendLease(id: number, input: ExtendLeaseInput) {
+  const lease = await findLeaseOrThrow(id);
+
+  if (lease.moveOutDate !== null) {
+    throw new ConflictError(
+      "That lease has already recorded a move-out, so it cannot be extended",
+    );
+  }
+  if (input.endMeterReading < lease.startMeterReading) {
+    throw new ValidationError(
+      "Closing meter reading cannot be below the reading this lease started from",
+    );
+  }
+
+  const lastInvoice = await prisma.invoice.findFirst({
+    where: { leaseId: id, voidedAt: null, currentElectricityUse: { not: null } },
+    orderBy: [{ year: "desc" }, { month: "desc" }],
+    select: { currentElectricityUse: true },
+  });
+  if (
+    lastInvoice?.currentElectricityUse != null &&
+    input.endMeterReading < lastInvoice.currentElectricityUse
+  ) {
+    throw new ValidationError(
+      "Closing meter reading cannot be below the reading already invoiced for this lease",
+    );
+  }
+
+  const room = await prisma.room.findUniqueOrThrow({
+    where: { id: lease.roomId },
+    include: { building: true },
+  });
+
+  // The hinge of the whole operation: where one tenancy stops and the next
+  // begins. An ending date is the first day no longer covered, so the two abut
+  // with neither a gap nor an overlap.
+  const handover = addMonths(lease.startDate, lease.durationMonths);
+
+  // Captured before the predecessor's occupancy records are closed, since
+  // closing them is what makes them stop being current.
+  const continuingOccupants = lease.occupants.filter((o) => o.leftAt === null);
+
+  // The fees this tenancy still holds, re-priced at what the building asks
+  // today. Carrying the old prices forward would make a rise unenforceable for
+  // as long as a tenant keeps renewing.
+  const carriedFees = await prisma.leaseServiceFee.findMany({
+    where: {
+      leaseId: id,
+      OR: [{ effectiveTo: null }, { effectiveTo: { gt: handover } }],
+    },
+    select: {
+      quantity: true,
+      buildingServiceFee: { select: { id: true, unitAmount: true, isActive: true } },
+    },
+    orderBy: { id: "asc" },
+  });
+
+  const baseRent = input.baseRent !== undefined ? new Decimal(input.baseRent) : room.baseRent;
+  const depositMonths = input.depositMonths ?? lease.depositMonths;
+  const occupantCount = input.occupantCount ?? lease.occupantCount;
+
+  const carried = lease.depositHeld;
+  const required = baseRent.mul(depositMonths).toDecimalPlaces(0);
+  // Positive tops the holding up, negative hands part of it back, zero charges
+  // nothing at all — the ordinary renewal on unchanged terms.
+  const difference = required.sub(carried);
+
+  const successorId = await prisma.$transaction(async (tx) => {
+    // --- close the predecessor, exactly as a move-out does ---
+    await tx.lease.update({
+      where: { id },
+      data: { moveOutDate: handover, endMeterReading: input.endMeterReading },
+    });
+    await tx.leaseOccupant.updateMany({
+      where: { leaseId: id, leftAt: null },
+      data: { leftAt: handover },
+    });
+
+    await issueFinalInvoice(
+      tx,
+      {
+        id: lease.id,
+        startDate: lease.startDate,
+        durationMonths: lease.durationMonths,
+        occupantCount: lease.occupantCount,
+        startMeterReading: lease.startMeterReading,
+        baseRent: lease.baseRent,
+        depositMonths: lease.depositMonths,
+        room: { buildingId: room.buildingId, building: room.building },
+      },
+      handover,
+      input.endMeterReading,
+      new Date(),
+    );
+
+    // No overdue invoice. Stated here rather than left to the dates coinciding:
+    // the branch happens not to fire because the closing date IS the expected
+    // end date, but that is arithmetic, not a decision.
+
+    // --- open the successor ---
+    const successor = await tx.lease.create({
+      data: {
+        roomId: lease.roomId,
+        startDate: handover,
+        durationMonths: input.durationMonths,
+        occupantCount,
+        // Exactly the predecessor's closing reading: nobody left, so there is
+        // no vacancy for anyone to absorb.
+        startMeterReading: input.endMeterReading,
+        baseRent,
+        depositMonths,
+      },
+    });
+
+    for (const occupant of continuingOccupants) {
+      await tx.leaseOccupant.create({
+        data: {
+          leaseId: successor.id,
+          userId: occupant.userId,
+          isPrimary: occupant.isPrimary,
+          joinedAt: handover,
+        },
+      });
+    }
+
+    for (const fee of carriedFees) {
+      // A fee the building has since retired is not re-offered. The predecessor
+      // keeps its record of having held it; the renewal simply does not.
+      if (!fee.buildingServiceFee.isActive) {
+        continue;
+      }
+      await tx.leaseServiceFee.create({
+        data: {
+          leaseId: successor.id,
+          buildingServiceFeeId: fee.buildingServiceFee.id,
+          unitAmount: fee.buildingServiceFee.unitAmount,
+          quantity: fee.quantity,
+          effectiveFrom: handover,
+        },
+      });
+    }
+
+    // The deposit changes which tenancy it is held against, and nothing else.
+    // No money moves, so the total across the two leases is unchanged.
+    await carryHolding(tx, id, successor.id, carried);
+
+    await issueMoveInInvoice(
+      tx,
+      {
+        id: successor.id,
+        startDate: successor.startDate,
+        durationMonths: successor.durationMonths,
+        occupantCount: successor.occupantCount,
+        startMeterReading: successor.startMeterReading,
+        baseRent: successor.baseRent,
+        depositMonths: successor.depositMonths,
+        room: { buildingId: room.buildingId, building: room.building },
+      },
+      new Date(),
+      input.settleDepositOnInvoice
+        ? {
+            amount: difference,
+            description: difference.isNegative()
+              ? "Deposit returned on renewal"
+              : "Deposit top-up on renewal",
+          }
+        : // Declining leaves the difference reported on the successor as a
+          // shortfall or surplus, for the owner to settle in cash.
+          { amount: new Decimal(0), description: "" },
+    );
+
+    return successor.id;
+  });
+
+  return {
+    previous: await findLeaseOrThrow(id),
+    lease: await findLeaseOrThrow(successorId),
+  };
 }
 
 export async function recordMoveOut(

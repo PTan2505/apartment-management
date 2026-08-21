@@ -6,6 +6,7 @@ import {
   createLeaseSchema,
   updateLeaseSchema,
   moveOutSchema,
+  extendLeaseSchema,
   listLeasesQuerySchema,
   listOccupantsQuerySchema,
   addOccupantSchema,
@@ -113,4 +114,23 @@ export async function transferPrimaryHandler(req: Request, res: Response) {
     parsed.data.customerId,
   );
   res.status(200).json(toLeaseResponse(lease));
+}
+
+export async function extendLeaseHandler(req: Request, res: Response) {
+  const parsed = extendLeaseSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw new ValidationError("Invalid extension payload", parsed.error.flatten());
+  }
+
+  // Both leases are returned: the renewal is one operation on two tenancies,
+  // and a caller that only saw the successor could not tell what closing the
+  // predecessor did to its deposit.
+  const { previous, lease } = await leaseService.extendLease(
+    parseIdParam(req.params.id, "Lease"),
+    parsed.data,
+  );
+  res.status(201).json({
+    previous: toLeaseResponse(previous),
+    lease: toLeaseResponse(lease),
+  });
 }

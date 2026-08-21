@@ -128,6 +128,36 @@ model Lease {
   // Captured at move-out: closes this tenancy's electricity and becomes the
   // default starting point for the room's next lease.
   endMeterReading   Int?
+
+  // --- the deposit actually held, as distinct from the one the terms agreed ---
+  //
+  // The agreed deposit stays derived (depositMonths × baseRent). This is what
+  // the owner is really holding, which differs from it the moment a deposit is
+  // carried over from a previous tenancy, a move-in invoice goes unpaid, or a
+  // rent is raised at renewal.
+  //
+  // Deliberately stored rather than derived from the deposit lines of a paid
+  // move-in invoice. That derivation is blind to the two cases this exists for:
+  // a deposit carried from a predecessor was never charged on the successor's
+  // invoice, and a top-up collected in cash was never charged at all. Every
+  // write happens inside the transaction of the operation that moved the money
+  // — see design.md.
+  depositHeld       Decimal   @default(0) @db.Decimal(14, 0)
+  // Of the above, how much arrived from a predecessor lease rather than being
+  // paid. Kept so a holding can say where it came from.
+  depositCarriedIn  Decimal   @default(0) @db.Decimal(14, 0)
+  // How much left to a successor lease at an extension. No money moved; only
+  // which tenancy it is held against.
+  depositCarriedOut Decimal   @default(0) @db.Decimal(14, 0)
+
+  // Set together when the holding is closed out by returning what remains.
+  // Recordable only once, and only for a lease that has recorded a move-out.
+  depositRefunded   Decimal?  @db.Decimal(14, 0)
+  depositRefundedAt DateTime?
+  // Why the return differed from what was held — damage, an agreed deduction.
+  // Free text because the reason is not something the system can enumerate.
+  depositNote       String?
+
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -169,6 +199,11 @@ enum PaymentStatus {
 enum PaymentMethod {
   cash
   bank_transfer
+  /// Settled out of the deposit already held for the lease. The bill is
+  /// genuinely collected — that money reached the owner months ago — and the
+  /// holding shrinks by the same amount. Differs from the others in where the
+  /// money came from, not in whether it arrived.
+  deposit_deduction
 }
 
 /// All four kinds exist from the start so the billing rework adds no enum

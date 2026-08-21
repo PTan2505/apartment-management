@@ -10,6 +10,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "seed:owner": "tsx src/scripts/seed-owner.ts",
+    "backfill:deposits": "tsx src/scripts/backfill-deposit-holdings.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
