@@ -151,6 +151,10 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
       month: input.month,
       periodStart: period.periodStart,
       periodEnd: period.periodEnd,
+      // Fixed by the operation, not by the caller — this endpoint issues
+      // monthly invoices and nothing else.
+      type: "monthly",
+      issueDate: input.issueDate ?? new Date(),
       previousElectricityUse,
       currentElectricityUse: input.currentElectricityUse,
       totalAmount,
