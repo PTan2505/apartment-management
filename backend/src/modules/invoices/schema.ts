@@ -6,6 +6,13 @@ export const generateInvoiceSchema = z.object({
   year: z.coerce.number().int().min(2000).max(2200),
   month: z.coerce.number().int().min(1).max(12),
   currentElectricityUse: z.coerce.number().int().nonnegative("must not be negative"),
+  // When the owner billed this, defaulting to now. Supplied for a month billed
+  // late, so a batch of catch-up invoices does not all land in the month
+  // somebody happened to enter them.
+  //
+  // Deliberately no `type` here: the kind of an invoice is decided by which
+  // operation issued it, never by a caller. This one issues monthly invoices.
+  issueDate: z.coerce.date().optional(),
 });
 
 export const markPaidSchema = z.object({

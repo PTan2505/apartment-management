@@ -171,10 +171,30 @@ enum PaymentMethod {
   bank_transfer
 }
 
+/// All four kinds exist from the start so the billing rework adds no enum
+/// migration. Only `monthly` is reachable until the operations that issue the
+/// others exist — the kind is decided by which operation issued the invoice,
+/// never supplied by a caller.
+enum InvoiceType {
+  moveIn
+  monthly
+  final
+  overdue
+}
+
 model Invoice {
   id      Int   @id @default(autoincrement())
   leaseId Int
   lease   Lease @relation(fields: [leaseId], references: [id])
+
+  type InvoiceType @default(monthly)
+
+  // When the owner billed this, which is a different fact from the period it
+  // covers: a month billed late was covered in one month and billed in another.
+  // Deliberately its own column rather than reading createdAt — that is a
+  // record-keeping timestamp, it moves if a row is recreated, and it cannot be
+  // set to a date in the past. The two coincide today and are not the same fact.
+  issueDate DateTime @default(now())
 
   // The calendar month billed, and the days within it this tenancy occupied.
   year        Int
@@ -212,8 +232,13 @@ model Invoice {
 
   lineItems InvoiceLineItem[]
 
-  // One non-voided invoice per lease per month is enforced by a partial unique
-  // index added manually in the migration.
+  // One non-voided MONTHLY invoice per lease per month, enforced by a partial
+  // unique index added manually in the migration.
+  //
+  // The kind is deliberately NOT part of the key. Adding it would permit one
+  // move-in invoice per month, when the rule is one per lease, and one final
+  // per month when the rule is one per tenancy. Those rules are not
+  // month-shaped and get their own guards where they are introduced.
   @@index([leaseId])
 }
 
