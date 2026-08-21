@@ -144,13 +144,18 @@ export async function recordVacancyElectricity(
 
   const monthEnd = new Date(Date.UTC(input.year, input.month, 0));
 
-  // If a tenancy was live at month end, that month's consumption belongs on the
-  // tenant's invoice rather than the owner.
+  // If a tenancy covered the month's last day, that month's consumption belongs
+  // on the tenant's invoice rather than the owner.
+  //
+  // Strictly greater than, not `gte`: an ending date is the first day NOT
+  // covered, so a move-out dated the last day of the month means the room was
+  // already empty for it. Using `gte` here would treat that day as occupied and
+  // refuse a vacancy the owner genuinely bore.
   const occupying = await prisma.lease.findFirst({
     where: {
       roomId: input.roomId,
       startDate: { lte: monthEnd },
-      OR: [{ moveOutDate: null }, { moveOutDate: { gte: monthEnd } }],
+      OR: [{ moveOutDate: null }, { moveOutDate: { gt: monthEnd } }],
     },
     select: { id: true },
   });

@@ -3,6 +3,8 @@ import { Prisma } from "@/generated/prisma/client.js";
 const Decimal = Prisma.Decimal;
 type DecimalValue = Prisma.Decimal;
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 /** Days in a calendar month, honouring leap years. */
 export function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -29,26 +31,63 @@ export interface OccupiedPeriod {
  * the tenant slept there on both.
  *
  * Returns null when the lease did not overlap the month at all.
+ *
+ * ── One rule for ending dates ───────────────────────────────────────────────
+ *
+ * A date that ends a tenancy is EXCLUSIVE: it is the first day no longer
+ * covered, so the last covered day is the one before it. This holds for both
+ * ending dates, which is what lets a new lease begin on exactly the date the
+ * previous one ended, with no day billed twice and none left uncovered:
+ *
+ *     expectedEndDate 2026-07-01  →  covers through 2026-06-30
+ *     moveOutDate     2026-05-10  →  covers through 2026-05-09
+ *
+ * Reading them by opposite rules — as this once did, counting the move-out day
+ * but not the term day — makes a renewal beginning on the recorded end date
+ * bill that day twice, and leaves every future reader having to remember which
+ * field counts its own day.
+ *
+ * ── Which date, and why the choice is asymmetric ────────────────────────────
+ *
+ * A recorded move-out is a fact: someone confirmed the tenant left, so it
+ * bounds the period even when it falls past the agreed term. An owner may
+ * legitimately record a departure a few days late when neither side wanted a
+ * renewal, and what to charge for those days is their judgement rather than
+ * something to decide here.
+ *
+ * An ABSENT move-out is not the fact that the tenant is still there — it is the
+ * absence of any record at all. Without the term as a bound this function
+ * happily reports that a six-month lease occupied its hundredth month, and the
+ * invoice built on that answer bills time nobody ever agreed to. So the term
+ * bounds an unclosed lease, and the owner must either record the departure or
+ * create a new lease before billing can continue.
  */
 export function resolveOccupiedPeriod(
   year: number,
   month: number,
   leaseStart: Date,
   moveOutDate: Date | null,
+  /** Exclusive. Bounds the period only when no move-out has been recorded. */
+  expectedEndDate: Date,
 ): OccupiedPeriod | null {
   const monthStart = startOfMonth(year, month);
   const monthEnd = endOfMonth(year, month);
 
+  // A recorded move-out speaks for itself; without one, the agreement is all
+  // there is to go on. Both are read the same way — the day before is the last
+  // one covered — so the asymmetry is only in WHICH date is chosen.
+  const endsOn = moveOutDate ?? expectedEndDate;
+  const lastCoveredDay = new Date(endsOn.getTime() - MS_PER_DAY);
+
   const periodStart = leaseStart > monthStart ? leaseStart : monthStart;
-  const periodEnd = moveOutDate !== null && moveOutDate < monthEnd ? moveOutDate : monthEnd;
+  const periodEnd = lastCoveredDay < monthEnd ? lastCoveredDay : monthEnd;
 
   if (periodStart > periodEnd) {
     return null;
   }
 
-  const msPerDay = 24 * 60 * 60 * 1000;
   const daysOccupied =
-    Math.round((periodEnd.getTime() - periodStart.getTime()) / msPerDay) + 1;
+    Math.round((periodEnd.getTime() - periodStart.getTime()) / MS_PER_DAY) + 1;
 
   return { periodStart, periodEnd, daysOccupied, daysInMonth: daysInMonth(year, month) };
 }

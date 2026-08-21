@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import { paginate, toSkipTake } from "@/lib/pagination.js";
 import { buildLineItems, computeCharges, resolveOccupiedPeriod } from "./billing.js";
+import { addMonths } from "@/modules/leases/mapper.js";
 import type { GenerateInvoiceInput, ListInvoicesQuery, MarkPaidInput } from "./schema.js";
 
 /**
@@ -53,6 +54,7 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
     input.month,
     lease.startDate,
     lease.moveOutDate,
+    addMonths(lease.startDate, lease.durationMonths),
   );
   if (!period) {
     throw new ValidationError(
