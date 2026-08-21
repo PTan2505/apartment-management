@@ -1,7 +1,13 @@
 import { prisma } from "@/lib/prisma.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import { paginate, toSkipTake } from "@/lib/pagination.js";
-import { buildLineItems, computeCharges, resolveOccupiedPeriod } from "./billing.js";
+import {
+  buildLineItems,
+  buildServiceFeeLineItems,
+  computeCharges,
+  computeServiceFeeCharges,
+  resolveOccupiedPeriod,
+} from "./billing.js";
 import { addMonths } from "@/modules/leases/mapper.js";
 import type { GenerateInvoiceInput, ListInvoicesQuery, MarkPaidInput } from "./schema.js";
 
@@ -96,6 +102,46 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
 
   const charges = computeCharges(chargeInputs);
 
+  // Which fees applied DURING the billed period — deliberately not which the
+  // lease holds now. The two differ only when an invoice is generated late,
+  // which is exactly when reading the present would be wrong and would look
+  // right in every on-time test.
+  const applicableFees = await prisma.leaseServiceFee.findMany({
+    where: {
+      leaseId: lease.id,
+      effectiveFrom: { lte: period.periodEnd },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gt: period.periodStart } }],
+    },
+    select: {
+      buildingServiceFeeId: true,
+      unitAmount: true,
+      quantity: true,
+      effectiveFrom: true,
+      effectiveTo: true,
+      buildingServiceFee: { select: { name: true } },
+    },
+    orderBy: { id: "asc" },
+  });
+
+  const feeCharges = computeServiceFeeCharges(
+    period,
+    applicableFees.map((fee) => ({
+      buildingServiceFeeId: fee.buildingServiceFeeId,
+      name: fee.buildingServiceFee.name,
+      unitAmount: fee.unitAmount,
+      quantity: fee.quantity,
+      effectiveFrom: fee.effectiveFrom,
+      effectiveTo: fee.effectiveTo,
+    })),
+  );
+
+  const baseLines = buildLineItems(chargeInputs, charges);
+  const feeLines = buildServiceFeeLineItems(feeCharges, baseLines.length + 1);
+  const totalAmount = feeCharges.reduce(
+    (running, charge) => running.add(charge.amount),
+    charges.totalAmount,
+  );
+
   // The lines and the total are written together, in one statement, so a total
   // never exists without the charges that account for it.
   return prisma.invoice.create({
@@ -107,10 +153,10 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
       periodEnd: period.periodEnd,
       previousElectricityUse,
       currentElectricityUse: input.currentElectricityUse,
-      totalAmount: charges.totalAmount,
+      totalAmount,
       // Each rate and count is copied onto the line it produced, at issue time,
       // so a later rate or occupant change cannot rewrite what this bill charged.
-      lineItems: { create: buildLineItems(chargeInputs, charges) },
+      lineItems: { create: [...baseLines, ...feeLines] },
     },
     include: invoiceInclude,
   });

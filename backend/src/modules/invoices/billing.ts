@@ -147,7 +147,7 @@ export function computeCharges(input: ChargeInputs): Charges {
 export { Decimal };
 
 export interface LineItemRow {
-  kind: "rent" | "electricity" | "water";
+  kind: "rent" | "electricity" | "water" | "serviceFee";
   description: string;
   quantity: DecimalValue | null;
   unitAmount: DecimalValue | null;
@@ -198,4 +198,94 @@ export function buildLineItems(input: ChargeInputs, charges: Charges): LineItemR
       position: 3,
     },
   ];
+}
+
+export interface ServiceFeeCharge {
+  buildingServiceFeeId: number;
+  name: string;
+  unitAmount: DecimalValue;
+  quantity: number;
+  /** Days of the billed month this fee actually applied for. */
+  daysCharged: number;
+  amount: DecimalValue;
+}
+
+export interface ServiceFeePeriod {
+  buildingServiceFeeId: number;
+  name: string;
+  unitAmount: DecimalValue;
+  quantity: number;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
+}
+
+/**
+ * Charges a lease's service fees for a billed period.
+ *
+ * A fee is prorated by the INTERSECTION of two windows, not by either alone:
+ *
+ *     days the tenancy occupied   ∩   days the fee applied   =   days charged
+ *
+ * Prorating by the tenancy alone charges a fee the tenant gave up on the 15th
+ * for the whole month. Prorating by the fee's own window alone charges a tenant
+ * who moved out on the 10th for days they were not there. Both are wrong on the
+ * same invoice, so the intersection is the rule rather than a refinement.
+ *
+ * `effectiveTo` is exclusive, matching every other ending date in this system:
+ * a fee given up on the 15th applied through the 14th.
+ *
+ * A fee whose window does not reach the period at all yields no line — not a
+ * zero one. A charge of nothing is noise on a bill.
+ */
+export function computeServiceFeeCharges(
+  period: OccupiedPeriod,
+  fees: ServiceFeePeriod[],
+): ServiceFeeCharge[] {
+  const charges: ServiceFeeCharge[] = [];
+
+  for (const fee of fees) {
+    // Clamp the occupied window to the fee's own.
+    const from = fee.effectiveFrom > period.periodStart ? fee.effectiveFrom : period.periodStart;
+    const feeLastDay =
+      fee.effectiveTo === null
+        ? period.periodEnd
+        : new Date(fee.effectiveTo.getTime() - MS_PER_DAY);
+    const to = feeLastDay < period.periodEnd ? feeLastDay : period.periodEnd;
+
+    if (from > to) continue;
+
+    const daysCharged = Math.round((to.getTime() - from.getTime()) / MS_PER_DAY) + 1;
+    const full = fee.unitAmount.mul(fee.quantity);
+    const amount =
+      daysCharged >= period.daysInMonth
+        ? full.toDecimalPlaces(0)
+        : full.mul(daysCharged).div(period.daysInMonth).toDecimalPlaces(0);
+
+    charges.push({
+      buildingServiceFeeId: fee.buildingServiceFeeId,
+      name: fee.name,
+      unitAmount: fee.unitAmount,
+      quantity: fee.quantity,
+      daysCharged,
+      amount,
+    });
+  }
+
+  return charges;
+}
+
+/** Service fee lines, following the three computed ones. */
+export function buildServiceFeeLineItems(
+  charges: ServiceFeeCharge[],
+  startPosition: number,
+): (LineItemRow & { buildingServiceFeeId: number })[] {
+  return charges.map((charge, index) => ({
+    kind: "serviceFee" as const,
+    description: charge.name,
+    quantity: new Decimal(charge.quantity),
+    unitAmount: charge.unitAmount,
+    amount: charge.amount,
+    position: startPosition + index,
+    buildingServiceFeeId: charge.buildingServiceFeeId,
+  }));
 }

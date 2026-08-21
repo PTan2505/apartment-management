@@ -221,6 +221,7 @@ enum InvoiceLineKind {
   rent
   electricity
   water
+  serviceFee
 }
 
 model InvoiceLineItem {
@@ -231,6 +232,13 @@ model InvoiceLineItem {
   kind InvoiceLineKind
   // Written for a reader of the bill, not for the system.
   description String
+
+  // Which catalogue fee this line came from, for a service fee line. Provenance
+  // rather than a lookup — the amount is already snapshotted — but it lets a
+  // report group by kind of fee without parsing the description. Null for rent,
+  // electricity and water, which have no catalogue entry to point at.
+  buildingServiceFeeId Int?
+  buildingServiceFee   BuildingServiceFee? @relation(fields: [buildingServiceFeeId], references: [id])
 
   // The basis the charge was computed from, where there was one. Rent has
   // neither: a quantity of 1 would read as information and is not.
@@ -291,6 +299,7 @@ model BuildingServiceFee {
   updatedAt DateTime @updatedAt
 
   leaseSelections LeaseServiceFee[]
+  invoiceLines    InvoiceLineItem[]
 
   // Name is unique among a building's OFFERED fees — a partial unique index
   // added manually in the migration, same shape as Room.roomCode. Two entries
@@ -316,11 +325,24 @@ model LeaseServiceFee {
   // buying a second motorbike has not renegotiated the price of the first.
   quantity   Int     @default(1)
 
+  // When this fee applied, modelled exactly as LeaseOccupant records a person
+  // joining and leaving. Giving up a fee records a date rather than deleting the
+  // row: a tenant who had parking for half of March had it, and an invoice
+  // generated afterwards must be able to charge those days.
+  //
+  // effectiveFrom defaults to the LEASE'S START, not to today — a fee agreed at
+  // signing applied from day one, and defaulting to whenever the owner happened
+  // to enter it would silently under-charge every fee entered late.
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // A lease selects a given fee at most once — more of a service is a quantity,
-  // not a second selection. Unique index added manually in the migration.
+  // A lease holds a given fee at most once AT A TIME — more of a service is a
+  // quantity, not a second selection. Partial unique index (WHERE effectiveTo IS
+  // NULL) added manually in the migration, so a fee given up can be taken again,
+  // the same way LeaseOccupant lets a person rejoin.
   @@index([leaseId])
   @@index([buildingServiceFeeId])
 }

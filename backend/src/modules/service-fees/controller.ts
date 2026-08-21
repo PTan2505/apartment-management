@@ -7,6 +7,7 @@ import {
   listServiceFeesQuerySchema,
   selectServiceFeeSchema,
   updateSelectionSchema,
+  endServiceFeeSchema,
 } from "./schema.js";
 import { toLeaseServiceFeeResponse } from "./mapper.js";
 import * as serviceFeeService from "./service.js";
@@ -102,10 +103,21 @@ export async function updateLeaseServiceFeeHandler(req: Request, res: Response) 
   res.status(200).json(toLeaseServiceFeeResponse(row));
 }
 
-export async function removeLeaseServiceFeeHandler(req: Request, res: Response) {
-  await serviceFeeService.removeLeaseServiceFee(
+/**
+ * Answers 200 with the ended record rather than 204, because giving a fee up
+ * now records a date instead of removing it — the caller gets back the period
+ * it applied for.
+ */
+export async function endLeaseServiceFeeHandler(req: Request, res: Response) {
+  const parsed = endServiceFeeSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    throw new ValidationError("Invalid service fee payload", parsed.error.flatten());
+  }
+
+  const row = await serviceFeeService.endLeaseServiceFee(
     parseIdParam(req.params.id, "Lease"),
     parseIdParam(req.params.selectionId, "Lease service fee"),
+    parsed.data,
   );
-  res.status(204).send();
+  res.status(200).json(toLeaseServiceFeeResponse(row));
 }

@@ -3,6 +3,7 @@ import { paginate, toSkipTake } from "@/lib/pagination.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import type {
   CreateServiceFeeInput,
+  EndServiceFeeInput,
   ListServiceFeesQuery,
   SelectServiceFeeInput,
   UpdateSelectionInput,
@@ -126,6 +127,8 @@ const selectionSelect = {
   buildingServiceFeeId: true,
   unitAmount: true,
   quantity: true,
+  effectiveFrom: true,
+  effectiveTo: true,
   createdAt: true,
   updatedAt: true,
   buildingServiceFee: { select: { id: true, name: true, isActive: true } },
@@ -168,13 +171,23 @@ export async function selectServiceFee(leaseId: number, input: SelectServiceFeeI
     throw new ValidationError("That fee is no longer offered");
   }
 
+  // Only the fees still running block a new one. A fee given up may be taken
+  // again — that is a second period, not a duplicate.
   const existing = await prisma.leaseServiceFee.findFirst({
-    where: { leaseId, buildingServiceFeeId: fee.id },
+    where: { leaseId, buildingServiceFeeId: fee.id, effectiveTo: null },
   });
   if (existing) {
     throw new ConflictError(
       "This lease already has that fee — change its quantity rather than adding it again",
     );
+  }
+
+  // Defaults to the lease's start, not to today: a fee agreed at signing
+  // applied from day one, and dating it from whenever the owner typed it in
+  // would silently under-charge every fee entered late.
+  const effectiveFrom = input.effectiveFrom ?? lease.startDate;
+  if (effectiveFrom < lease.startDate) {
+    throw new ValidationError("A fee cannot begin applying before its lease starts");
   }
 
   return prisma.leaseServiceFee.create({
@@ -183,6 +196,7 @@ export async function selectServiceFee(leaseId: number, input: SelectServiceFeeI
       buildingServiceFeeId: fee.id,
       unitAmount: fee.unitAmount,
       quantity: input.quantity,
+      effectiveFrom,
     },
     select: selectionSelect,
   });
@@ -220,8 +234,33 @@ export async function updateLeaseServiceFee(
   });
 }
 
-export async function removeLeaseServiceFee(leaseId: number, selectionId: number) {
+/**
+ * Records that a lease gave a fee up, rather than deleting the record.
+ *
+ * A tenant who had parking for half of March had it, and an invoice generated
+ * afterwards has to charge those days. Deleting would make that unanswerable
+ * and would silently charge nothing — the failure looks like a correct bill.
+ */
+export async function endLeaseServiceFee(
+  leaseId: number,
+  selectionId: number,
+  input: EndServiceFeeInput,
+) {
   await getLeaseOrThrow(leaseId);
-  await getSelectionOrThrow(leaseId, selectionId);
-  await prisma.leaseServiceFee.delete({ where: { id: selectionId } });
+  const selection = await getSelectionOrThrow(leaseId, selectionId);
+
+  if (selection.effectiveTo !== null) {
+    throw new ConflictError("That fee has already been given up");
+  }
+
+  const effectiveTo = input.effectiveTo ?? new Date();
+  if (effectiveTo < selection.effectiveFrom) {
+    throw new ValidationError("A fee cannot stop applying before it started");
+  }
+
+  return prisma.leaseServiceFee.update({
+    where: { id: selectionId },
+    data: { effectiveTo },
+    select: selectionSelect,
+  });
 }

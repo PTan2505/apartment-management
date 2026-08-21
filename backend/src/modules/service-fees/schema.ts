@@ -31,6 +31,16 @@ export const listServiceFeesQuerySchema = z.object({
 export const selectServiceFeeSchema = z.object({
   buildingServiceFeeId: z.coerce.number().int().positive("buildingServiceFeeId is required"),
   quantity: z.coerce.number().int().min(1, "must be at least 1").default(1),
+  // Optional: the service defaults it to the lease's start date, which is when
+  // a fee agreed at signing began applying. Supply it for a service taken up
+  // partway through a tenancy.
+  effectiveFrom: z.coerce.date().optional(),
+});
+
+// Giving up a fee records when it stopped, rather than deleting the record —
+// a month already lived through still has to be billable.
+export const endServiceFeeSchema = z.object({
+  effectiveTo: z.coerce.date().optional(),
 });
 
 export const updateSelectionSchema = z.object({
@@ -41,4 +51,5 @@ export type CreateServiceFeeInput = z.infer<typeof createServiceFeeSchema>;
 export type UpdateServiceFeeInput = z.infer<typeof updateServiceFeeSchema>;
 export type ListServiceFeesQuery = z.infer<typeof listServiceFeesQuerySchema>;
 export type SelectServiceFeeInput = z.infer<typeof selectServiceFeeSchema>;
+export type EndServiceFeeInput = z.infer<typeof endServiceFeeSchema>;
 export type UpdateSelectionInput = z.infer<typeof updateSelectionSchema>;
