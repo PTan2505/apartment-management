@@ -75,11 +75,40 @@ export async function createLease(input: CreateLeaseInput) {
     throw new ValidationError("The lease signatory must have a phone number");
   }
 
+  // First: is the room still let? This guard runs before the overlap check
+  // below so a room with a running tenancy reports the reason the owner can
+  // actually act on, rather than a date conflict against a lease that has no
+  // ending date yet.
   const activeLease = await prisma.lease.findFirst({
     where: { roomId: input.roomId, moveOutDate: null },
   });
   if (activeLease) {
     throw new ConflictError("That room already has an active lease");
+  }
+
+  // Then: does this tenancy begin before the last one finished?
+  //
+  // The guard above only ever asked whether an OPEN lease existed — it never
+  // looked at dates. So a tenancy recorded as ending 5 July, followed by a
+  // lease beginning 1 July, was accepted and both were billed for 1–4 July.
+  //
+  // The greatest ending date is the boundary, not the most recently created
+  // lease: one entered out of order must not become the boundary. Every lease
+  // on the room is closed at this point, so `moveOutDate` is present on all of
+  // them and the latest is the day the room genuinely became free.
+  //
+  // Equality is allowed. An ending date is the first day no longer covered, so
+  // a lease beginning exactly then abuts the previous one — no gap, no overlap.
+  const lastEnded = await prisma.lease.findFirst({
+    where: { roomId: input.roomId, moveOutDate: { not: null } },
+    orderBy: { moveOutDate: "desc" },
+    select: { moveOutDate: true },
+  });
+  if (lastEnded?.moveOutDate && input.startDate < lastEnded.moveOutDate) {
+    const earliest = lastEnded.moveOutDate.toISOString().slice(0, 10);
+    throw new ConflictError(
+      `That room's previous tenancy ran until ${earliest}. A new lease cannot start before then — the earliest available date is ${earliest}.`,
+    );
   }
 
   const { startMeterReading, latestKnown } = await resolveStartMeterReading(
@@ -154,7 +183,36 @@ export async function createLease(input: CreateLeaseInput) {
   return findLeaseOrThrow(lease.id);
 }
 
+/**
+ * Leases whose agreed term has already run out while no move-out is recorded.
+ *
+ * The term end is not a column — it is `startDate + durationMonths`, derived in
+ * the mapper rather than stored so it can never contradict the two values it
+ * comes from. That means it cannot be compared in a Prisma filter, so the ids
+ * are resolved here and fed back as an `in` clause, which leaves paging and the
+ * other filters working through the normal path.
+ *
+ * The arithmetic is therefore expressed twice — `addMonths` in the mapper and
+ * this interval in SQL — and the two must agree, including how each clamps a
+ * month-end start. Checked against 31 January + 1 month (28 February), the leap
+ * year case, and every other month-end boundary before this was written.
+ *
+ * `<=` rather than `<`: the term end is the first day no longer covered, so a
+ * lease whose end is today has already run out.
+ */
+async function overdueLeaseIds(): Promise<number[]> {
+  const rows = await prisma.$queryRawUnsafe<{ id: number }[]>(`
+    SELECT id FROM "Lease"
+    WHERE "moveOutDate" IS NULL
+      AND ("startDate" + ("durationMonths" || ' months')::interval) <= now()`);
+  return rows.map((row) => row.id);
+}
+
 export async function listLeases(query: ListLeasesQuery) {
+  // Resolved before the where clause is built, so it composes with every other
+  // filter rather than replacing them.
+  const overdueIds = query.overdue ? await overdueLeaseIds() : null;
+
   const where = {
     ...(query.roomId ? { roomId: query.roomId } : {}),
     ...(query.active === undefined
@@ -164,6 +222,7 @@ export async function listLeases(query: ListLeasesQuery) {
         : { moveOutDate: { not: null } }),
     // Matches any lease the person occupied, primary or not.
     ...(query.customerId ? { occupants: { some: { userId: query.customerId } } } : {}),
+    ...(overdueIds === null ? {} : { id: { in: overdueIds } }),
   };
 
   return paginate(
