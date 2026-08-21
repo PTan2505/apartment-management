@@ -41,6 +41,12 @@ interface LeaseRow {
   endMeterReading: number | null;
   baseRent: Prisma.Decimal;
   depositMonths: number;
+  depositHeld: Prisma.Decimal;
+  depositCarriedIn: Prisma.Decimal;
+  depositCarriedOut: Prisma.Decimal;
+  depositRefunded: Prisma.Decimal | null;
+  depositRefundedAt: Date | null;
+  depositNote: string | null;
   createdAt: Date;
   updatedAt: Date;
   occupants?: OccupantRow[];
@@ -71,6 +77,20 @@ export function toLeaseResponse(lease: LeaseRow) {
     // Multiplied as Decimal rather than in floating point: this is money, and
     // the result is what an owner is holding on someone's behalf.
     depositAmount: lease.baseRent.mul(lease.depositMonths),
+    // What is actually held, which is a different question from what the terms
+    // agreed above. They differ the moment a deposit is carried over from a
+    // previous tenancy, a move-in invoice goes unpaid, or a rent is raised at
+    // renewal.
+    depositHeld: lease.depositHeld,
+    depositCarriedIn: lease.depositCarriedIn,
+    depositCarriedOut: lease.depositCarriedOut,
+    // Positive where the holding falls short of what the terms require,
+    // negative where it exceeds them. Reported rather than left to be computed:
+    // a shortfall nobody subtracted is a shortfall nobody noticed.
+    depositDifference: lease.baseRent.mul(lease.depositMonths).sub(lease.depositHeld),
+    depositRefunded: lease.depositRefunded,
+    depositRefundedAt: lease.depositRefundedAt,
+    depositNote: lease.depositNote,
     status: (lease.moveOutDate === null ? "active" : "finalized") satisfies LeaseStatus,
     tenant: primary
       ? {
