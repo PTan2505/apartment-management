@@ -196,16 +196,24 @@ model Invoice {
   // set to a date in the past. The two coincide today and are not the same fact.
   issueDate DateTime @default(now())
 
-  // The calendar month billed, and the days within it this tenancy occupied.
-  year        Int
-  month       Int
-  periodStart DateTime
-  periodEnd   DateTime
+  // The calendar month whose UTILITIES this invoice covers, and the days within
+  // it this tenancy occupied. Rent moving a month ahead does not change what
+  // this label refers to.
+  //
+  // Optional because they are true of a monthly bill and false of a move-in
+  // one, which charges a deposit and rent — neither of them metered, neither
+  // belonging to a month of occupancy. Each kind states which it carries; the
+  // service enforces that, since nullability alone cannot.
+  year        Int?
+  month       Int?
+  periodStart DateTime?
+  periodEnd   DateTime?
 
   // Metered electricity. Never prorated — the readings already measure exactly
-  // what was consumed.
-  previousElectricityUse Int
-  currentElectricityUse  Int
+  // what was consumed. Absent on a move-in invoice, and on an overdue one,
+  // whose closing reading was already consumed by the final invoice.
+  previousElectricityUse Int?
+  currentElectricityUse  Int?
 
   // Each charge is a line item, so an invoice can carry however many it has.
   // The rates and counts a charge was computed from live on the line they
@@ -232,8 +240,9 @@ model Invoice {
 
   lineItems InvoiceLineItem[]
 
-  // One non-voided MONTHLY invoice per lease per month, enforced by a partial
-  // unique index added manually in the migration.
+  // Four partial unique indexes are added manually in the migration:
+  //   one non-voided MONTHLY invoice per lease per month, and one non-voided
+  //   move-in, final and overdue invoice per lease.
   //
   // The kind is deliberately NOT part of the key. Adding it would permit one
   // move-in invoice per month, when the rule is one per lease, and one final
@@ -247,6 +256,8 @@ enum InvoiceLineKind {
   electricity
   water
   serviceFee
+  /// Money held on the tenant's behalf, not earned. Excluded from revenue.
+  deposit
 }
 
 model InvoiceLineItem {
@@ -275,6 +286,15 @@ model InvoiceLineItem {
   // rent is 3,000,000.
   quantity   Decimal? @db.Decimal(14, 2)
   unitAmount Decimal? @db.Decimal(12, 4)
+
+  // The span this charge is for. A bill carries one month's utilities beside
+  // the FOLLOWING month's rent, so the invoice's own period cannot say which a
+  // line belongs to — each line says it itself.
+  //
+  // Null for a deposit, which is not charged for a span of time and must not
+  // borrow the invoice's.
+  periodStart DateTime?
+  periodEnd   DateTime?
 
   // Authoritative, and already rounded to whole units so a bill adds up.
   amount Decimal @db.Decimal(14, 0)
