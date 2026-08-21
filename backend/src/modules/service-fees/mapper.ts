@@ -6,6 +6,8 @@ interface SelectionRow {
   buildingServiceFeeId: number;
   unitAmount: Prisma.Decimal;
   quantity: number;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
   createdAt: Date;
   updatedAt: Date;
   buildingServiceFee?: { id: number; name: string; isActive: boolean } | null;
@@ -34,6 +36,11 @@ export function toLeaseServiceFeeResponse(row: SelectionRow) {
     isOfferedByBuilding: row.buildingServiceFee?.isActive ?? null,
     unitAmount: row.unitAmount,
     quantity: row.quantity,
+    // The period this fee applied for. Null `effectiveTo` means it still does.
+    // A fee given up is still reported — it is part of the lease's history and
+    // an invoice for a month it covered still has to charge it.
+    effectiveFrom: row.effectiveFrom,
+    effectiveTo: row.effectiveTo,
     monthlyAmount: row.unitAmount.mul(row.quantity),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

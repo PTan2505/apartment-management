@@ -8,7 +8,7 @@ import {
   listLeaseServiceFeesHandler,
   selectServiceFeeHandler,
   updateLeaseServiceFeeHandler,
-  removeLeaseServiceFeeHandler,
+  endLeaseServiceFeeHandler,
 } from "./controller.js";
 
 /**
@@ -37,4 +37,6 @@ export const leaseServiceFeesRouter = Router({ mergeParams: true });
 leaseServiceFeesRouter.get("/", listLeaseServiceFeesHandler);
 leaseServiceFeesRouter.post("/", selectServiceFeeHandler);
 leaseServiceFeesRouter.patch("/:selectionId", updateLeaseServiceFeeHandler);
-leaseServiceFeesRouter.delete("/:selectionId", removeLeaseServiceFeeHandler);
+// DELETE still expresses "this lease no longer has that fee" — but it records
+// the date rather than erasing the record, so it answers 200 with the period.
+leaseServiceFeesRouter.delete("/:selectionId", endLeaseServiceFeeHandler);
