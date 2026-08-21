@@ -31,6 +31,23 @@ export const updateLeaseSchema = z
   })
   .partial();
 
+export const extendLeaseSchema = z.object({
+  // The electricity of the predecessor's last month still has to be billed, and
+  // the successor has to start from somewhere. The tenant not having left
+  // changes neither, so the reading is required exactly as at a move-out.
+  endMeterReading: z.coerce.number().int().nonnegative("must not be negative"),
+  durationMonths: z.coerce.number().int().min(1, "must be at least 1"),
+  // Each defaults: the rent from the room's current base rent, the rest from
+  // the predecessor. A renewal is where a price rise takes effect.
+  baseRent: z.coerce.number().nonnegative("must not be negative").optional(),
+  depositMonths: z.coerce.number().int().nonnegative("must not be negative").optional(),
+  occupantCount: z.coerce.number().int().min(1, "must be at least 1").optional(),
+  // Whether the difference between the deposit carried and the deposit now
+  // required is charged on the successor's move-in invoice. Declining leaves it
+  // reported as a shortfall or surplus for the owner to settle in cash.
+  settleDepositOnInvoice: z.coerce.boolean().default(true),
+});
+
 export const moveOutSchema = z.object({
   moveOutDate: isoDate,
   endMeterReading: z.coerce.number().int().nonnegative("must not be negative"),
@@ -88,3 +105,4 @@ export type CreateLeaseInput = z.infer<typeof createLeaseSchema>;
 export type UpdateLeaseInput = z.infer<typeof updateLeaseSchema>;
 export type ListLeasesQuery = z.infer<typeof listLeasesQuerySchema>;
 export type AddOccupantInput = z.infer<typeof addOccupantSchema>;
+export type ExtendLeaseInput = z.infer<typeof extendLeaseSchema>;
