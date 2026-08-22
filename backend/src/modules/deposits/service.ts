@@ -71,7 +71,6 @@ export async function getSettlement(leaseId: number) {
     outstandingInvoices: unpaid._sum.totalAmount ?? ZERO(),
     depositRefunded: lease.depositRefunded,
     depositRefundedAt: lease.depositRefundedAt,
-    depositNote: lease.depositNote,
   };
 }
 
@@ -95,19 +94,15 @@ export async function refundDeposit(leaseId: number, input: RefundDepositInput) 
     throw new ConflictError("This lease's deposit has already been returned");
   }
 
-  const amount = new Decimal(input.amount).toDecimalPlaces(0);
-  if (amount.greaterThan(lease.depositHeld)) {
-    throw new ValidationError(
-      "Cannot return more than the deposit held for this lease",
-    );
-  }
-
+  // The whole holding goes back. A holding of zero is a real case rather than
+  // an error: a departing tenancy whose deposit was entirely spent on what it
+  // owed still needs recording as settled, which is a different fact from a
+  // deposit nobody has dealt with yet.
   await prisma.lease.update({
     where: { id: leaseId },
     data: {
-      depositRefunded: amount,
+      depositRefunded: lease.depositHeld,
       depositRefundedAt: input.refundedAt,
-      depositNote: input.note ?? null,
       depositHeld: ZERO(),
     },
   });
@@ -134,9 +129,6 @@ export async function adjustDeposit(leaseId: number, input: AdjustDepositInput) 
 
   await prisma.$transaction(async (tx) => {
     await adjustHolding(tx, leaseId, amount);
-    if (input.note) {
-      await tx.lease.update({ where: { id: leaseId }, data: { depositNote: input.note } });
-    }
   });
 
   return getSettlement(leaseId);
