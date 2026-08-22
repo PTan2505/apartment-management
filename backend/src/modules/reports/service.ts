@@ -16,6 +16,12 @@ const EXPENSE_CATEGORIES = [
 ] as const;
 type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 
+// The kinds of charge an owner decides on. Mirrors EXPENSE_CATEGORIES
+// deliberately: what is charged as `damage` is what is paid out as `repair`, and
+// an owner comparing the two is asking whether they recovered what it cost.
+const CHARGE_CATEGORIES = ["damage", "cleaning", "lost_item", "penalty", "other"] as const;
+type ChargeCategory = (typeof CHARGE_CATEGORIES)[number];
+
 export interface MonthFigures {
   year: number;
   month: number;
@@ -28,9 +34,14 @@ export interface MonthFigures {
 }
 
 export type CategoryBreakdown = Record<ExpenseCategory, Dec>;
+export type ChargeBreakdown = Record<ChargeCategory, Dec>;
 
 export interface Totals extends Omit<MonthFigures, "year" | "month"> {
   expensesByCategory: CategoryBreakdown;
+  // A partition of `billed`, not an addition to it. An ad-hoc charge appears in
+  // both, once — reporting it as a separate total would invite anyone summing
+  // the top-level figures to count it twice.
+  chargesByCategory: ChargeBreakdown;
 }
 
 export interface BuildingReport {
@@ -73,6 +84,12 @@ function emptyCategories(): CategoryBreakdown {
   return Object.fromEntries(
     EXPENSE_CATEGORIES.map((c) => [c, ZERO()]),
   ) as CategoryBreakdown;
+}
+
+// Every category, always, even those with nothing charged. The shape of the
+// response must not depend on the data in it.
+function emptyCharges(): ChargeBreakdown {
+  return Object.fromEntries(CHARGE_CATEGORIES.map((c) => [c, ZERO()])) as ChargeBreakdown;
 }
 
 export async function buildRevenueReport(q: RevenueReportQuery): Promise<RevenueReport> {
@@ -123,7 +140,7 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
       // charging a deposit alongside rent has a total larger than the revenue
       // it represents. totalAmount stays what the tenant owes, which is a real
       // and different question.
-      lineItems: { select: { kind: true, amount: true } },
+      lineItems: { select: { kind: true, amount: true, chargeCategory: true } },
       lease: { select: { room: { select: { buildingId: true } } } },
     },
   });
@@ -142,6 +159,7 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
   const outstanding = new Map<string, Dec>();
   const expenseTotal = new Map<string, Dec>();
   const categoryByBuilding = new Map<number, CategoryBreakdown>();
+  const chargesByBuilding = new Map<number, ChargeBreakdown>();
 
   const add = (m: Map<string, Dec>, k: string, v: Dec) =>
     m.set(k, (m.get(k) ?? ZERO()).add(v));
@@ -155,11 +173,28 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
     // A deposit is money held on a tenant's behalf, not earned. Counting it
     // would inflate the month a tenant arrives and leave a hole when it is
     // returned — reporting an owner as having earned money they may owe back.
+    // A charge the owner named IS revenue and needs no exception here — it is
+    // included by being anything other than a deposit. Stated so the next
+    // person adding a line kind sees which side of the line it falls on.
     const revenue = inv.lineItems.reduce(
       (running, line) => (line.kind === "deposit" ? running : running.add(line.amount)),
       ZERO(),
     );
     add(billed, k, revenue);
+
+    // The breakdown of what was charged by hand, taken from the same lines that
+    // built `billed` above. A partition of that figure rather than an addition
+    // to it, so summing the report's top-level numbers cannot double count.
+    for (const line of inv.lineItems) {
+      if (line.kind !== "charge" || line.chargeCategory === null) {
+        continue;
+      }
+      const buildingId = inv.lease.room.buildingId;
+      const charges = chargesByBuilding.get(buildingId) ?? emptyCharges();
+      const category = line.chargeCategory as ChargeCategory;
+      charges[category] = charges[category].add(line.amount);
+      chargesByBuilding.set(buildingId, charges);
+    }
     // Payment is atomic, so an invoice falls wholly into one bucket. Summing
     // outstanding directly rather than subtracting means the two can disagree
     // if the data is wrong — which is the point.
@@ -184,6 +219,7 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
 
   // --- assemble against the grid ---
   const grandCategories = emptyCategories();
+  const grandCharges = emptyCharges();
   let grand = blankTotals();
 
   const buildingReports: BuildingReport[] = buildings.map((b) => {
@@ -217,13 +253,18 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
     for (const c of EXPENSE_CATEGORIES) {
       grandCategories[c] = grandCategories[c].add(cats[c]);
     }
+
+    const charges = chargesByBuilding.get(b.id) ?? emptyCharges();
+    for (const c of CHARGE_CATEGORIES) {
+      grandCharges[c] = grandCharges[c].add(charges[c]);
+    }
     grand = accumulate(grand, runningTotal);
 
     return {
       buildingId: b.id,
       displayName: b.displayName,
       months,
-      total: { ...runningTotal, expensesByCategory: cats },
+      total: { ...runningTotal, expensesByCategory: cats, chargesByCategory: charges },
     };
   });
 
@@ -235,7 +276,7 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
       to: `${q.to.year}-${pad(q.to.month)}`,
     },
     buildings: buildingReports,
-    total: { ...grand, expensesByCategory: grandCategories },
+    total: { ...grand, expensesByCategory: grandCategories, chargesByCategory: grandCharges },
   };
 }
 
