@@ -15,6 +15,7 @@ import { expensesRouter } from "@/modules/expenses/router.js";
 import { reportsRouter } from "@/modules/reports/router.js";
 import { addressesRouter } from "@/modules/addresses/router.js";
 import { depositsRouter } from "@/modules/deposits/router.js";
+import { paymentsRouter } from "@/modules/payments/router.js";
 
 const app = express();
 
@@ -34,6 +35,7 @@ app.use("/expenses", expensesRouter);
 app.use("/reports", reportsRouter);
 app.use("/addresses", addressesRouter);
 app.use("/deposits", depositsRouter);
+app.use("/payments", paymentsRouter);
 
 app.use(errorHandler);
 

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "@/middleware/authenticate.js";
 import { requireRole } from "@/middleware/require-role.js";
+import { listInvoicePaymentsHandler } from "@/modules/payments/controller.js";
 import {
   generateInvoiceHandler,
   issueAdhocInvoiceHandler,
@@ -22,3 +23,5 @@ invoicesRouter.get("/", listInvoicesHandler);
 invoicesRouter.get("/:id", getInvoiceHandler);
 invoicesRouter.post("/:id/pay", markPaidHandler);
 invoicesRouter.post("/:id/void", voidInvoiceHandler);
+// What settled this invoice, and when. Handler lives in the payments module.
+invoicesRouter.get("/:id/payments", listInvoicePaymentsHandler);
