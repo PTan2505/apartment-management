@@ -38,7 +38,43 @@ model User {
   updatedAt    DateTime @updatedAt
 
   refreshTokens  RefreshToken[]
+  portalTokens   TenantAccessToken[]
   leaseOccupants LeaseOccupant[]
+}
+
+/// A tenant's way into the portal: a link the owner sends once.
+///
+/// Deliberately the same design as RefreshToken, for the same reason — it lives
+/// for the length of a tenancy and has to be killable the moment it is
+/// forwarded to somebody. A JWT cannot be withdrawn, which rules it out however
+/// convenient the stateless check would be.
+///
+/// Belongs to a PERSON rather than a tenancy, so it survives a renewal and
+/// still works after a move-out. That last part matters: the final bill is
+/// issued at the moment the tenancy closes, and its addressee has by then
+/// stopped being a current occupant.
+model TenantAccessToken {
+  id     Int  @id @default(autoincrement())
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  /// SHA-256 of the token, never the token itself. A copy of this database is
+  /// deliberately not a copy of every tenant's link.
+  ///
+  /// SHA-256 rather than bcrypt, as for a refresh token: the value is 256 bits
+  /// of uniform randomness so there is no dictionary to slow down, and it has
+  /// to be found by equality rather than compared one row at a time.
+  tokenHash String @unique
+
+  /// Set when the owner withdraws the link, or when they issue a replacement.
+  revokedAt DateTime?
+  /// The only signal an owner has that a link is being used by someone who
+  /// should not have it — there is no rate limit and no alerting.
+  lastUsedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model RefreshToken {

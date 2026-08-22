@@ -16,6 +16,7 @@ import { reportsRouter } from "@/modules/reports/router.js";
 import { addressesRouter } from "@/modules/addresses/router.js";
 import { depositsRouter } from "@/modules/deposits/router.js";
 import { paymentsRouter } from "@/modules/payments/router.js";
+import { tenantPortalRouter } from "@/modules/tenant-portal/router.js";
 
 const app = express();
 
@@ -36,6 +37,12 @@ app.use("/reports", reportsRouter);
 app.use("/addresses", addressesRouter);
 app.use("/deposits", depositsRouter);
 app.use("/payments", paymentsRouter);
+
+// PUBLIC. Every router above requires an owner's access token; this one takes a
+// tenant's portal token instead, which grants sight of that person's own bills
+// and nothing else. Kept apart from the block above so the difference is
+// visible rather than buried in a list.
+app.use("/portal", tenantPortalRouter);
 
 app.use(errorHandler);
 
