@@ -132,11 +132,13 @@ Such a movement SHALL NOT appear as revenue and SHALL NOT appear as an expense.
 
 ### Requirement: A deposit can settle what a tenancy owes
 
-Where an invoice is marked paid by deduction from the deposit, the lease's holding SHALL decrease by the amount of that invoice. The money was collected months ago; this records where it went.
+Where an invoice is paid by deduction from the deposit, the lease's holding SHALL decrease by the amount of that invoice. The money was collected months ago; this records where it went.
 
-A deduction exceeding what the lease holds SHALL be refused, and the invoice SHALL remain unpaid. An owner cannot spend a deposit they do not have.
+A deduction exceeding what the lease holds SHALL be refused, the invoice SHALL remain unpaid, and no payment SHALL be written.
 
-An invoice settled this way SHALL count as collected in the revenue report, exactly as one settled in cash. The owner earned it and has it.
+An invoice settled this way SHALL count as settled in the revenue report, exactly as one settled in cash. The owner earned it and has it.
+
+**Reversing a deduction SHALL return the amount to the holding.** The deposit was spent on a bill; undoing the payment un-spends it. A reversal that left the holding reduced would report an owner as holding less of their tenant's money than they actually do.
 
 #### Scenario: Settling the final bill from the deposit
 
@@ -151,7 +153,17 @@ An invoice settled this way SHALL count as collected in the revenue report, exac
 #### Scenario: A deducted invoice is still collected
 
 - **WHEN** an invoice settled by deduction from the deposit falls in a reported month
-- **THEN** the revenue report counts its charges as collected, not as outstanding
+- **THEN** the revenue report counts its charges as settled, not as outstanding
+
+#### Scenario: Reversing a deduction restores the holding
+
+- **WHEN** an authenticated owner reverses a payment of 445,000 that was deducted from a lease's deposit
+- **THEN** the lease reports a deposit held of 3,000,000 again and the invoice returns to pending
+
+#### Scenario: A holding is not restored twice
+
+- **WHEN** an authenticated owner attempts to reverse a deduction that has already been reversed
+- **THEN** the system responds with HTTP 409 and the holding is unchanged
 
 ### Requirement: Owner can return a deposit and close the holding
 

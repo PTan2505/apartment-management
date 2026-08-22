@@ -33,6 +33,9 @@ const Decimal = Prisma.Decimal;
  */
 const invoiceInclude = {
   lineItems: { orderBy: { position: "asc" } },
+  // What settled it, and when. An invoice may carry several over its life —
+  // taken, reversed, taken again — so they are listed rather than summarised.
+  payments: { orderBy: { id: "asc" } },
 } as const;
 
 async function findInvoiceOrThrow(id: number) {
@@ -297,9 +300,10 @@ export async function markPaid(id: number, input: MarkPaidInput) {
     throw new ConflictError("That invoice has already been paid");
   }
 
-  // Recording the payment and moving the holdings it touches happen together.
-  // An invoice recorded as paid whose deduction was never applied would report
-  // the same money collected twice.
+  // The payment, the invoice's status and any holding it moves are written
+  // together. An invoice recorded as paid whose payment was never written, or
+  // whose deduction was not applied, would report the same money twice or lose
+  // it entirely.
   return prisma.$transaction(async (tx) => {
     // Settling out of the deposit spends money the owner has held since the
     // tenancy began. Refused where the lease is not holding enough.
@@ -311,13 +315,22 @@ export async function markPaid(id: number, input: MarkPaidInput) {
     // been paid. An invoice with no deposit line moves nothing.
     await holdFromInvoice(tx, invoice.leaseId, invoice.lineItems);
 
+    await tx.payment.create({
+      data: {
+        invoiceId: id,
+        amount: invoice.totalAmount,
+        method: input.paymentMethod,
+        paidAt: input.paidAt,
+        state: "succeeded",
+      },
+    });
+
     return tx.invoice.update({
       where: { id },
-      data: {
-        paymentStatus: "paid",
-        paymentMethod: input.paymentMethod,
-        paidAt: input.paidAt,
-      },
+      // Only the cached status. The method and the date live on the payment
+      // written above — an invoice may carry several over its life, and a
+      // column could only ever hold the last of them.
+      data: { paymentStatus: "paid" },
       include: invoiceInclude,
     });
   });
@@ -327,6 +340,15 @@ export async function markPaid(id: number, input: MarkPaidInput) {
  * An issued invoice is a record of what was charged, so it is voided rather
  * than edited. The void frees the lease/month slot (the unique index ignores
  * voided rows) while keeping the original visible.
+ *
+ * A PAID invoice cannot be voided. Voiding removes a bill from every total
+ * while the money paid for it stays where it is, leaving an owner holding cash
+ * against a bill that no longer exists and nothing recording that they do. The
+ * owner reverses the payment first, which hands the money back and returns the
+ * invoice to pending; then it can be voided and reissued.
+ *
+ * Unwinding the deposit holdings an invoice moved is no longer done here — it
+ * belongs to the reversal, and doing both would restore a holding twice.
  */
 export async function voidInvoice(id: number) {
   const invoice = await findInvoiceOrThrow(id);
@@ -334,22 +356,15 @@ export async function voidInvoice(id: number) {
   if (invoice.voidedAt !== null) {
     throw new ConflictError("That invoice has already been voided");
   }
+  if (invoice.paymentStatus === "paid") {
+    throw new ConflictError(
+      "That invoice has been paid, so it cannot be voided. Reverse the payment first — voiding it now would leave the money paid for it unaccounted for",
+    );
+  }
 
-  return prisma.$transaction(async (tx) => {
-    // A void only unwinds holdings the invoice actually moved, which is to say
-    // holdings it moved by being PAID. An unpaid invoice established nothing.
-    if (invoice.paymentStatus === "paid") {
-      await releaseFromInvoice(tx, invoice.leaseId, invoice.lineItems);
-
-      if (invoice.paymentMethod === "deposit_deduction") {
-        await restoreDeduction(tx, invoice.leaseId, invoice.totalAmount);
-      }
-    }
-
-    return tx.invoice.update({
-      where: { id },
-      data: { voidedAt: new Date() },
-      include: invoiceInclude,
-    });
+  return prisma.invoice.update({
+    where: { id },
+    data: { voidedAt: new Date() },
+    include: invoiceInclude,
   });
 }
