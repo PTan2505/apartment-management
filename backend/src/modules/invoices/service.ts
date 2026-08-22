@@ -1,3 +1,4 @@
+import { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import { paginate, toSkipTake } from "@/lib/pagination.js";
@@ -16,7 +17,14 @@ import {
   releaseFromInvoice,
   restoreDeduction,
 } from "@/modules/deposits/holding.js";
-import type { GenerateInvoiceInput, ListInvoicesQuery, MarkPaidInput } from "./schema.js";
+import type {
+  GenerateInvoiceInput,
+  IssueAdhocInvoiceInput,
+  ListInvoicesQuery,
+  MarkPaidInput,
+} from "./schema.js";
+
+const Decimal = Prisma.Decimal;
 
 /**
  * Every site that returns an invoice must carry its lines: the charges now live
@@ -226,6 +234,57 @@ export async function listInvoices(query: ListInvoicesQuery) {
 
 export async function getInvoiceById(id: number) {
   return findInvoiceOrThrow(id);
+}
+
+/**
+ * A bill for what the system cannot calculate: a lost key, a room left dirty, a
+ * broken window, a penalty.
+ *
+ * Its charges are named, categorised and priced by the owner. Every other
+ * charge here follows from an agreement and a measurement; these follow from a
+ * judgement, and the system records that judgement rather than pretending to
+ * derive it.
+ *
+ * Carries no month, no period and no meter readings, and its lines carry no
+ * period: a charge for an event has no span of time to report, and borrowing
+ * the invoice's would invent a fact.
+ *
+ * Allowed against a finalized lease, and deliberately unguarded by any
+ * one-per-lease rule — damage is usually found after the tenant has gone, and a
+ * lost key in March and a broken window in July are two events.
+ */
+export async function issueAdhocInvoice(input: IssueAdhocInvoiceInput) {
+  const lease = await prisma.lease.findUnique({ where: { id: input.leaseId } });
+  if (!lease) {
+    throw new NotFoundError("Lease not found");
+  }
+
+  const lines = input.charges.map((charge, index) => ({
+    kind: "charge" as const,
+    chargeCategory: charge.category,
+    description: charge.description,
+    // No basis to report: the amount IS the judgement, and a quantity of 1
+    // would read as information without being any.
+    quantity: null,
+    unitAmount: null,
+    amount: new Decimal(charge.amount).toDecimalPlaces(0),
+    position: index + 1,
+    periodStart: null,
+    periodEnd: null,
+  }));
+
+  const totalAmount = lines.reduce((running, line) => running.add(line.amount), new Decimal(0));
+
+  return prisma.invoice.create({
+    data: {
+      leaseId: lease.id,
+      type: "adhoc",
+      issueDate: input.issueDate ?? new Date(),
+      totalAmount,
+      lineItems: { create: lines },
+    },
+    include: invoiceInclude,
+  });
 }
 
 export async function markPaid(id: number, input: MarkPaidInput) {

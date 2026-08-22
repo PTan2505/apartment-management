@@ -6,15 +6,21 @@ export const listDepositsQuerySchema = z.object({
   buildingId: z.coerce.number().int().positive().optional(),
 });
 
+/**
+ * A return hands back the WHOLE holding, so there is no amount to supply.
+ *
+ * Keeping part of a deposit requires charging for that part first, on an ad-hoc
+ * invoice settled from the deposit. That is the point rather than a side
+ * effect: an owner free to return less than they hold, giving only a sentence,
+ * moves money out of the books entirely — not revenue, not an expense, no
+ * longer a holding. Removing the amount closes that route instead of merely
+ * offering a better one beside it.
+ *
+ * An amount sent anyway is ignored rather than refused, because the request has
+ * no say in the figure at all.
+ */
 export const refundDepositSchema = z.object({
-  // Decided by the owner, never computed. The deduction for a damaged room is
-  // a fact the system cannot hold, and proposing `held − deducted` would be
-  // right most of the time and silently wrong exactly when it is not.
-  amount: z.coerce.number().nonnegative("must not be negative"),
   refundedAt: z.coerce.date(),
-  // Why the return differed from what was held. Free text because the reason
-  // is not something the system can enumerate.
-  note: z.string().trim().min(1).max(500).optional(),
 });
 
 export const adjustDepositSchema = z.object({

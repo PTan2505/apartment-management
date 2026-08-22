@@ -15,6 +15,34 @@ export const generateInvoiceSchema = z.object({
   issueDate: z.coerce.date().optional(),
 });
 
+/**
+ * A bill for what cannot be calculated. Every other charge in this system
+ * follows from an agreement and a measurement; these follow from a judgement,
+ * and the owner makes it.
+ */
+export const issueAdhocInvoiceSchema = z.object({
+  leaseId: z.coerce.number().int().positive("leaseId is required"),
+  charges: z
+    .array(
+      z.object({
+        // Fixed rather than free text so charges of a kind can be grouped and
+        // compared across tenancies — and compared against the expenses they
+        // correspond to, which is why the set mirrors ExpenseCategory.
+        category: z.enum(["damage", "cleaning", "lost_item", "penalty", "other"]),
+        // What actually happened, written for whoever reads the bill.
+        description: z.string().trim().min(1, "description is required").max(500),
+        amount: z.coerce.number().nonnegative("must not be negative"),
+      }),
+    )
+    // An invoice for nothing records nothing. Distinct from the overdue
+    // invoice, where an empty list is a deliberate waiver of days that did
+    // happen; here there is no event to waive.
+    .min(1, "an ad-hoc invoice must carry at least one charge"),
+  issueDate: z.coerce.date().optional(),
+  // Deliberately no `type`: the kind of an invoice follows from the operation
+  // that issued it, never from a caller. This one issues ad-hoc invoices.
+});
+
 export const markPaidSchema = z.object({
   // deposit_deduction settles a bill out of money already held for the lease.
   // The bill is genuinely collected — that money reached the owner months ago —
@@ -42,4 +70,5 @@ export const listInvoicesQuerySchema = z.object({
 
 export type GenerateInvoiceInput = z.infer<typeof generateInvoiceSchema>;
 export type MarkPaidInput = z.infer<typeof markPaidSchema>;
+export type IssueAdhocInvoiceInput = z.infer<typeof issueAdhocInvoiceSchema>;
 export type ListInvoicesQuery = z.infer<typeof listInvoicesQuerySchema>;

@@ -46,7 +46,6 @@ interface LeaseRow {
   depositCarriedOut: Prisma.Decimal;
   depositRefunded: Prisma.Decimal | null;
   depositRefundedAt: Date | null;
-  depositNote: string | null;
   createdAt: Date;
   updatedAt: Date;
   occupants?: OccupantRow[];
@@ -90,7 +89,6 @@ export function toLeaseResponse(lease: LeaseRow) {
     depositDifference: lease.baseRent.mul(lease.depositMonths).sub(lease.depositHeld),
     depositRefunded: lease.depositRefunded,
     depositRefundedAt: lease.depositRefundedAt,
-    depositNote: lease.depositNote,
     status: (lease.moveOutDate === null ? "active" : "finalized") satisfies LeaseStatus,
     tenant: primary
       ? {

@@ -1,0 +1,11 @@
+-- A reason for keeping part of a deposit now lives on the ad-hoc charge that
+-- took it, where it carries a category and an amount. This column was a second,
+-- weaker place to write the same fact, and the only place a kept amount could be
+-- explained without being recorded — which is exactly the hole being closed.
+--
+-- Any reasons already recorded were read out and reported before this ran, so
+-- nothing is lost silently. On this database there were none. They have no
+-- successor to migrate into either: a sentence cannot become a priced,
+-- categorised charge without inventing the price, so an owner who needs one
+-- re-enters it as an ad-hoc charge.
+ALTER TABLE "Lease" DROP COLUMN "depositNote";
