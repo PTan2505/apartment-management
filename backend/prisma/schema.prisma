@@ -150,13 +150,18 @@ model Lease {
   // which tenancy it is held against.
   depositCarriedOut Decimal   @default(0) @db.Decimal(14, 0)
 
-  // Set together when the holding is closed out by returning what remains.
-  // Recordable only once, and only for a lease that has recorded a move-out.
+  // Set together when the holding is closed out. The amount is the WHOLE
+  // holding at the moment of return — there is nothing to decide — and it is
+  // stored rather than recomputed so the return stays a dated, immutable record
+  // of what actually happened. Recordable only once, and only for a lease that
+  // has recorded a move-out.
+  //
+  // There is no note beside it: keeping part of a deposit requires charging for
+  // that part on an ad-hoc invoice, where the reason carries a category and an
+  // amount. A second, weaker place to write the same fact would only compete
+  // with it.
   depositRefunded   Decimal?  @db.Decimal(14, 0)
   depositRefundedAt DateTime?
-  // Why the return differed from what was held — damage, an agreed deduction.
-  // Free text because the reason is not something the system can enumerate.
-  depositNote       String?
 
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -215,6 +220,11 @@ enum InvoiceType {
   monthly
   final
   overdue
+  /// Charges the owner decides rather than calculates: a lost key, a room left
+  /// dirty, a broken window, a penalty. Deliberately NOT guarded by a
+  /// one-per-lease index — a lost key in March and a broken window in July are
+  /// two events, and forcing them onto one bill would misdate both.
+  adhoc
 }
 
 model Invoice {
@@ -293,6 +303,15 @@ enum InvoiceLineKind {
   serviceFee
   /// Money held on the tenant's behalf, not earned. Excluded from revenue.
   deposit
+  /// A charge the owner named and priced, for something no agreement covers.
+  /// IS revenue — `deposit` is the only kind the report excludes, and a new
+  /// kind falls on the earning side unless it is money held for someone else.
+  ///
+  /// Deliberately not a `serviceFee`: a service fee points at a catalogue entry
+  /// and recurs monthly, a charge points at an event and does not. Sharing the
+  /// kind would put broken windows among the parking spaces in any report that
+  /// groups by fee.
+  charge
 }
 
 model InvoiceLineItem {
@@ -337,9 +356,32 @@ model InvoiceLineItem {
   // Fixed display order, so the same invoice reads the same way twice.
   position Int
 
+  /// What KIND of owner-named charge this is, for a `charge` line. Fixed rather
+  /// than free text so charges can be grouped: "broken window", "vỡ kính" and
+  /// "Hong cua kinh" are otherwise three categories.
+  ///
+  /// Mirrors ExpenseCategory deliberately — `damage` charged to a tenant is what
+  /// `repair` paid to a builder costs, and an owner comparing them is asking
+  /// whether they recovered what the damage cost.
+  ///
+  /// On the LINE rather than the invoice: one bill may carry a damage charge and
+  /// a cleaning charge, and categorising the invoice would force the owner to
+  /// issue two or to mis-file one. Null for every other line kind.
+  chargeCategory ChargeCategory?
+
   createdAt DateTime @default(now())
 
   @@index([invoiceId])
+}
+
+/// The kinds of charge an owner can decide on. Mirrors ExpenseCategory: what is
+/// charged as `damage` is what is paid out as `repair`.
+enum ChargeCategory {
+  damage
+  cleaning
+  lost_item
+  penalty
+  other
 }
 
 enum ExpenseCategory {
