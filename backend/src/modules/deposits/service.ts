@@ -31,16 +31,17 @@ async function findLeaseOrThrow(id: number) {
  * so counting it here would report the same money as spent twice.
  */
 async function deductedFromDeposit(leaseId: number) {
-  const result = await prisma.invoice.aggregate({
+  const result = await prisma.payment.aggregate({
     where: {
-      leaseId,
-      voidedAt: null,
-      paymentStatus: "paid",
-      paymentMethod: "deposit_deduction",
+      method: "deposit_deduction",
+      // Reversed payments put the money back, so counting them would report
+      // the deposit as spent on a bill it is no longer settling.
+      state: "succeeded",
+      invoice: { leaseId, voidedAt: null },
     },
-    _sum: { totalAmount: true },
+    _sum: { amount: true },
   });
-  return result._sum.totalAmount ?? ZERO();
+  return result._sum.amount ?? ZERO();
 }
 
 /**
