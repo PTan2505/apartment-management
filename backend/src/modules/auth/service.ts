@@ -1,9 +1,9 @@
-import { randomBytes, createHash } from "node:crypto";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { prisma } from "@/lib/prisma.js";
 import { env } from "@/config/env.js";
 import { UnauthorizedError } from "@/lib/errors.js";
+import { generateOpaqueToken, hashOpaqueToken } from "@/lib/opaque-token.js";
 
 const INVALID_CREDENTIALS_MESSAGE = "Invalid phone number or password";
 
@@ -11,10 +11,6 @@ export interface AccessTokenPayload {
   /** User id. Kept as a string because JWT `sub` is a StringOrURI per RFC 7519. */
   sub: string;
   role: string;
-}
-
-function hashRefreshToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
 }
 
 function signAccessToken(payload: AccessTokenPayload): string {
@@ -41,7 +37,7 @@ export async function login(phone: string, password: string): Promise<LoginResul
 
   const accessToken = signAccessToken({ sub: String(user.id), role: user.role });
 
-  const rawRefreshToken = randomBytes(32).toString("hex");
+  const rawRefreshToken = generateOpaqueToken();
   const refreshTokenExpiresAt = new Date(
     Date.now() + env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
   );
@@ -49,7 +45,7 @@ export async function login(phone: string, password: string): Promise<LoginResul
   await prisma.refreshToken.create({
     data: {
       userId: user.id,
-      tokenHash: hashRefreshToken(rawRefreshToken),
+      tokenHash: hashOpaqueToken(rawRefreshToken),
       expiresAt: refreshTokenExpiresAt,
     },
   });
@@ -62,7 +58,7 @@ export interface RefreshResult {
 }
 
 export async function refresh(rawRefreshToken: string): Promise<RefreshResult> {
-  const tokenHash = hashRefreshToken(rawRefreshToken);
+  const tokenHash = hashOpaqueToken(rawRefreshToken);
   const record = await prisma.refreshToken.findUnique({
     where: { tokenHash },
     include: { user: true },
@@ -107,7 +103,7 @@ export async function getCurrentUser(userId: number) {
 }
 
 export async function logout(rawRefreshToken: string): Promise<void> {
-  const tokenHash = hashRefreshToken(rawRefreshToken);
+  const tokenHash = hashOpaqueToken(rawRefreshToken);
   const record = await prisma.refreshToken.findUnique({ where: { tokenHash } });
 
   if (!record || record.revokedAt) {
