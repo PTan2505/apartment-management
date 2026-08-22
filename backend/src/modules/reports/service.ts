@@ -26,11 +26,15 @@ export interface MonthFigures {
   year: number;
   month: number;
   billed: Dec;
-  collected: Dec;
+  settled: Dec;
   outstanding: Dec;
   expenses: Dec;
   netBilled: Dec;
-  netCollected: Dec;
+  netSettled: Dec;
+  // Money that actually ARRIVED in the month, keyed on the payments' own
+  // dates rather than on the month an invoice was issued. The only figure here
+  // that answers a cash question; every other one is an accrual.
+  received: Dec;
 }
 
 export type CategoryBreakdown = Record<ExpenseCategory, Dec>;
@@ -145,6 +149,43 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
     },
   });
 
+  // Money that actually moved, which no other query here asks about. Every
+  // other figure is keyed on the month an invoice was ISSUED; this one is keyed
+  // on the dates of the payments themselves, because that is the question it
+  // exists to answer.
+  //
+  // Reversed payments are fetched too: one taken in March and returned in April
+  // happened in both months, and the figure reports it in both — added where it
+  // arrived, subtracted where it left.
+  const payments = await prisma.payment.findMany({
+    where: {
+      invoice: {
+        voidedAt: null,
+        ...(buildingIds.length > 0
+          ? { lease: { room: { buildingId: { in: buildingIds } } } }
+          : {}),
+      },
+      OR: [
+        { paidAt: { gte: rangeStart, lte: rangeEnd } },
+        { reversedAt: { gte: rangeStart, lte: rangeEnd } },
+      ],
+    },
+    select: {
+      paidAt: true,
+      reversedAt: true,
+      state: true,
+      invoice: {
+        select: {
+          // Summed from the charges rather than from the payment's amount: a
+          // payment settling a move-in invoice hands over the deposit too, and
+          // a deposit is held rather than earned.
+          lineItems: { select: { kind: true, amount: true } },
+          lease: { select: { room: { select: { buildingId: true } } } },
+        },
+      },
+    },
+  });
+
   const expenses = await prisma.expense.findMany({
     where: {
       incurredAt: { gte: rangeStart, lte: rangeEnd },
@@ -155,7 +196,8 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
 
   // --- fold both sides into per building-month buckets ---
   const billed = new Map<string, Dec>();
-  const collected = new Map<string, Dec>();
+  const settled = new Map<string, Dec>();
+  const received = new Map<string, Dec>();
   const outstanding = new Map<string, Dec>();
   const expenseTotal = new Map<string, Dec>();
   const categoryByBuilding = new Map<number, CategoryBreakdown>();
@@ -199,9 +241,39 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
     // outstanding directly rather than subtracting means the two can disagree
     // if the data is wrong — which is the point.
     if (inv.paymentStatus === "paid") {
-      add(collected, k, revenue);
+      add(settled, k, revenue);
     } else {
       add(outstanding, k, revenue);
+    }
+  }
+
+  const inRange = (date: Date) => date >= rangeStart && date <= rangeEnd;
+
+  for (const payment of payments) {
+    const buildingId = payment.invoice.lease.room.buildingId;
+    const revenue = payment.invoice.lineItems.reduce(
+      (running, line) => (line.kind === "deposit" ? running : running.add(line.amount)),
+      ZERO(),
+    );
+
+    if (inRange(payment.paidAt)) {
+      add(
+        received,
+        key(buildingId, payment.paidAt.getUTCFullYear(), payment.paidAt.getUTCMonth() + 1),
+        revenue,
+      );
+    }
+
+    // The money left again. Subtracted from the month it left rather than
+    // removed from the month it arrived: reporting only the first would claim
+    // income the owner no longer has, and removing it would lose the fact that
+    // it ever came in.
+    if (payment.state === "reversed" && payment.reversedAt !== null && inRange(payment.reversedAt)) {
+      add(
+        received,
+        key(buildingId, payment.reversedAt.getUTCFullYear(), payment.reversedAt.getUTCMonth() + 1),
+        revenue.negated(),
+      );
     }
   }
 
@@ -228,7 +300,8 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
     const months: MonthFigures[] = grid.map((g) => {
       const k = key(b.id, g.year, g.month);
       const mBilled = billed.get(k) ?? ZERO();
-      const mCollected = collected.get(k) ?? ZERO();
+      const mSettled = settled.get(k) ?? ZERO();
+      const mReceived = received.get(k) ?? ZERO();
       const mOutstanding = outstanding.get(k) ?? ZERO();
       const mExpenses = expenseTotal.get(k) ?? ZERO();
 
@@ -236,13 +309,14 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
         year: g.year,
         month: g.month,
         billed: mBilled,
-        collected: mCollected,
+        settled: mSettled,
+        received: mReceived,
         outstanding: mOutstanding,
         expenses: mExpenses,
         // Negative when costs exceed income — a loss-making month is
         // information, not an error, so it is reported rather than clamped.
         netBilled: mBilled.sub(mExpenses),
-        netCollected: mCollected.sub(mExpenses),
+        netSettled: mSettled.sub(mExpenses),
       };
 
       runningTotal = accumulate(runningTotal, figures);
@@ -285,21 +359,23 @@ type Sums = Omit<MonthFigures, "year" | "month">;
 function blankTotals(): Sums {
   return {
     billed: ZERO(),
-    collected: ZERO(),
+    settled: ZERO(),
+    received: ZERO(),
     outstanding: ZERO(),
     expenses: ZERO(),
     netBilled: ZERO(),
-    netCollected: ZERO(),
+    netSettled: ZERO(),
   };
 }
 
 function accumulate(into: Sums, from: Sums): Sums {
   return {
     billed: into.billed.add(from.billed),
-    collected: into.collected.add(from.collected),
+    settled: into.settled.add(from.settled),
+    received: into.received.add(from.received),
     outstanding: into.outstanding.add(from.outstanding),
     expenses: into.expenses.add(from.expenses),
     netBilled: into.netBilled.add(from.netBilled),
-    netCollected: into.netCollected.add(from.netCollected),
+    netSettled: into.netSettled.add(from.netSettled),
   };
 }
