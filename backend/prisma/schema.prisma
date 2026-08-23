@@ -242,18 +242,32 @@ enum PaymentStatus {
 
 /// The state of one payment.
 ///
-/// Only these two are reachable in this change: an owner marking an invoice
-/// paid is reporting money already in hand, so there is nothing to wait for and
-/// nothing that can fail. The states a gateway needs — pending, failed,
-/// cancelled, expired — are deliberately absent: an enum value nobody can reach
-/// is a guess about what the gateway will want, and the change that adds the
-/// gateway is better placed to decide.
+/// This column was added while only `succeeded` and `reversed` were reachable,
+/// on the grounds that a state is expensive to retrofit and a column is not.
+/// That bet is now settled: the gateway brought three more, and none of them
+/// could have been inferred from any date already on the row.
 ///
-/// Today this is derivable from `reversedAt`, and it is stored anyway. The
-/// moment a third state exists that derivation is wrong — a payment created and
-/// awaiting the tenant has no reversal date either, and would read as succeeded.
+/// The division that matters is not "finished / unfinished" but **whether money
+/// ever moved**. Only `succeeded` and `reversed` are on that side of it, which
+/// is why they are the only two the cash figure counts.
+///
+/// `failed` is still absent. This gateway reports an attempt as cancelled or
+/// expired, and an enum value nobody can reach is a guess rather than a
+/// decision.
 enum PaymentState {
+  /// A tenant has started paying through the gateway and has not finished.
+  /// Settles nothing: no money has moved, and until it does this payment must
+  /// be invisible to every figure that reports money.
+  pending
   succeeded
+  /// The attempt ended without the money arriving. Kept rather than deleted —
+  /// an abandoned attempt is a fact about what a tenant did, and the record is
+  /// what tells an owner a link was created at all.
+  cancelled
+  expired
+  /// The money DID arrive and was then given back. The one state here that is
+  /// not "no money moved", which is why it still counts toward the cash figure
+  /// — added in the month it arrived, subtracted in the month it left.
   reversed
 }
 
@@ -276,7 +290,38 @@ model Payment {
   method PaymentMethod
   /// When the money moved. Distinct from the invoice's issue date and from the
   /// month it covers; this is the one the cash figure is keyed on.
-  paidAt DateTime
+  ///
+  /// NULL where no money has moved — a payment started and not finished has no
+  /// such moment. Deliberately nullable rather than defaulted to the moment the
+  /// attempt was created: a placeholder would keep every caller compiling and
+  /// let the cash figure quietly report abandoned attempts as income.
+  paidAt DateTime?
+
+  /// --- the gateway's own record of this attempt ---
+  ///
+  /// All null for a payment an owner recorded by hand; none of this exists for
+  /// cash across a desk.
+
+  /// The reference sent to the gateway, which must be unique per attempt. It is
+  /// this row's own id — never the invoice's, because a link that expires and
+  /// is replaced would otherwise reuse a reference the gateway has seen.
+  gatewayOrderCode Int? @unique
+  /// What the gateway called this payment in reply.
+  gatewayPaymentId String?
+  /// What the tenant actually pays with, kept so a second visit hands back the
+  /// SAME link rather than creating another. One live link per bill is what
+  /// makes the gateway's own dashboard readable.
+  ///
+  /// The QR is a VietQR payload string, not an image — whatever displays it
+  /// renders it. A tenant scanning it in their banking app never visits the
+  /// gateway's page at all, which is why the page showing it has to find out
+  /// the bill was paid by asking rather than by being returned to.
+  gatewayCheckoutUrl String?
+  gatewayQrCode      String?
+  /// The confirmation exactly as it arrived, before interpretation. What the
+  /// gateway really sends is the one thing that cannot be settled in advance,
+  /// and the first field that differs will differ during a real payment.
+  gatewayPayload   Json?
 
   state      PaymentState @default(succeeded)
   /// When the money went back. Written together with `state`, never apart.
@@ -293,6 +338,8 @@ model Payment {
 enum PaymentMethod {
   cash
   bank_transfer
+  /// Paid online through the payment gateway.
+  gateway
   /// Settled out of the deposit already held for the lease. The bill is
   /// genuinely collected — that money reached the owner months ago — and the
   /// holding shrinks by the same amount. Differs from the others in where the

@@ -1,8 +1,4 @@
-## Purpose
-
-Records what settles an invoice as an event in its own right — its amount, method, date and status — so that money arriving can be told apart from money billed, a settlement can be undone, and a payment that has been started but not finished has somewhere to exist.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: A payment is recorded as its own event
 
@@ -110,52 +106,3 @@ The status SHALL be `paid` where **at least one** succeeded, unreversed payment 
 
 - **WHEN** an authenticated owner lists invoices filtered to pending ones
 - **THEN** the response contains only invoices with no succeeded payment against them
-
-### Requirement: Owner can reverse a payment
-
-The system SHALL allow an authenticated `owner` to reverse a succeeded payment, recording when it was reversed. Reversing SHALL return the invoice to pending, and SHALL restore a deposit holding where the payment was a deduction from one.
-
-This exists because voiding a paid invoice is refused. An owner who issued an invoice for the wrong amount and was paid for it must be able to undo the payment, void the invoice, and issue the right one — and closing the first route without opening this one would leave them stuck.
-
-A reversal SHALL be recorded rather than deleting the payment. The money moved and then moved back; both happened.
-
-A payment that has already been reversed SHALL NOT be reversed again.
-
-#### Scenario: Reversing a cash payment
-
-- **WHEN** an authenticated owner reverses a succeeded cash payment
-- **THEN** the payment is recorded as reversed with the date, and the invoice reports itself as pending
-
-#### Scenario: Reversing a deposit deduction restores the holding
-
-- **WHEN** an authenticated owner reverses a payment of 200,000 that was deducted from a lease's deposit
-- **THEN** the lease's deposit held increases by 200,000 and the invoice reports itself as pending
-
-#### Scenario: The reversal is recorded, not erased
-
-- **WHEN** a payment has been reversed
-- **THEN** the payment record still exists, reporting both when it was taken and when it was reversed
-
-#### Scenario: Reversing twice
-
-- **WHEN** an authenticated owner reverses a payment that has already been reversed
-- **THEN** the system responds with HTTP 409 and nothing changes
-
-#### Scenario: The invoice can then be voided
-
-- **WHEN** an authenticated owner reverses the only payment against an invoice and then voids that invoice
-- **THEN** both succeed, because the invoice is no longer paid
-
-### Requirement: Payment endpoints require an authenticated owner
-
-Every payment endpoint SHALL require a valid access token belonging to a user with the `owner` role.
-
-#### Scenario: Request without a token
-
-- **WHEN** a payment endpoint is called without an access token
-- **THEN** the system responds with HTTP 401
-
-#### Scenario: Request with a non-owner token
-
-- **WHEN** a payment endpoint is called with a token whose role is not `owner`
-- **THEN** the system responds with HTTP 403

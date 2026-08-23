@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getPortalOverviewHandler } from "./controller.js";
+import { getPortalOverviewHandler, startPortalPaymentHandler } from "./controller.js";
 
 /**
  * The system's first PUBLIC router. Deliberately no `authenticate`, no
@@ -13,3 +13,6 @@ import { getPortalOverviewHandler } from "./controller.js";
 export const tenantPortalRouter = Router();
 
 tenantPortalRouter.get("/", getPortalOverviewHandler);
+// The portal's first write. Still authorised by the same token, and restricted
+// to the same bills it can already see.
+tenantPortalRouter.post("/invoices/:id/pay", startPortalPaymentHandler);

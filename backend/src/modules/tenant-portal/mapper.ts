@@ -42,6 +42,7 @@ interface PortalInvoiceRow {
   paymentStatus: string;
   lineItems: PortalLineRow[];
   lease: { room: { roomCode: string } };
+  payments: { id: number }[];
 }
 
 export function toPortalInvoice(invoice: PortalInvoiceRow) {
@@ -78,5 +79,9 @@ export function toPortalInvoice(invoice: PortalInvoiceRow) {
       })),
     totalAmount: invoice.totalAmount,
     isPaid: invoice.paymentStatus === "paid",
+    // Whether the tenant has already started paying this one. A boolean and
+    // nothing more: what the gateway called the attempt, what it replied and
+    // what it sent are the owner's business and the system's, not the tenant's.
+    hasPaymentInProgress: invoice.payments.length > 0,
   };
 }

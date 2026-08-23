@@ -17,6 +17,7 @@ import { addressesRouter } from "@/modules/addresses/router.js";
 import { depositsRouter } from "@/modules/deposits/router.js";
 import { paymentsRouter } from "@/modules/payments/router.js";
 import { tenantPortalRouter } from "@/modules/tenant-portal/router.js";
+import { paymentGatewayRouter } from "@/modules/payment-gateway/router.js";
 
 const app = express();
 
@@ -43,6 +44,10 @@ app.use("/payments", paymentsRouter);
 // and nothing else. Kept apart from the block above so the difference is
 // visible rather than buried in a list.
 app.use("/portal", tenantPortalRouter);
+
+// PUBLIC, and this one settles bills. Its defence is the signature on every
+// confirmation, verified before the payload is read.
+app.use("/webhooks", paymentGatewayRouter);
 
 app.use(errorHandler);
 
