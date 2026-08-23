@@ -15,6 +15,13 @@ services:
     region: singapore
     rootDir: backend
 
+    # Deploys track `main`, which is the release marker. Day-to-day work lands
+    # on `dev`; main moves only when something is meant to be live. Pinned here
+    # rather than left to whatever branch happens to be selected in the
+    # dashboard, so the answer to "what is running in production" is in the
+    # repository rather than in somebody's browser.
+    branch: main
+
     # `--include=dev` is not optional. Render sets NODE_ENV=production, which
     # makes npm skip devDependencies — and prisma, typescript and tsc-alias all
     # live there. Without it the build fails on the first line.
