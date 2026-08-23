@@ -99,8 +99,19 @@ and taking payments, that is the first thing worth paying for.
 
 ```bash
 curl https://apartment-management-api.onrender.com/health
-# {"status":"ok","database":"ok"}
+# {"status":"ok"}                     the process is up and serving
+
+curl https://apartment-management-api.onrender.com/health/db
+# {"status":"ok","database":"ok"}     it can also reach Neon
 ```
 
-`database: "ok"` means the connection string reached Neon. If it says anything
-else, the schema exists but the app cannot see it.
+The two are separate on purpose. `/health` is what Render polls every five
+seconds and touches nothing; `/health/db` is the one a person asks after a
+deploy.
+
+Keeping the database probe out of the polled endpoint matters more than it
+sounds. Render restarts a service whose health check fails — which cannot fix a
+database that is down, and meanwhile takes the service out of rotation so
+callers get Render's opaque 502 instead of this application's own error. And a
+`SELECT 1` every five seconds is around seventeen thousand queries a day
+against a database whose free tier suspends when idle: it never got to idle.

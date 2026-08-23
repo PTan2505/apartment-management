@@ -5,6 +5,21 @@ export const requestLogger = pinoHttp({
   level: env.NODE_ENV === "production" ? "info" : "debug",
 
   /**
+   * The host's own health check is not traffic, and logging it drowns out the
+   * traffic that is.
+   *
+   * Render probes every five seconds, forever. In production that is around
+   * seventeen thousand identical lines a day, and a live log in which nothing
+   * else is visible is a live log nobody reads.
+   *
+   * Matched on the header Render sends rather than on the path, so a real
+   * request to `/health` — somebody checking after a deploy — is still logged.
+   */
+  autoLogging: {
+    ignore: (req) => req.headers["render-health-check"] === "1",
+  },
+
+  /**
    * Credentials must not reach the log.
    *
    * `pino-http` logs request and response headers by default, which put every
