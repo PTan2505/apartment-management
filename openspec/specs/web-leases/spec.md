@@ -2,7 +2,7 @@
 
 The owner's screens for tenancies: seeing which rooms are let and to whom, signing a new agreement, keeping its terms current, and maintaining the record of who lives there.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: The owner can see the tenancies they hold
 
@@ -33,12 +33,26 @@ The application SHALL distinguish, in the list itself, a lease whose agreed term
 
 Such a lease needs attention and cannot be left alone: no further invoice can be issued against it, and its room stays held against a new tenancy until it is closed or renewed. A filter alone is not sufficient — a filter finds these only for an owner who already suspects they exist, and the whole difficulty is that nothing announces them.
 
+**Marking them in the list is also not sufficient on its own.** Tenancies are listed most recently begun first, and a tenancy whose term has run out is usually one of the oldest — so it settles on the last page, which is the page an owner does not open. A mark nobody scrolls to is not a warning.
+
+The application SHALL therefore state how many such tenancies exist, wherever in the list the owner is, and offer to show them. It SHALL NOT state it while they are the only ones being shown, since repeating a count above the very rows it counts says nothing.
+
 The same condition SHALL also be available as a filter, so a screen full of tenancies can be narrowed to the ones needing action.
 
 #### Scenario: A tenancy past its term is marked in the list
 
 - **WHEN** the owner opens the leases screen and one lease's agreed term has ended with no move-out recorded
 - **THEN** that lease is visibly distinguished from the others without any filter being applied
+
+#### Scenario: The count is stated even when none is on the page
+
+- **WHEN** tenancies needing attention exist but none of them falls on the page being viewed
+- **THEN** the screen still states how many there are, and offers to show them
+
+#### Scenario: Showing them from the statement
+
+- **WHEN** the owner takes up that offer
+- **THEN** the list narrows to exactly those tenancies, and the count is no longer stated
 
 #### Scenario: Narrowing to tenancies needing attention
 
@@ -57,7 +71,9 @@ The same condition SHALL also be available as a filter, so a screen full of tena
 
 ### Requirement: The owner can narrow tenancies to what they are looking at
 
-The application SHALL let the owner narrow the list by room, by a person who has occupied it, and by whether the tenancy is still running. Filters SHALL combine, and the totals reported SHALL describe the filtered set rather than everything.
+The application SHALL let the owner narrow the list by building, by room, by a person who has occupied it, and by whether the tenancy is still running. Filters SHALL combine, and the totals reported SHALL describe the filtered set rather than everything.
+
+Choosing a building SHALL also narrow the rooms offered to that building's. A room code identifies a room only within its building, so a flat list of every room an owner holds is both long and ambiguous — the same code appears more than once. Changing the building SHALL clear any room already chosen, because that room belongs to a building no longer selected.
 
 Filtering by person SHALL find every tenancy that person occupied, whether or not they were the one responsible for it, and including tenancies that have ended. Where a person has lived somewhere is a question about their history, not about who signed.
 
@@ -70,6 +86,16 @@ Filtering by person SHALL find every tenancy that person occupied, whether or no
 
 - **WHEN** the owner filters the list by a person
 - **THEN** every tenancy that person occupied is listed, whether they were responsible for it or not, and including ended ones
+
+#### Scenario: Narrowing by building
+
+- **WHEN** the owner filters the list to one building
+- **THEN** only tenancies for rooms in that building are listed, and the rooms offered are that building's
+
+#### Scenario: Changing the building clears the room
+
+- **WHEN** the owner has chosen a room and then chooses a different building
+- **THEN** the room is no longer applied, and the list is not narrowed to a room outside the chosen building
 
 #### Scenario: Filters combine
 
@@ -124,7 +150,11 @@ Where a tenancy has ended, the application SHALL show that it ended and through 
 
 The application SHALL let the owner create a lease, from the leases screen and from a room that has no active lease, using the same form in both cases.
 
-The form SHALL collect the room, the person responsible, the start date, the agreed duration, the number of people to bill for, and the deposit in months. It SHALL allow the agreed rent and the opening meter reading to be supplied, and SHALL make clear that leaving them out is a choice with a defined result — the room's current rent, and the previous tenancy's closing reading — not an omission.
+The form SHALL collect the room, the person responsible, the start date, the agreed duration, the number of people to bill for, and the deposit in months. It SHALL allow the agreed rent to be supplied, and SHALL make clear that leaving it out is a choice with a defined result — the room's current rent — not an omission.
+
+**The opening meter reading SHALL be filled in from the room's own last known reading as soon as a room is chosen**, and SHALL remain editable. This is the figure the tenant's first electricity bill is measured from; showing it lets an owner compare it against the meter on the wall and correct it, where a default applied silently could not be checked at all. Where the room has never been let and has no recorded reading, the field SHALL be left empty and SHALL say that this room needs one — there is genuinely nothing to fall back on, and promising a default that does not exist sends an owner to meet an error they were told would not happen.
+
+The form SHALL also let the owner narrow the rooms it offers by building, for the same reason the list does.
 
 **The deposit SHALL be required, and zero SHALL be accepted.** Defaulting a missing value to zero would make "no deposit was taken" and "the deposit was not recorded" the same record, and only one of those is safe to act on.
 
@@ -162,9 +192,24 @@ On success the owner SHALL be taken to the tenancy that was created, so the next
 - **WHEN** the owner submits without entering a deposit
 - **THEN** the form asks for one rather than assuming zero
 
-#### Scenario: Rent and meter reading left out
+#### Scenario: The meter reading is filled in from the room
 
-- **WHEN** the owner submits without an agreed rent or an opening meter reading
+- **WHEN** the owner chooses a room that has been let before
+- **THEN** the opening meter reading shows that room's last known reading, and can be changed
+
+#### Scenario: A room with no reading to offer
+
+- **WHEN** the owner chooses a room that has never been let
+- **THEN** the opening meter reading is empty and the form says this room needs one
+
+#### Scenario: Narrowing the rooms offered by building
+
+- **WHEN** the owner chooses a building on the form
+- **THEN** only that building's vacant rooms are offered
+
+#### Scenario: Rent left out
+
+- **WHEN** the owner submits without an agreed rent
 - **THEN** the form has made clear what will be used instead, and the lease is created
 
 ### Requirement: The owner can correct the terms of a running tenancy
