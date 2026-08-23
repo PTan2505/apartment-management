@@ -27,6 +27,13 @@ export const listRoomsQuerySchema = z.object({
     .enum(["true", "false"])
     .optional()
     .transform((value) => value === "true"),
+  // Rooms with no running tenancy — the ones that can be let. Combinable with
+  // the filters above, so "which rooms in this building are free" is one
+  // request rather than a list minus a list the caller has to work out.
+  vacant: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
 });
 
 export type CreateRoomInput = z.infer<typeof createRoomSchema>;

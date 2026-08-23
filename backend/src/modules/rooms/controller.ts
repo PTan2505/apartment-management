@@ -48,3 +48,8 @@ export async function restoreRoomHandler(req: Request, res: Response) {
   const room = await roomService.restoreRoom(parseIdParam(req.params.id, "Room"));
   res.status(200).json(room);
 }
+
+export async function getRoomMeterHandler(req: Request, res: Response) {
+  const reading = await roomService.getLatestMeterReading(parseIdParam(req.params.id, "Room"));
+  res.status(200).json(reading);
+}
