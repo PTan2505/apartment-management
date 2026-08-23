@@ -1,0 +1,90 @@
+name: CI
+
+# Runs on everything that could become a release, and on the pull requests that
+# get it there. `main` is what Render deploys, so a failure here is the last
+# chance to catch something before it is live.
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+concurrency:
+  # A newer commit on the same branch makes the older run irrelevant. Without
+  # this, a burst of pushes queues up runs nobody will read.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend — typecheck and build
+    runs-on: ubuntu-latest
+    # Deliberately not filtered by which paths changed. A rule that skips the
+    # build on "documentation only" changes is a rule that will one day be
+    # wrong about what counts as documentation, and the failure mode is a green
+    # tick on something nobody checked. Two minutes is cheaper than that.
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # The generated client lives in a gitignored directory, so nothing
+      # compiles until this runs. It needs no database — it reads the schema.
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # Compiles for real, which catches what `--noEmit` cannot: a path alias
+      # `tsc-alias` fails to rewrite produces a build that type-checks and then
+      # cannot find its own imports at runtime.
+      - name: Build
+        run: npm run build
+
+      - name: Check the built server starts
+        env:
+          # No database is reached: the server binds its port before anything
+          # queries. A URL that parses is all that is needed to get that far.
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+          JWT_SECRET: ci-only-not-a-real-secret
+          PORT: 3999
+        run: |
+          node dist/server.js & pid=$!
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:3999/health > /dev/null; then
+              echo "server answered /health"
+              kill $pid
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "server did not answer /health within 20s"
+          kill $pid || true
+          exit 1
+
+  specs:
+    name: OpenSpec — validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Every archived change's requirements live in openspec/specs, and a
+      # malformed delta merged by hand is invisible until somebody runs this.
+      - name: Validate specs and changes
+        run: npx --yes @fission-ai/openspec@1 validate --all --strict

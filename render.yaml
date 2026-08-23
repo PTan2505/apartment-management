@@ -21,6 +21,16 @@ services:
     # dashboard, so the answer to "what is running in production" is in the
     # repository rather than in somebody's browser.
     branch: main
+    autoDeploy: true
+
+    # Only a change to the backend or to this file redeploys. Editing a spec, a
+    # planning document or the frontend does not restart a service that is
+    # taking payments — and on the free tier a redeploy means the next caller
+    # waits out a cold start for nothing.
+    buildFilter:
+      paths:
+        - backend/**
+        - render.yaml
 
     # `--include=dev` is not optional. Render sets NODE_ENV=production, which
     # makes npm skip devDependencies — and prisma, typescript and tsc-alias all
