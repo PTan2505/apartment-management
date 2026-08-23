@@ -1,0 +1,108 @@
+import { z } from "zod";
+import { paginationQueryFields } from "@/lib/pagination.js";
+
+const isoDate = z.coerce.date();
+
+export const createLeaseSchema = z.object({
+  roomId: z.coerce.number().int().positive("roomId is required"),
+  signatoryId: z.coerce.number().int().positive("signatoryId is required"),
+  startDate: isoDate,
+  durationMonths: z.coerce.number().int().min(1, "must be at least 1"),
+  occupantCount: z.coerce.number().int().min(1, "must be at least 1"),
+  // Optional here: the service defaults it to the previous lease's closing
+  // reading, and rejects omission only when the room has no previous lease.
+  startMeterReading: z.coerce.number().int().nonnegative("must not be negative").optional(),
+  // Optional for the same reason: the service defaults it to the room's current
+  // base rent. Supplying it records a rent negotiated with this tenant without
+  // changing what the room asks of the next one.
+  baseRent: z.coerce.number().nonnegative("must not be negative").optional(),
+  // Required, and zero is allowed. Defaulting a missing value to zero would
+  // make "no deposit" and "forgot to record the deposit" the same record.
+  depositMonths: z.coerce
+    .number({ message: "depositMonths is required" })
+    .int("must be a whole number of months")
+    .nonnegative("must not be negative"),
+});
+
+export const updateLeaseSchema = z
+  .object({
+    durationMonths: z.coerce.number().int().min(1, "must be at least 1"),
+    occupantCount: z.coerce.number().int().min(1, "must be at least 1"),
+  })
+  .partial();
+
+export const extendLeaseSchema = z.object({
+  // The electricity of the predecessor's last month still has to be billed, and
+  // the successor has to start from somewhere. The tenant not having left
+  // changes neither, so the reading is required exactly as at a move-out.
+  endMeterReading: z.coerce.number().int().nonnegative("must not be negative"),
+  durationMonths: z.coerce.number().int().min(1, "must be at least 1"),
+  // Each defaults: the rent from the room's current base rent, the rest from
+  // the predecessor. A renewal is where a price rise takes effect.
+  baseRent: z.coerce.number().nonnegative("must not be negative").optional(),
+  depositMonths: z.coerce.number().int().nonnegative("must not be negative").optional(),
+  occupantCount: z.coerce.number().int().min(1, "must be at least 1").optional(),
+  // Whether the difference between the deposit carried and the deposit now
+  // required is charged on the successor's move-in invoice. Declining leaves it
+  // reported as a shortfall or surplus for the owner to settle in cash.
+  settleDepositOnInvoice: z.coerce.boolean().default(true),
+});
+
+export const moveOutSchema = z.object({
+  moveOutDate: isoDate,
+  endMeterReading: z.coerce.number().int().nonnegative("must not be negative"),
+  // Charges for days beyond the agreed term, named by the owner. Each picks a
+  // fee from the building's catalogue — so the name stays comparable with every
+  // other bill — while the amount is free, because no agreement covers those
+  // days and the fee's current price is a fact about today rather than them.
+  //
+  // Ignored where the departure falls within the term. An empty list is a
+  // deliberate waiver, not an omission.
+  overdueCharges: z
+    .array(
+      z.object({
+        buildingServiceFeeId: z.coerce.number().int().positive(),
+        amount: z.coerce.number().nonnegative("must not be negative"),
+      }),
+    )
+    .default([]),
+});
+
+export const listLeasesQuerySchema = z.object({
+  ...paginationQueryFields,
+  roomId: z.coerce.number().int().positive().optional(),
+  customerId: z.coerce.number().int().positive().optional(),
+  active: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => (value === undefined ? undefined : value === "true")),
+  // Leases whose agreed term has run out while no move-out was recorded. These
+  // need attention: no further invoice can be issued for them, and their room
+  // stays held against a new tenancy until they are closed or renewed.
+  overdue: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
+});
+
+export const addOccupantSchema = z.object({
+  customerId: z.coerce.number().int().positive("customerId is required"),
+  joinedAt: isoDate.optional(),
+});
+
+export const departOccupantSchema = z.object({
+  leftAt: isoDate,
+});
+
+export const transferPrimarySchema = z.object({
+  customerId: z.coerce.number().int().positive("customerId is required"),
+});
+
+export const listOccupantsQuerySchema = z.object({ ...paginationQueryFields });
+
+export type ListOccupantsQuery = z.infer<typeof listOccupantsQuerySchema>;
+export type CreateLeaseInput = z.infer<typeof createLeaseSchema>;
+export type UpdateLeaseInput = z.infer<typeof updateLeaseSchema>;
+export type ListLeasesQuery = z.infer<typeof listLeasesQuerySchema>;
+export type AddOccupantInput = z.infer<typeof addOccupantSchema>;
+export type ExtendLeaseInput = z.infer<typeof extendLeaseSchema>;

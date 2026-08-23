@@ -1,0 +1,56 @@
+import { env } from "@/config/env.js";
+import cors from "cors";
+import express from "express";
+import cookieParser from "cookie-parser";
+import { errorHandler } from "@/middleware/error-handler.js";
+import { requestLogger } from "@/middleware/request-logger.js";
+import { healthRouter } from "@/routes/health.js";
+import { authRouter } from "@/modules/auth/router.js";
+import { buildingsRouter } from "@/modules/buildings/router.js";
+import { roomsRouter } from "@/modules/rooms/router.js";
+import { customersRouter } from "@/modules/customers/router.js";
+import { leasesRouter } from "@/modules/leases/router.js";
+import { invoicesRouter } from "@/modules/invoices/router.js";
+import { expensesRouter } from "@/modules/expenses/router.js";
+import { reportsRouter } from "@/modules/reports/router.js";
+import { addressesRouter } from "@/modules/addresses/router.js";
+import { depositsRouter } from "@/modules/deposits/router.js";
+import { paymentsRouter } from "@/modules/payments/router.js";
+import { tenantPortalRouter } from "@/modules/tenant-portal/router.js";
+import { paymentGatewayRouter } from "@/modules/payment-gateway/router.js";
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+app.use(cookieParser());
+app.use(requestLogger);
+
+app.use(healthRouter);
+app.use("/auth", authRouter);
+app.use("/buildings", buildingsRouter);
+app.use("/rooms", roomsRouter);
+app.use("/customers", customersRouter);
+app.use("/leases", leasesRouter);
+app.use("/invoices", invoicesRouter);
+app.use("/expenses", expensesRouter);
+app.use("/reports", reportsRouter);
+app.use("/addresses", addressesRouter);
+app.use("/deposits", depositsRouter);
+app.use("/payments", paymentsRouter);
+
+// PUBLIC. Every router above requires an owner's access token; this one takes a
+// tenant's portal token instead, which grants sight of that person's own bills
+// and nothing else. Kept apart from the block above so the difference is
+// visible rather than buried in a list.
+app.use("/portal", tenantPortalRouter);
+
+// PUBLIC, and this one settles bills. Its defence is the signature on every
+// confirmation, verified before the payload is read.
+app.use("/webhooks", paymentGatewayRouter);
+
+app.use(errorHandler);
+
+app.listen(env.PORT, () => {
+  console.log(`Server listening on port ${env.PORT}`);
+});

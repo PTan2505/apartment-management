@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode — Vite compiles, tsc only typechecks. */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Matches the backend's strictness. Turning this on later, against eight
+       domains of existing screens, is the migration nobody performs. */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+
+    /* The `@/` alias, mirroring the backend convention. This mapping is for the
+       typechecker only — the bundler needs the matching `resolve.alias` in
+       vite.config.ts, and the two are independent. Paths resolve relative to
+       this file; TypeScript 7 removed `baseUrl`. */
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
+    /* Gives us types for `import.meta.env` and for asset imports (.svg, .png). */
+    "types": ["vite/client"]
+  },
+  "include": ["src"]
+}

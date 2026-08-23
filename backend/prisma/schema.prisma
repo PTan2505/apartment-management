@@ -1,0 +1,648 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  owner
+  customer
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  // Optional: occupants such as children need a stable identity but may have no
+  // phone. Postgres allows many NULLs under a unique index, so it stays unique
+  // where present. Owners always have a phone (login identifier).
+  phone        String?  @unique
+  passwordHash String?
+  role         Role
+  fullName     String
+  // A matching key derived from fullName, never entered by anyone and never
+  // returned: lowercased with diacritics folded away, so 'Nguyễn Văn A' is
+  // stored as 'nguyen van a' and a search typed without diacritics finds it.
+  // The database uses the C collation, which folds case for ASCII only, so
+  // neither case- nor accent-insensitive matching works on the name directly.
+  // Must be rewritten by every path that writes fullName, or it goes stale and
+  // the customer quietly stops being findable.
+  fullNameSearch String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  refreshTokens  RefreshToken[]
+  portalTokens   TenantAccessToken[]
+  leaseOccupants LeaseOccupant[]
+}
+
+/// A tenant's way into the portal: a link the owner sends once.
+///
+/// Deliberately the same design as RefreshToken, for the same reason — it lives
+/// for the length of a tenancy and has to be killable the moment it is
+/// forwarded to somebody. A JWT cannot be withdrawn, which rules it out however
+/// convenient the stateless check would be.
+///
+/// Belongs to a PERSON rather than a tenancy, so it survives a renewal and
+/// still works after a move-out. That last part matters: the final bill is
+/// issued at the moment the tenancy closes, and its addressee has by then
+/// stopped being a current occupant.
+model TenantAccessToken {
+  id     Int  @id @default(autoincrement())
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  /// SHA-256 of the token, never the token itself. A copy of this database is
+  /// deliberately not a copy of every tenant's link.
+  ///
+  /// SHA-256 rather than bcrypt, as for a refresh token: the value is 256 bits
+  /// of uniform randomness so there is no dictionary to slow down, and it has
+  /// to be found by equality rather than compared one row at a time.
+  tokenHash String @unique
+
+  /// Set when the owner withdraws the link, or when they issue a replacement.
+  revokedAt DateTime?
+  /// The only signal an owner has that a link is being used by someone who
+  /// should not have it — there is no rate limit and no alerting.
+  lastUsedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model RefreshToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  @@index([userId])
+}
+
+model Building {
+  id                 Int      @id @default(autoincrement())
+  displayName        String
+  // The street line only — house number and street. The administrative levels
+  // below are held separately so buildings can be filtered by location.
+  address            String
+  ward               String
+  city               String
+  country            String   @default("Vietnam")
+  // The address provider's identifier for the place this address was resolved
+  // from. Null means the address was typed by hand — which is also the right
+  // state after someone corrects one, since a stale identifier would claim the
+  // address came from a place it no longer matches. Deliberately not a foreign
+  // key and not validated: a note about provenance, not a reference.
+  placeId            String?
+  electricityRate    Decimal  @db.Decimal(12, 4)
+  waterRatePerPerson Decimal  @db.Decimal(12, 4)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  rooms       Room[]
+  expenses    Expense[]
+  serviceFees BuildingServiceFee[]
+}
+
+model Room {
+  id         Int      @id @default(autoincrement())
+  buildingId Int
+  building   Building @relation(fields: [buildingId], references: [id])
+  roomCode   String
+  baseRent   Decimal  @db.Decimal(12, 2)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  leases   Lease[]
+  expenses Expense[]
+
+  // Uniqueness of (buildingId, roomCode) among ACTIVE rooms is enforced by a
+  // partial unique index added manually in the migration — Prisma's @@unique
+  // cannot express a WHERE clause, and would wrongly block code reuse after
+  // a room is retired.
+  @@index([buildingId])
+}
+
+model Lease {
+  id                Int       @id @default(autoincrement())
+  roomId            Int
+  room              Room      @relation(fields: [roomId], references: [id])
+  startDate         DateTime
+  durationMonths    Int
+  // The rent this agreement fixed, defaulted from the room at creation and
+  // overridable. Deliberately a copy: the room's rent is what it asks of the
+  // next tenant, and changing it must not re-price a tenancy already agreed.
+  // Same precision as Room.baseRent so the copy cannot lose or gain digits.
+  baseRent          Decimal   @db.Decimal(12, 2)
+  // The deposit in MONTHS of rent, not currency — that is how it is agreed, and
+  // the amount is derived (depositMonths × baseRent) rather than stored, so the
+  // two can never disagree. Zero is a real value: a lease taken without a
+  // deposit, as distinct from one whose deposit was never recorded.
+  depositMonths     Int
+  // Manually maintained and authoritative for billing. Deliberately NOT derived
+  // from LeaseOccupant rows: an owner may know five people live in a room while
+  // holding details for only two. See design.md.
+  occupantCount     Int
+  moveOutDate       DateTime?
+  // The meter reading this tenancy starts from. Defaulted from the previous
+  // lease's endMeterReading but overridable, so electricity used while the room
+  // stood empty is not charged to the incoming tenant, and a meter replaced
+  // between tenancies is just a lower number rather than a special case.
+  startMeterReading Int
+  // Captured at move-out: closes this tenancy's electricity and becomes the
+  // default starting point for the room's next lease.
+  endMeterReading   Int?
+
+  // --- the deposit actually held, as distinct from the one the terms agreed ---
+  //
+  // The agreed deposit stays derived (depositMonths × baseRent). This is what
+  // the owner is really holding, which differs from it the moment a deposit is
+  // carried over from a previous tenancy, a move-in invoice goes unpaid, or a
+  // rent is raised at renewal.
+  //
+  // Deliberately stored rather than derived from the deposit lines of a paid
+  // move-in invoice. That derivation is blind to the two cases this exists for:
+  // a deposit carried from a predecessor was never charged on the successor's
+  // invoice, and a top-up collected in cash was never charged at all. Every
+  // write happens inside the transaction of the operation that moved the money
+  // — see design.md.
+  depositHeld       Decimal   @default(0) @db.Decimal(14, 0)
+  // Of the above, how much arrived from a predecessor lease rather than being
+  // paid. Kept so a holding can say where it came from.
+  depositCarriedIn  Decimal   @default(0) @db.Decimal(14, 0)
+  // How much left to a successor lease at an extension. No money moved; only
+  // which tenancy it is held against.
+  depositCarriedOut Decimal   @default(0) @db.Decimal(14, 0)
+
+  // Set together when the holding is closed out. The amount is the WHOLE
+  // holding at the moment of return — there is nothing to decide — and it is
+  // stored rather than recomputed so the return stays a dated, immutable record
+  // of what actually happened. Recordable only once, and only for a lease that
+  // has recorded a move-out.
+  //
+  // There is no note beside it: keeping part of a deposit requires charging for
+  // that part on an ad-hoc invoice, where the reason carries a category and an
+  // amount. A second, weaker place to write the same fact would only compete
+  // with it.
+  depositRefunded   Decimal?  @db.Decimal(14, 0)
+  depositRefundedAt DateTime?
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  occupants   LeaseOccupant[]
+  invoices    Invoice[]
+  serviceFees LeaseServiceFee[]
+
+  // One ACTIVE lease per room (moveOutDate IS NULL) is enforced by a partial
+  // unique index added manually in the migration.
+  @@index([roomId])
+}
+
+model LeaseOccupant {
+  id        Int       @id @default(autoincrement())
+  leaseId   Int
+  lease     Lease     @relation(fields: [leaseId], references: [id])
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id])
+  // Marks the lease signatory. Tenant-ness is a property of this relationship,
+  // not of the person — the same user may be primary on one lease and an
+  // ordinary occupant on another.
+  isPrimary Boolean   @default(false)
+  joinedAt  DateTime
+  leftAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Two partial unique indexes are added manually in the migration:
+  //   one active primary per lease, and no duplicate active occupant.
+  @@index([leaseId])
+  @@index([userId])
+}
+
+/// Whether an INVOICE has been settled. Distinct from PaymentState, which is
+/// about one attempt to settle it — an invoice is paid or not however many
+/// payments it took to get there.
+enum PaymentStatus {
+  pending
+  paid
+}
+
+/// The state of one payment.
+///
+/// This column was added while only `succeeded` and `reversed` were reachable,
+/// on the grounds that a state is expensive to retrofit and a column is not.
+/// That bet is now settled: the gateway brought three more, and none of them
+/// could have been inferred from any date already on the row.
+///
+/// The division that matters is not "finished / unfinished" but **whether money
+/// ever moved**. Only `succeeded` and `reversed` are on that side of it, which
+/// is why they are the only two the cash figure counts.
+///
+/// `failed` is still absent. This gateway reports an attempt as cancelled or
+/// expired, and an enum value nobody can reach is a guess rather than a
+/// decision.
+enum PaymentState {
+  /// A tenant has started paying through the gateway and has not finished.
+  /// Settles nothing: no money has moved, and until it does this payment must
+  /// be invisible to every figure that reports money.
+  pending
+  succeeded
+  /// The attempt ended without the money arriving. Kept rather than deleted —
+  /// an abandoned attempt is a fact about what a tenant did, and the record is
+  /// what tells an owner a link was created at all.
+  cancelled
+  expired
+  /// The money DID arrive and was then given back. The one state here that is
+  /// not "no money moved", which is why it still counts toward the cash figure
+  /// — added in the month it arrived, subtracted in the month it left.
+  reversed
+}
+
+/// What settles an invoice, recorded as an event in its own right.
+///
+/// An invoice may carry several over its life: paid, reversed, paid again is
+/// three facts, and the columns this replaces on Invoice could hold only the
+/// last of them. The reversal is recorded rather than deleting the row, because
+/// money that arrived in March and went back in April happened in both months
+/// and the cash figure needs to say so.
+model Payment {
+  id        Int     @id @default(autoincrement())
+  invoiceId Int
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  /// What was paid. Equal to the invoice's total today, since payment is
+  /// atomic — kept on the payment rather than read from the invoice so a
+  /// partial payment, if it ever exists, has somewhere to record its amount.
+  amount Decimal       @db.Decimal(14, 0)
+  method PaymentMethod
+  /// When the money moved. Distinct from the invoice's issue date and from the
+  /// month it covers; this is the one the cash figure is keyed on.
+  ///
+  /// NULL where no money has moved — a payment started and not finished has no
+  /// such moment. Deliberately nullable rather than defaulted to the moment the
+  /// attempt was created: a placeholder would keep every caller compiling and
+  /// let the cash figure quietly report abandoned attempts as income.
+  paidAt DateTime?
+
+  /// --- the gateway's own record of this attempt ---
+  ///
+  /// All null for a payment an owner recorded by hand; none of this exists for
+  /// cash across a desk.
+
+  /// The reference sent to the gateway, which must be unique per attempt. It is
+  /// this row's own id — never the invoice's, because a link that expires and
+  /// is replaced would otherwise reuse a reference the gateway has seen.
+  gatewayOrderCode Int? @unique
+  /// What the gateway called this payment in reply.
+  gatewayPaymentId String?
+  /// What the tenant actually pays with, kept so a second visit hands back the
+  /// SAME link rather than creating another. One live link per bill is what
+  /// makes the gateway's own dashboard readable.
+  ///
+  /// The QR is a VietQR payload string, not an image — whatever displays it
+  /// renders it. A tenant scanning it in their banking app never visits the
+  /// gateway's page at all, which is why the page showing it has to find out
+  /// the bill was paid by asking rather than by being returned to.
+  gatewayCheckoutUrl String?
+  gatewayQrCode      String?
+  /// The confirmation exactly as it arrived, before interpretation. What the
+  /// gateway really sends is the one thing that cannot be settled in advance,
+  /// and the first field that differs will differ during a real payment.
+  gatewayPayload   Json?
+
+  state      PaymentState @default(succeeded)
+  /// When the money went back. Written together with `state`, never apart.
+  reversedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([invoiceId])
+  /// The cash figure sums by this across a reported range.
+  @@index([paidAt])
+}
+
+enum PaymentMethod {
+  cash
+  bank_transfer
+  /// Paid online through the payment gateway.
+  gateway
+  /// Settled out of the deposit already held for the lease. The bill is
+  /// genuinely collected — that money reached the owner months ago — and the
+  /// holding shrinks by the same amount. Differs from the others in where the
+  /// money came from, not in whether it arrived.
+  deposit_deduction
+}
+
+/// All four kinds exist from the start so the billing rework adds no enum
+/// migration. Only `monthly` is reachable until the operations that issue the
+/// others exist — the kind is decided by which operation issued the invoice,
+/// never supplied by a caller.
+enum InvoiceType {
+  moveIn
+  monthly
+  final
+  overdue
+  /// Charges the owner decides rather than calculates: a lost key, a room left
+  /// dirty, a broken window, a penalty. Deliberately NOT guarded by a
+  /// one-per-lease index — a lost key in March and a broken window in July are
+  /// two events, and forcing them onto one bill would misdate both.
+  adhoc
+}
+
+model Invoice {
+  id      Int   @id @default(autoincrement())
+  leaseId Int
+  lease   Lease @relation(fields: [leaseId], references: [id])
+
+  type InvoiceType @default(monthly)
+
+  // When the owner billed this, which is a different fact from the period it
+  // covers: a month billed late was covered in one month and billed in another.
+  // Deliberately its own column rather than reading createdAt — that is a
+  // record-keeping timestamp, it moves if a row is recreated, and it cannot be
+  // set to a date in the past. The two coincide today and are not the same fact.
+  issueDate DateTime @default(now())
+
+  // The calendar month whose UTILITIES this invoice covers, and the days within
+  // it this tenancy occupied. Rent moving a month ahead does not change what
+  // this label refers to.
+  //
+  // Optional because they are true of a monthly bill and false of a move-in
+  // one, which charges a deposit and rent — neither of them metered, neither
+  // belonging to a month of occupancy. Each kind states which it carries; the
+  // service enforces that, since nullability alone cannot.
+  year        Int?
+  month       Int?
+  periodStart DateTime?
+  periodEnd   DateTime?
+
+  // Metered electricity. Never prorated — the readings already measure exactly
+  // what was consumed. Absent on a move-in invoice, and on an overdue one,
+  // whose closing reading was already consumed by the final invoice.
+  previousElectricityUse Int?
+  currentElectricityUse  Int?
+
+  // Each charge is a line item, so an invoice can carry however many it has.
+  // The rates and counts a charge was computed from live on the line they
+  // produced, not here — one fact, one place.
+  //
+  // totalAmount stays stored, deliberately against this project's habit of
+  // deriving such values. The revenue report sums it across many invoices, and
+  // it is frozen the moment the invoice is issued. Disagreement is prevented
+  // structurally instead: it is written in the same transaction as the lines
+  // and nothing updates it afterwards.
+  totalAmount Decimal @db.Decimal(14, 0)
+
+  // Whether this invoice is settled. Deliberately kept here rather than derived
+  // from its payments: it is filtered on directly and grouped over every
+  // invoice in a reported range, and deriving it would mean a join and an
+  // aggregate on every read.
+  //
+  // A cache, written in the same transaction as the payment that changes it —
+  // the same trade `totalAmount` makes, with the same guard against drift. It
+  // means "has a succeeded, unreversed payment", not "has any payment".
+  paymentStatus PaymentStatus @default(pending)
+  // Voided invoices are retained as an audit trail, excluded from totals, and
+  // excluded from the uniqueness predicate so a replacement can be issued.
+  voidedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lineItems InvoiceLineItem[]
+  payments  Payment[]
+
+  // Four partial unique indexes are added manually in the migration:
+  //   one non-voided MONTHLY invoice per lease per month, and one non-voided
+  //   move-in, final and overdue invoice per lease.
+  //
+  // The kind is deliberately NOT part of the key. Adding it would permit one
+  // move-in invoice per month, when the rule is one per lease, and one final
+  // per month when the rule is one per tenancy. Those rules are not
+  // month-shaped and get their own guards where they are introduced.
+  @@index([leaseId])
+}
+
+enum InvoiceLineKind {
+  rent
+  electricity
+  water
+  serviceFee
+  /// Money held on the tenant's behalf, not earned. Excluded from revenue.
+  deposit
+  /// A charge the owner named and priced, for something no agreement covers.
+  /// IS revenue — `deposit` is the only kind the report excludes, and a new
+  /// kind falls on the earning side unless it is money held for someone else.
+  ///
+  /// Deliberately not a `serviceFee`: a service fee points at a catalogue entry
+  /// and recurs monthly, a charge points at an event and does not. Sharing the
+  /// kind would put broken windows among the parking spaces in any report that
+  /// groups by fee.
+  charge
+}
+
+model InvoiceLineItem {
+  id        Int     @id @default(autoincrement())
+  invoiceId Int
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  kind InvoiceLineKind
+  // Written for a reader of the bill, not for the system.
+  description String
+
+  // Which catalogue fee this line came from, for a service fee line. Provenance
+  // rather than a lookup — the amount is already snapshotted — but it lets a
+  // report group by kind of fee without parsing the description. Null for rent,
+  // electricity and water, which have no catalogue entry to point at.
+  buildingServiceFeeId Int?
+  buildingServiceFee   BuildingServiceFee? @relation(fields: [buildingServiceFeeId], references: [id])
+
+  // The basis the charge was computed from, where there was one. Rent has
+  // neither: a quantity of 1 would read as information and is not.
+  //
+  // For a PARTIAL month these stay the full-month basis and `amount` is that
+  // basis reduced by the days occupied — so amount != quantity * unitAmount,
+  // and the invoice's own period is what accounts for the difference. Putting
+  // the fraction into quantity would lose the rate: 0.548387 tells nobody the
+  // rent is 3,000,000.
+  quantity   Decimal? @db.Decimal(14, 2)
+  unitAmount Decimal? @db.Decimal(12, 4)
+
+  // The span this charge is for. A bill carries one month's utilities beside
+  // the FOLLOWING month's rent, so the invoice's own period cannot say which a
+  // line belongs to — each line says it itself.
+  //
+  // Null for a deposit, which is not charged for a span of time and must not
+  // borrow the invoice's.
+  periodStart DateTime?
+  periodEnd   DateTime?
+
+  // Authoritative, and already rounded to whole units so a bill adds up.
+  amount Decimal @db.Decimal(14, 0)
+
+  // Fixed display order, so the same invoice reads the same way twice.
+  position Int
+
+  /// What KIND of owner-named charge this is, for a `charge` line. Fixed rather
+  /// than free text so charges can be grouped: "broken window", "vỡ kính" and
+  /// "Hong cua kinh" are otherwise three categories.
+  ///
+  /// Mirrors ExpenseCategory deliberately — `damage` charged to a tenant is what
+  /// `repair` paid to a builder costs, and an owner comparing them is asking
+  /// whether they recovered what the damage cost.
+  ///
+  /// On the LINE rather than the invoice: one bill may carry a damage charge and
+  /// a cleaning charge, and categorising the invoice would force the owner to
+  /// issue two or to mis-file one. Null for every other line kind.
+  chargeCategory ChargeCategory?
+
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId])
+}
+
+/// The kinds of charge an owner can decide on. Mirrors ExpenseCategory: what is
+/// charged as `damage` is what is paid out as `repair`.
+enum ChargeCategory {
+  damage
+  cleaning
+  lost_item
+  penalty
+  other
+}
+
+enum ExpenseCategory {
+  vacancy_electricity
+  cleaning
+  repair
+  other
+}
+
+enum ExpenseOrigin {
+  system
+  manual
+}
+
+/// Which trigger produced a vacancy electricity record. Explicit rather than
+/// inferred from a null column, because the uniqueness index keys on it.
+enum VacancyReconciliation {
+  month_end
+  lease_start
+}
+
+// What a building charges for beyond rent and metered utilities: parking,
+// internet, rubbish, shared cleaning. This is the catalogue the owner offers;
+// what a particular tenancy agreed to is LeaseServiceFee.
+model BuildingServiceFee {
+  id         Int      @id @default(autoincrement())
+  buildingId Int
+  building   Building @relation(fields: [buildingId], references: [id])
+
+  name String
+  // Charged per unit of the thing: one motorbike, one internet connection. A
+  // flat fee is simply one whose quantity is always 1.
+  unitAmount Decimal @db.Decimal(12, 2)
+  isActive   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leaseSelections LeaseServiceFee[]
+  invoiceLines    InvoiceLineItem[]
+
+  // Name is unique among a building's OFFERED fees — a partial unique index
+  // added manually in the migration, same shape as Room.roomCode. Two entries
+  // called "Parking" in one building cannot be told apart when selecting one.
+  @@index([buildingId])
+}
+
+// A fee this tenancy agreed to, at the price it agreed.
+model LeaseServiceFee {
+  id      Int   @id @default(autoincrement())
+  leaseId Int
+  lease   Lease @relation(fields: [leaseId], references: [id])
+
+  buildingServiceFeeId Int
+  buildingServiceFee   BuildingServiceFee @relation(fields: [buildingServiceFeeId], references: [id])
+
+  // COPIED at selection, never looked up again. The lease keeps the terms it
+  // agreed, exactly as it does for baseRent: repricing the building's fee must
+  // not reach back into an agreement already made. It is also what makes
+  // retiring a fee harmless — there is nothing left to resolve at billing time.
+  unitAmount Decimal @db.Decimal(12, 2)
+  // How many of the thing. Changing this must NOT re-copy unitAmount: a tenant
+  // buying a second motorbike has not renegotiated the price of the first.
+  quantity   Int     @default(1)
+
+  // When this fee applied, modelled exactly as LeaseOccupant records a person
+  // joining and leaving. Giving up a fee records a date rather than deleting the
+  // row: a tenant who had parking for half of March had it, and an invoice
+  // generated afterwards must be able to charge those days.
+  //
+  // effectiveFrom defaults to the LEASE'S START, not to today — a fee agreed at
+  // signing applied from day one, and defaulting to whenever the owner happened
+  // to enter it would silently under-charge every fee entered late.
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // A lease holds a given fee at most once AT A TIME — more of a service is a
+  // quantity, not a second selection. Partial unique index (WHERE effectiveTo IS
+  // NULL) added manually in the migration, so a fee given up can be taken again,
+  // the same way LeaseOccupant lets a person rejoin.
+  @@index([leaseId])
+  @@index([buildingServiceFeeId])
+}
+
+model Expense {
+  id         Int      @id @default(autoincrement())
+  buildingId Int
+  building   Building @relation(fields: [buildingId], references: [id])
+  // Cleaning and vacancy electricity are room-level; lobby repairs are not.
+  roomId     Int?
+  room       Room?    @relation(fields: [roomId], references: [id])
+
+  category    ExpenseCategory
+  description String
+  incurredAt  DateTime
+  origin      ExpenseOrigin   @default(manual)
+
+  // Present for measured costs. When both are set the amount is computed from
+  // them, so the recorded figure can never disagree with what it came from.
+  quantity Decimal? @db.Decimal(14, 2)
+  unitRate Decimal? @db.Decimal(12, 4)
+  amount   Decimal  @db.Decimal(14, 0)
+
+  // Vacancy electricity only. The readings keep the room's meter chain
+  // unbroken between tenancies; quantity always equals their difference.
+  reconciliation  VacancyReconciliation?
+  year            Int?
+  month           Int?
+  previousReading Int?
+  currentReading  Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // A month end can be recorded only once per room, enforced by a partial
+  // unique index added manually in the migration. Turnover records are
+  // deliberately excluded: a room may be re-let more than once in a month.
+  @@index([buildingId])
+  @@index([roomId])
+}

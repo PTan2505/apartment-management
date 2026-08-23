@@ -1,0 +1,370 @@
+import { Prisma } from "@/generated/prisma/client.js";
+import { prisma } from "@/lib/prisma.js";
+import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
+import { paginate, toSkipTake } from "@/lib/pagination.js";
+import {
+  buildLineItems,
+  buildServiceFeeLineItems,
+  computeCharges,
+  computeServiceFeeCharges,
+  resolveOccupiedPeriod,
+  resolveRentPeriod,
+} from "./billing.js";
+import { addMonths } from "@/modules/leases/mapper.js";
+import {
+  deductFromDeposit,
+  holdFromInvoice,
+  releaseFromInvoice,
+  restoreDeduction,
+} from "@/modules/deposits/holding.js";
+import type {
+  GenerateInvoiceInput,
+  IssueAdhocInvoiceInput,
+  ListInvoicesQuery,
+  MarkPaidInput,
+} from "./schema.js";
+
+const Decimal = Prisma.Decimal;
+
+/**
+ * Every site that returns an invoice must carry its lines: the charges now live
+ * there, so an invoice without them is a total with nothing accounting for it.
+ * Ordered by position so the same invoice reads the same way twice.
+ */
+const invoiceInclude = {
+  lineItems: { orderBy: { position: "asc" } },
+  // What settled it, and when. An invoice may carry several over its life —
+  // taken, reversed, taken again — so they are listed rather than summarised.
+  payments: { orderBy: { id: "asc" } },
+} as const;
+
+async function findInvoiceOrThrow(id: number) {
+  const invoice = await prisma.invoice.findUnique({ where: { id }, include: invoiceInclude });
+  if (!invoice) {
+    throw new NotFoundError("Invoice not found");
+  }
+  return invoice;
+}
+
+/**
+ * A lease's first invoice opens from the reading the lease itself started from;
+ * every later one opens from that lease's previous invoice. Never from the
+ * room's history — that would charge a new tenant for the previous tenancy's
+ * consumption and for whatever the meter recorded while the room was empty.
+ */
+async function resolveOpeningReading(leaseId: number, startMeterReading: number) {
+  // Only invoices that metered something. A move-in invoice has no reading and
+  // no month either — and since NULL sorts FIRST under a DESC ordering in
+  // Postgres, leaving it in makes it win this query and hands back the lease's
+  // opening reading for every invoice after the first.
+  const previous = await prisma.invoice.findFirst({
+    where: { leaseId, voidedAt: null, currentElectricityUse: { not: null } },
+    orderBy: [{ year: "desc" }, { month: "desc" }],
+    select: { currentElectricityUse: true },
+  });
+
+  return previous?.currentElectricityUse ?? startMeterReading;
+}
+
+export async function generateInvoice(input: GenerateInvoiceInput) {
+  const lease = await prisma.lease.findUnique({
+    where: { id: input.leaseId },
+    include: { room: { include: { building: true } } },
+  });
+  if (!lease) {
+    throw new NotFoundError("Lease not found");
+  }
+
+  // A finalized lease is still billable for the months it covered — a tenancy
+  // that ended on the 15th owes for those 15 days.
+  const period = resolveOccupiedPeriod(
+    input.year,
+    input.month,
+    lease.startDate,
+    lease.moveOutDate,
+    addMonths(lease.startDate, lease.durationMonths),
+  );
+  if (!period) {
+    throw new ValidationError(
+      "That month falls outside the period this lease occupied the room",
+    );
+  }
+
+  const existing = await prisma.invoice.findFirst({
+    where: { leaseId: input.leaseId, year: input.year, month: input.month, voidedAt: null },
+  });
+  if (existing) {
+    throw new ConflictError("That lease already has an invoice for that month");
+  }
+
+  const previousElectricityUse = await resolveOpeningReading(
+    lease.id,
+    lease.startMeterReading,
+  );
+  if (input.currentElectricityUse < previousElectricityUse) {
+    throw new ValidationError(
+      "Closing meter reading cannot be below the opening reading for this period",
+    );
+  }
+
+  // Named so the computation and the lines it produces read the same inputs —
+  // two copies could drift and the bill would stop explaining its own total.
+  // Rent is charged for the month AFTER the one billed. No such month within
+  // the term means there is no rent left to charge, and that month's utilities
+  // belong on the final invoice — refused rather than silently issued without a
+  // rent line, because an invoice with no rent is what a FINAL invoice is.
+  const rentPeriod = resolveRentPeriod(
+    input.year,
+    input.month,
+    lease.startDate,
+    lease.moveOutDate,
+    addMonths(lease.startDate, lease.durationMonths),
+  );
+  if (rentPeriod === null) {
+    throw new ValidationError(
+      "The month after this one falls outside the lease's term, so there is no rent to charge — its utilities belong on the final invoice",
+    );
+  }
+
+  const chargeInputs = {
+    // The lease's own agreed rent, not the room's current asking rent. A tenant
+    // is billed what their agreement says, so editing the room after a lease
+    // was signed must not change what that lease is charged.
+    baseRent: lease.baseRent,
+    electricityRate: lease.room.building.electricityRate,
+    waterRatePerPerson: lease.room.building.waterRatePerPerson,
+    occupantCount: lease.occupantCount,
+    previousElectricityUse,
+    currentElectricityUse: input.currentElectricityUse,
+    period,
+    rentPeriod,
+  };
+
+  const charges = computeCharges(chargeInputs);
+
+  // Which fees applied DURING the billed period — deliberately not which the
+  // lease holds now. The two differ only when an invoice is generated late,
+  // which is exactly when reading the present would be wrong and would look
+  // right in every on-time test.
+  const applicableFees = await prisma.leaseServiceFee.findMany({
+    where: {
+      leaseId: lease.id,
+      effectiveFrom: { lte: period.periodEnd },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gt: period.periodStart } }],
+    },
+    select: {
+      buildingServiceFeeId: true,
+      unitAmount: true,
+      quantity: true,
+      effectiveFrom: true,
+      effectiveTo: true,
+      buildingServiceFee: { select: { name: true } },
+    },
+    orderBy: { id: "asc" },
+  });
+
+  const feeCharges = computeServiceFeeCharges(
+    period,
+    applicableFees.map((fee) => ({
+      buildingServiceFeeId: fee.buildingServiceFeeId,
+      name: fee.buildingServiceFee.name,
+      unitAmount: fee.unitAmount,
+      quantity: fee.quantity,
+      effectiveFrom: fee.effectiveFrom,
+      effectiveTo: fee.effectiveTo,
+    })),
+  );
+
+  const baseLines = buildLineItems(chargeInputs, charges);
+  const feeLines = buildServiceFeeLineItems(feeCharges, baseLines.length + 1, period);
+  const totalAmount = feeCharges.reduce(
+    (running, charge) => running.add(charge.amount),
+    charges.totalAmount,
+  );
+
+  // The lines and the total are written together, in one statement, so a total
+  // never exists without the charges that account for it.
+  return prisma.invoice.create({
+    data: {
+      leaseId: lease.id,
+      year: input.year,
+      month: input.month,
+      periodStart: period.periodStart,
+      periodEnd: period.periodEnd,
+      // Fixed by the operation, not by the caller — this endpoint issues
+      // monthly invoices and nothing else.
+      type: "monthly",
+      issueDate: input.issueDate ?? new Date(),
+      previousElectricityUse,
+      currentElectricityUse: input.currentElectricityUse,
+      totalAmount,
+      // Each rate and count is copied onto the line it produced, at issue time,
+      // so a later rate or occupant change cannot rewrite what this bill charged.
+      lineItems: { create: [...baseLines, ...feeLines] },
+    },
+    include: invoiceInclude,
+  });
+}
+
+export async function listInvoices(query: ListInvoicesQuery) {
+  const where = {
+    ...(query.leaseId ? { leaseId: query.leaseId } : {}),
+    ...(query.year ? { year: query.year } : {}),
+    ...(query.month ? { month: query.month } : {}),
+    ...(query.paymentStatus ? { paymentStatus: query.paymentStatus } : {}),
+    ...(query.includeVoided ? {} : { voidedAt: null }),
+    ...(query.roomId || query.buildingId
+      ? {
+          lease: {
+            ...(query.roomId ? { roomId: query.roomId } : {}),
+            ...(query.buildingId ? { room: { buildingId: query.buildingId } } : {}),
+          },
+        }
+      : {}),
+  };
+
+  return paginate(
+    query,
+    prisma.invoice.findMany({
+      where,
+      include: invoiceInclude,
+      orderBy: [{ year: "asc" }, { month: "asc" }, { id: "asc" }],
+      ...toSkipTake(query),
+    }),
+    prisma.invoice.count({ where }),
+  );
+}
+
+export async function getInvoiceById(id: number) {
+  return findInvoiceOrThrow(id);
+}
+
+/**
+ * A bill for what the system cannot calculate: a lost key, a room left dirty, a
+ * broken window, a penalty.
+ *
+ * Its charges are named, categorised and priced by the owner. Every other
+ * charge here follows from an agreement and a measurement; these follow from a
+ * judgement, and the system records that judgement rather than pretending to
+ * derive it.
+ *
+ * Carries no month, no period and no meter readings, and its lines carry no
+ * period: a charge for an event has no span of time to report, and borrowing
+ * the invoice's would invent a fact.
+ *
+ * Allowed against a finalized lease, and deliberately unguarded by any
+ * one-per-lease rule — damage is usually found after the tenant has gone, and a
+ * lost key in March and a broken window in July are two events.
+ */
+export async function issueAdhocInvoice(input: IssueAdhocInvoiceInput) {
+  const lease = await prisma.lease.findUnique({ where: { id: input.leaseId } });
+  if (!lease) {
+    throw new NotFoundError("Lease not found");
+  }
+
+  const lines = input.charges.map((charge, index) => ({
+    kind: "charge" as const,
+    chargeCategory: charge.category,
+    description: charge.description,
+    // No basis to report: the amount IS the judgement, and a quantity of 1
+    // would read as information without being any.
+    quantity: null,
+    unitAmount: null,
+    amount: new Decimal(charge.amount).toDecimalPlaces(0),
+    position: index + 1,
+    periodStart: null,
+    periodEnd: null,
+  }));
+
+  const totalAmount = lines.reduce((running, line) => running.add(line.amount), new Decimal(0));
+
+  return prisma.invoice.create({
+    data: {
+      leaseId: lease.id,
+      type: "adhoc",
+      issueDate: input.issueDate ?? new Date(),
+      totalAmount,
+      lineItems: { create: lines },
+    },
+    include: invoiceInclude,
+  });
+}
+
+export async function markPaid(id: number, input: MarkPaidInput) {
+  const invoice = await findInvoiceOrThrow(id);
+
+  if (invoice.voidedAt !== null) {
+    throw new ConflictError("Cannot record payment against a voided invoice");
+  }
+  if (invoice.paymentStatus === "paid") {
+    throw new ConflictError("That invoice has already been paid");
+  }
+
+  // The payment, the invoice's status and any holding it moves are written
+  // together. An invoice recorded as paid whose payment was never written, or
+  // whose deduction was not applied, would report the same money twice or lose
+  // it entirely.
+  return prisma.$transaction(async (tx) => {
+    // Settling out of the deposit spends money the owner has held since the
+    // tenancy began. Refused where the lease is not holding enough.
+    if (input.paymentMethod === "deposit_deduction") {
+      await deductFromDeposit(tx, invoice.leaseId, invoice.totalAmount);
+    }
+
+    // Whatever deposit this invoice charged becomes money held, now that it has
+    // been paid. An invoice with no deposit line moves nothing.
+    await holdFromInvoice(tx, invoice.leaseId, invoice.lineItems);
+
+    await tx.payment.create({
+      data: {
+        invoiceId: id,
+        amount: invoice.totalAmount,
+        method: input.paymentMethod,
+        paidAt: input.paidAt,
+        state: "succeeded",
+      },
+    });
+
+    return tx.invoice.update({
+      where: { id },
+      // Only the cached status. The method and the date live on the payment
+      // written above — an invoice may carry several over its life, and a
+      // column could only ever hold the last of them.
+      data: { paymentStatus: "paid" },
+      include: invoiceInclude,
+    });
+  });
+}
+
+/**
+ * An issued invoice is a record of what was charged, so it is voided rather
+ * than edited. The void frees the lease/month slot (the unique index ignores
+ * voided rows) while keeping the original visible.
+ *
+ * A PAID invoice cannot be voided. Voiding removes a bill from every total
+ * while the money paid for it stays where it is, leaving an owner holding cash
+ * against a bill that no longer exists and nothing recording that they do. The
+ * owner reverses the payment first, which hands the money back and returns the
+ * invoice to pending; then it can be voided and reissued.
+ *
+ * Unwinding the deposit holdings an invoice moved is no longer done here — it
+ * belongs to the reversal, and doing both would restore a holding twice.
+ */
+export async function voidInvoice(id: number) {
+  const invoice = await findInvoiceOrThrow(id);
+
+  if (invoice.voidedAt !== null) {
+    throw new ConflictError("That invoice has already been voided");
+  }
+  if (invoice.paymentStatus === "paid") {
+    throw new ConflictError(
+      "That invoice has been paid, so it cannot be voided. Reverse the payment first — voiding it now would leave the money paid for it unaccounted for",
+    );
+  }
+
+  return prisma.invoice.update({
+    where: { id },
+    data: { voidedAt: new Date() },
+    include: invoiceInclude,
+  });
+}
