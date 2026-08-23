@@ -157,8 +157,17 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
   // Reversed payments are fetched too: one taken in March and returned in April
   // happened in both months, and the figure reports it in both — added where it
   // arrived, subtracted where it left.
+  //
+  // ONLY these two states. The division that matters is not finished against
+  // unfinished but whether money ever moved, and `succeeded` and `reversed` are
+  // the only two on that side of it. A payment a tenant started and abandoned,
+  // one they cancelled, and one that expired brought in nothing.
+  //
+  // Until the gateway existed every payment on record had happened, so this
+  // held without being written. It does not hold on its own any more.
   const payments = await prisma.payment.findMany({
     where: {
+      state: { in: ["succeeded", "reversed"] },
       invoice: {
         voidedAt: null,
         ...(buildingIds.length > 0
@@ -256,7 +265,11 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
       ZERO(),
     );
 
-    if (inRange(payment.paidAt)) {
+    // Non-null for both states fetched above — a payment that succeeded, and
+    // one that succeeded and was then given back, each have a moment the money
+    // arrived. Guarded rather than asserted so that adding a state to the query
+    // above cannot silently start counting one that has no such moment.
+    if (payment.paidAt !== null && inRange(payment.paidAt)) {
       add(
         received,
         key(buildingId, payment.paidAt.getUTCFullYear(), payment.paidAt.getUTCMonth() + 1),
