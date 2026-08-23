@@ -6,6 +6,7 @@ import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import EditIcon from '@mui/icons-material/Edit'
+import DescriptionIcon from '@mui/icons-material/Description'
 import ArchiveIcon from '@mui/icons-material/Archive'
 import UnarchiveIcon from '@mui/icons-material/Unarchive'
 
@@ -16,6 +17,8 @@ interface RoomRowActionsProps {
   onEdit: (room: Room) => void
   onRetire: (room: Room) => void
   onRestore: (room: Room) => void
+  /** Offered only where the room is in service and not already let. */
+  onStartLease: (room: Room) => void
 }
 
 /**
@@ -29,7 +32,13 @@ interface RoomRowActionsProps {
  * a shared shape; a third that differs would only force the abstraction back
  * apart.
  */
-export function RoomRowActions({ room, onEdit, onRetire, onRestore }: RoomRowActionsProps) {
+export function RoomRowActions({
+  room,
+  onEdit,
+  onRetire,
+  onRestore,
+  onStartLease,
+}: RoomRowActionsProps) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const close = () => setAnchorEl(null)
 
@@ -47,6 +56,23 @@ export function RoomRowActions({ room, onEdit, onRetire, onRestore }: RoomRowAct
         <MoreVertIcon />
       </IconButton>
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={close}>
+        {/*
+          Signing a tenancy begins with a particular room — the owner knows
+          which one is empty before they know whose name goes on it. Offered
+          here so the work can start where it actually starts.
+
+          Withheld on a room that is already let (it cannot take a second
+          tenancy) and on a retired one (the API rejects it). Not offering
+          beats explaining a refusal.
+        */}
+        {room.isActive && !room.isLet && (
+          <MenuItem onClick={() => run(onStartLease)}>
+            <ListItemIcon>
+              <DescriptionIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>New lease</ListItemText>
+          </MenuItem>
+        )}
         <MenuItem onClick={() => run(onEdit)}>
           <ListItemIcon>
             <EditIcon fontSize="small" />

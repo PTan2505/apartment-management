@@ -71,6 +71,10 @@ export const moveOutSchema = z.object({
 export const listLeasesQuerySchema = z.object({
   ...paginationQueryFields,
   roomId: z.coerce.number().int().positive().optional(),
+  // Every tenancy in a building, without naming its rooms one at a time. An
+  // owner with several buildings thinks in buildings first, and a room code
+  // means nothing until you know which building it is in.
+  buildingId: z.coerce.number().int().positive().optional(),
   customerId: z.coerce.number().int().positive().optional(),
   active: z
     .enum(["true", "false"])
