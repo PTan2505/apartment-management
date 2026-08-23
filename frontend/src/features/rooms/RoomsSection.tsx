@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import Alert from '@mui/material/Alert'
 import AlertTitle from '@mui/material/AlertTitle'
 import Button from '@mui/material/Button'
@@ -13,6 +14,7 @@ import { RoomList } from '@/features/rooms/RoomList'
 import { RoomFormDialog } from '@/features/rooms/RoomFormDialog'
 import { RetireRoomDialog } from '@/features/rooms/RetireRoomDialog'
 import { useRestoreRoom } from '@/features/rooms/hooks'
+import { LeaseFormDialog } from '@/features/leases/LeaseFormDialog'
 import type { Room } from '@/features/rooms/types'
 
 interface RoomsSectionProps {
@@ -53,6 +55,10 @@ export function RoomsSection({
   const [retiring, setRetiring] = useState<Room | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
   const restoreMutation = useRestoreRoom()
+  const navigate = useNavigate()
+  // The room a tenancy is being signed for, or null. The dialog is the same one
+  // the leases screen opens — it simply arrives with the room already chosen.
+  const [lettingRoom, setLettingRoom] = useState<Room | null>(null)
 
   function openCreate() {
     setEditing(null)
@@ -139,6 +145,7 @@ export function RoomsSection({
           }}
           onRetire={setRetiring}
           onRestore={handleRestore}
+          onStartLease={setLettingRoom}
         />
         {meta && <Pagination meta={meta} onPageChange={onPageChange} />}
       </>
@@ -176,6 +183,12 @@ export function RoomsSection({
         }}
       />
       <RetireRoomDialog room={retiring} onClose={() => setRetiring(null)} />
+      <LeaseFormDialog
+        open={lettingRoom !== null}
+        roomId={lettingRoom?.id}
+        onClose={() => setLettingRoom(null)}
+        onCreated={(lease) => void navigate(`/leases/${lease.id}`)}
+      />
     </Box>
   )
 }

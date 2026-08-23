@@ -27,10 +27,27 @@ interface RoomListProps {
   onEdit: (room: Room) => void
   onRetire: (room: Room) => void
   onRestore: (room: Room) => void
+  onStartLease: (room: Room) => void
 }
 
 function RetiredChip() {
   return <Chip label="Retired" size="small" variant="outlined" />
+}
+
+/**
+ * Whether the room is currently let, read from what the API reports about the
+ * room rather than worked out from the tenancies.
+ *
+ * Shown beside "in service" because they answer different questions and are
+ * routinely confused: a room can be in service and let, in service and empty,
+ * or retired. Only the second can take a new tenancy.
+ */
+function OccupancyChip({ isLet }: { isLet: boolean }) {
+  return isLet ? (
+    <Chip label="Let" size="small" color="info" variant="outlined" />
+  ) : (
+    <Chip label="Vacant" size="small" variant="outlined" />
+  )
 }
 
 /**
@@ -43,9 +60,22 @@ function RetiredChip() {
  * the shell's drawers: a `useMediaQuery` branch returns false on first render
  * and would flash the wrong layout.
  */
-export function RoomList({ rooms, hideBuilding, onEdit, onRetire, onRestore }: RoomListProps) {
+export function RoomList({
+  rooms,
+  hideBuilding,
+  onEdit,
+  onRetire,
+  onRestore,
+  onStartLease,
+}: RoomListProps) {
   const actions = (room: Room) => (
-    <RoomRowActions room={room} onEdit={onEdit} onRetire={onRetire} onRestore={onRestore} />
+    <RoomRowActions
+      room={room}
+      onEdit={onEdit}
+      onRetire={onRetire}
+      onRestore={onRestore}
+      onStartLease={onStartLease}
+    />
   )
 
   return (
@@ -79,11 +109,14 @@ export function RoomList({ rooms, hideBuilding, onEdit, onRetire, onRestore }: R
                   <Typography variant="body2">{formatMoney(room.baseRent)} / month</Typography>
                 </TableCell>
                 <TableCell>
-                  {room.isActive ? (
-                    <Chip label="Active" size="small" color="success" variant="outlined" />
-                  ) : (
-                    <RetiredChip />
-                  )}
+                  <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                    {room.isActive ? (
+                      <Chip label="Active" size="small" color="success" variant="outlined" />
+                    ) : (
+                      <RetiredChip />
+                    )}
+                    {room.isActive && <OccupancyChip isLet={room.isLet} />}
+                  </Stack>
                 </TableCell>
                 <TableCell align="right">{actions(room)}</TableCell>
               </TableRow>
@@ -111,6 +144,7 @@ export function RoomList({ rooms, hideBuilding, onEdit, onRetire, onRestore }: R
                 </Box>
                 <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
                   {!room.isActive && <RetiredChip />}
+                  {room.isActive && <OccupancyChip isLet={room.isLet} />}
                   {actions(room)}
                 </Stack>
               </Box>

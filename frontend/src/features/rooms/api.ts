@@ -1,5 +1,10 @@
 import { apiClient } from '@/lib/api-client'
-import type { ListRoomsParams, Paginated, Room } from '@/features/rooms/types'
+import type {
+  ListRoomsParams,
+  Paginated,
+  Room,
+  RoomMeterReading,
+} from '@/features/rooms/types'
 import type { CreateRoomFormOutput, UpdateRoomFormOutput } from '@/features/rooms/schema'
 
 function toQuery(params: ListRoomsParams): Record<string, string | number> {
@@ -10,6 +15,8 @@ function toQuery(params: ListRoomsParams): Record<string, string | number> {
   if (params.search) query.search = params.search
   // Absent means "in service only" to the API, so "false" would be noise.
   if (params.includeInactive) query.includeInactive = 'true'
+  // Likewise: absent means every room, let or not.
+  if (params.vacant) query.vacant = 'true'
   return query
 }
 
@@ -37,5 +44,11 @@ export async function retireRoom(id: number): Promise<Room> {
 /** Answers 409 when another room in service has since taken this code. */
 export async function restoreRoom(id: number): Promise<Room> {
   const { data } = await apiClient.post<Room>(`/rooms/${id}/restore`)
+  return data
+}
+
+/** Asked for one room at a time — see the note on the endpoint. */
+export async function getRoomMeterReading(id: number): Promise<RoomMeterReading> {
+  const { data } = await apiClient.get<RoomMeterReading>(`/rooms/${id}/latest-meter-reading`)
   return data
 }

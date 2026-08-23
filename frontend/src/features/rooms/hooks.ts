@@ -57,3 +57,17 @@ export function useRestoreRoom() {
     onSuccess: invalidate,
   })
 }
+
+/**
+ * A room's latest meter reading, fetched only once a room has been chosen.
+ *
+ * `enabled` keeps it from firing with no room: the lease form mounts before one
+ * is picked, and requesting `/rooms/undefined/...` would 400 on every open.
+ */
+export function useRoomMeterReading(roomId: number | undefined) {
+  return useQuery({
+    queryKey: [...ROOMS_KEY, 'meter', roomId],
+    queryFn: () => roomsApi.getRoomMeterReading(roomId as number),
+    enabled: roomId !== undefined && roomId > 0,
+  })
+}
