@@ -119,6 +119,18 @@ export function verifyWebhookSignature(
 }
 
 export interface CreatedPaymentLink {
+  /** Bank identification number. `970422` is MB Bank. */
+  bin: string;
+  /**
+   * The account the gateway allocated FOR THIS ATTEMPT — a virtual one, and
+   * never the owner's own. It is how an incoming transfer is matched back to
+   * the attempt, so a code built against the owner's real account would take
+   * the money and be invisible to the gateway.
+   */
+  accountNumber: string;
+  accountName: string;
+  amount: number;
+  description: string;
   checkoutUrl: string;
   qrCode: string;
   paymentLinkId: string;
