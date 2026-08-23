@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# The tenant portal's build output, alongside `dist`.
+dist-portal
