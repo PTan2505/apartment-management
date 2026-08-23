@@ -30,9 +30,28 @@ interface OccupantRow {
   user?: { id: number; fullName: string; phone: string | null } | null;
 }
 
+/**
+ * The room a lease is for, limited to what identifies it.
+ *
+ * A room code identifies a room only within its building, so the building comes
+ * with it — the same reason a room carries its own building rather than a bare
+ * id.
+ *
+ * Deliberately no rent, status, or occupancy. The lease has its own agreed rent,
+ * which is the figure that governs this tenancy and its deposit; putting the
+ * room's current rent beside it on the same object is how the wrong one gets
+ * read. Occupancy would be circular — this lease is the reason the room is let.
+ */
+interface LeaseRoomRow {
+  id: number;
+  roomCode: string;
+  building?: { id: number; displayName: string } | null;
+}
+
 interface LeaseRow {
   id: number;
   roomId: number;
+  room?: LeaseRoomRow | null;
   startDate: Date;
   durationMonths: number;
   occupantCount: number;
@@ -58,11 +77,41 @@ interface LeaseRow {
  * maintained billing input and the two may legitimately differ (see design.md).
  */
 export function toLeaseResponse(lease: LeaseRow) {
-  const primary = lease.occupants?.find((o) => o.isPrimary && o.leftAt === null);
+  /**
+   * Who answers for this agreement — and, once it is over, who answered for it.
+   *
+   * Recording a move-out departs every occupant, so a finished tenancy has no
+   * CURRENT primary and reported no tenant at all. That erased the one name the
+   * record exists to hold: months later the question asked of a closed tenancy
+   * is "who was renting this", and the answer was gone.
+   *
+   * The fallback is restricted to a finished tenancy on purpose. On a RUNNING
+   * one, no current primary means the last occupant left before a move-out was
+   * recorded and nobody is answerable right now — a real problem that needs
+   * showing, not papering over with the name of somebody who has left. Falling
+   * back everywhere would hide exactly the case worth surfacing.
+   *
+   * Exactly one occupant carries `isPrimary` at a time (a transfer moves it),
+   * so on a finished tenancy this finds the person who held it at the end.
+   */
+  const currentPrimary = lease.occupants?.find((o) => o.isPrimary && o.leftAt === null);
+  const primary =
+    currentPrimary ??
+    (lease.moveOutDate !== null ? lease.occupants?.find((o) => o.isPrimary) : undefined);
 
   return {
     id: lease.id,
     roomId: lease.roomId,
+    // Kept alongside `roomId`, so callers reading the id are unaffected.
+    room: lease.room
+      ? {
+          id: lease.room.id,
+          roomCode: lease.room.roomCode,
+          building: lease.room.building
+            ? { id: lease.room.building.id, displayName: lease.room.building.displayName }
+            : null,
+        }
+      : null,
     startDate: lease.startDate,
     durationMonths: lease.durationMonths,
     expectedEndDate: addMonths(lease.startDate, lease.durationMonths),
@@ -89,6 +138,17 @@ export function toLeaseResponse(lease: LeaseRow) {
     depositDifference: lease.baseRent.mul(lease.depositMonths).sub(lease.depositHeld),
     depositRefunded: lease.depositRefunded,
     depositRefundedAt: lease.depositRefundedAt,
+    /**
+     * Exclusive, exactly like `expectedEndDate` above: the first day the
+     * tenancy no longer covers. The two are reported on the same convention
+     * deliberately — one of each would eventually be read as the other.
+     *
+     * Reported rather than left to `status`, which says a tenancy is over
+     * without saying when, and so cannot distinguish one that ran its agreed
+     * term from one closed early or late. That distinction is why a move-out
+     * date is deliberately unconstrained by the term in the first place.
+     */
+    moveOutDate: lease.moveOutDate,
     status: (lease.moveOutDate === null ? "active" : "finalized") satisfies LeaseStatus,
     tenant: primary
       ? {

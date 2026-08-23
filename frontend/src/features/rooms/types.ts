@@ -20,6 +20,18 @@ export interface Room {
   /** Recorded to two decimal places, so it can be fractional. */
   baseRent: number
   isActive: boolean
+  /**
+   * Whether a tenancy is currently running here.
+   *
+   * Reported by the API rather than worked out from the leases, so the answer
+   * is a fact about the room instead of something every caller reconstructs
+   * differently. A tenancy past its agreed term with no move-out still counts:
+   * it has not been closed, and the room is not free to let again.
+   *
+   * Says only whether, never to whom — the tenancy's own details belong to the
+   * tenancy.
+   */
+  isLet: boolean
   createdAt: string
   updatedAt: string
 }
@@ -35,4 +47,20 @@ export interface ListRoomsParams {
   buildingId?: number
   search?: string
   includeInactive?: boolean
+  /** Only rooms with no running tenancy — the ones that can be let. */
+  vacant?: boolean
+}
+
+/**
+ * Where a room's meter stands, as far as the system knows.
+ *
+ * `reading` is null for a room never let and with no recorded vacancy: there is
+ * genuinely nothing to fall back on, and a lease starting there must be given a
+ * reading rather than assuming one.
+ */
+export interface RoomMeterReading {
+  reading: number | null
+  /** When that reading was taken. */
+  at: string | null
+  source: 'lease_start' | 'lease_end' | 'vacancy' | null
 }

@@ -21,17 +21,36 @@ import type {
 
 const Decimal = Prisma.Decimal;
 
-const occupantInclude = {
+/**
+ * What every lease response is built from.
+ *
+ * The room comes with it because a lease reporting only a room id cannot be
+ * displayed — and fetching it per lease would mean a request per row of a
+ * listing. Its building comes too: a room code identifies a room only within
+ * its building.
+ *
+ * Only what identifies the room. Its rent is deliberately absent — the lease
+ * carries its own agreed rent, and that is the figure this tenancy and its
+ * deposit are governed by.
+ */
+const leaseInclude = {
   occupants: {
     include: { user: { select: { id: true, fullName: true, phone: true } } },
     orderBy: { joinedAt: "asc" as const },
+  },
+  room: {
+    select: {
+      id: true,
+      roomCode: true,
+      building: { select: { id: true, displayName: true } },
+    },
   },
 } as const;
 
 async function findLeaseOrThrow(id: number) {
   const lease = await prisma.lease.findUnique({
     where: { id },
-    include: occupantInclude,
+    include: leaseInclude,
   });
   if (!lease) {
     throw new NotFoundError("Lease not found");
@@ -244,6 +263,11 @@ export async function listLeases(query: ListLeasesQuery) {
 
   const where = {
     ...(query.roomId ? { roomId: query.roomId } : {}),
+    // Narrows through the room rather than duplicating a building id onto the
+    // lease. Combines with `roomId`: naming both is a room within a building,
+    // which matches nothing if they disagree — correct, and better than
+    // silently ignoring one of them.
+    ...(query.buildingId ? { room: { buildingId: query.buildingId } } : {}),
     ...(query.active === undefined
       ? {}
       : query.active
@@ -258,8 +282,14 @@ export async function listLeases(query: ListLeasesQuery) {
     query,
     prisma.lease.findMany({
       where,
-      include: occupantInclude,
-      orderBy: { createdAt: "asc" },
+      include: leaseInclude,
+      // Most recently begun first: the tenancy an owner has just signed, or is
+      // about to act on, is the recent one. `createdAt` breaks a tie so the
+      // order is TOTAL — without a tiebreak, two leases sharing a start date
+      // have no defined order between them, and the database is free to return
+      // them differently for each page. A row can then appear on two pages, or
+      // on none.
+      orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
       ...toSkipTake(query),
     }),
     prisma.lease.count({ where }),
