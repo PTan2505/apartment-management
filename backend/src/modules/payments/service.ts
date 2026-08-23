@@ -83,12 +83,19 @@ export async function reversePayment(id: number, input: ReversePaymentInput) {
       data: { state: "reversed", reversedAt: input.reversedAt },
     });
 
-    // The invoice returns to pending. Written here rather than derived for the
-    // same reason it is cached at all, and in the same transaction so the two
-    // cannot disagree.
+    // The invoice returns to pending only if nothing is left settling it.
+    //
+    // An invoice can now carry more than one succeeded payment — an owner takes
+    // cash while the tenant's transfer is already in flight, and both arrive.
+    // Reversing one of two hands back the excess and leaves the bill paid, so
+    // this asks rather than assuming.
+    const stillSettling = await tx.payment.count({
+      where: { invoiceId: invoice.id, state: "succeeded" },
+    });
+
     await tx.invoice.update({
       where: { id: invoice.id },
-      data: { paymentStatus: "pending" },
+      data: { paymentStatus: stillSettling > 0 ? "paid" : "pending" },
     });
 
     return tx.payment.findUniqueOrThrow({ where: { id }, include: paymentInclude });
