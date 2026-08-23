@@ -36,6 +36,29 @@ export class ConflictError extends AppError {
 }
 
 /**
+ * The request body could not be read as a document at all.
+ *
+ * Distinct from ValidationError, which reports fields that were read and found
+ * wanting. Here nothing was read, so there are no fields to name — and a caller
+ * that gets `VALIDATION_ERROR` with no `details` has to guess whether its JSON
+ * is broken or a field is. The two need different fixes.
+ */
+export class MalformedBodyError extends AppError {
+  readonly status = 400;
+  readonly code = "MALFORMED_BODY";
+}
+
+export class PayloadTooLargeError extends AppError {
+  readonly status = 413;
+  readonly code = "PAYLOAD_TOO_LARGE";
+}
+
+export class UnsupportedMediaTypeError extends AppError {
+  readonly status = 415;
+  readonly code = "UNSUPPORTED_MEDIA_TYPE";
+}
+
+/**
  * An optional feature is not set up on this deployment.
  *
  * Distinct from a fault: nothing is broken and the caller did nothing wrong —
