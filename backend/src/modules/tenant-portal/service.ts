@@ -1,6 +1,8 @@
+import { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
 import { NotFoundError, ValidationError } from "@/lib/errors.js";
 import { generateOpaqueToken, hashOpaqueToken } from "@/lib/opaque-token.js";
+import { createGatewayPayment } from "@/modules/payment-gateway/service.js";
 import { toPortalInvoice } from "./mapper.js";
 
 /* ------------------------------------------------------------------ */
@@ -137,26 +139,37 @@ async function resolveToken(token: string) {
  * Restricting past tenancies to what is unpaid answers both: what you still owe
  * stays visible, what the next tenant owes never becomes visible.
  */
-export async function getPortalOverview(token: string) {
-  const user = await resolveToken(token);
-
+/**
+ * The one place that decides what a token may see.
+ *
+ * Written once and used by both the reading and the paying: a token that cannot
+ * show an invoice must not be able to pay one, and two copies of this rule
+ * would eventually disagree about which.
+ */
+async function visibleInvoiceFilter(userId: number): Promise<Prisma.InvoiceWhereInput> {
   const occupancies = await prisma.leaseOccupant.findMany({
-    where: { userId: user.id },
+    where: { userId },
     select: { leaseId: true, leftAt: true },
   });
 
   const currentLeaseIds = occupancies.filter((o) => o.leftAt === null).map((o) => o.leaseId);
   const pastLeaseIds = occupancies.filter((o) => o.leftAt !== null).map((o) => o.leaseId);
 
+  return {
+    // Withdrawn bills are not shown. They were withdrawn.
+    voidedAt: null,
+    OR: [
+      { leaseId: { in: currentLeaseIds } },
+      { leaseId: { in: pastLeaseIds }, paymentStatus: "pending" },
+    ],
+  };
+}
+
+export async function getPortalOverview(token: string) {
+  const user = await resolveToken(token);
+
   const invoices = await prisma.invoice.findMany({
-    where: {
-      // Withdrawn bills are not shown. They were withdrawn.
-      voidedAt: null,
-      OR: [
-        { leaseId: { in: currentLeaseIds } },
-        { leaseId: { in: pastLeaseIds }, paymentStatus: "pending" },
-      ],
-    },
+    where: await visibleInvoiceFilter(user.id),
     select: {
       id: true,
       type: true,
@@ -182,6 +195,9 @@ export async function getPortalOverview(token: string) {
         },
       },
       lease: { select: { room: { select: { roomCode: true } } } },
+      // Whether an attempt is already under way, so a tenant who scanned a code
+      // and did not finish is not made to start again without knowing.
+      payments: { where: { state: "pending" }, select: { id: true } },
     },
     // Newest first: what a tenant opens the portal to check is almost always
     // the most recent bill.
@@ -192,4 +208,31 @@ export async function getPortalOverview(token: string) {
     tenant: { fullName: user.fullName, phone: user.phone },
     invoices: invoices.map(toPortalInvoice),
   };
+}
+
+/**
+ * Starts a payment for one of the tenant's own unpaid bills.
+ *
+ * The bills payable are exactly the bills visible, resolved by the same filter
+ * the overview uses — so a request to pay an invoice the token cannot see fails
+ * the same way a request to view it would, and for the same reason.
+ */
+export async function startPortalPayment(
+  token: string,
+  invoiceId: number,
+  urls: { returnUrl: string; cancelUrl: string },
+) {
+  const user = await resolveToken(token);
+
+  const visible = await prisma.invoice.findFirst({
+    where: { AND: [{ id: invoiceId }, await visibleInvoiceFilter(user.id)] },
+    select: { id: true },
+  });
+  // Indistinguishable from an invoice that does not exist. A tenant learning
+  // which invoice ids are real is a tenant learning about other tenancies.
+  if (!visible) {
+    throw new NotFoundError("Invoice not found");
+  }
+
+  return createGatewayPayment(invoiceId, urls);
 }

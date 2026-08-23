@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
-import { UnauthorizedError } from "@/lib/errors.js";
+import { UnauthorizedError, ValidationError } from "@/lib/errors.js";
+import { startPaymentSchema } from "@/modules/payment-gateway/schema.js";
 import { parseIdParam } from "@/lib/parse-id.js";
 import * as portalService from "./service.js";
 
@@ -41,4 +42,16 @@ function readPortalToken(req: Request): string {
 
 export async function getPortalOverviewHandler(req: Request, res: Response) {
   res.status(200).json(await portalService.getPortalOverview(readPortalToken(req)));
+}
+
+export async function startPortalPaymentHandler(req: Request, res: Response) {
+  const parsed = startPaymentSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw new ValidationError("Invalid payment payload", parsed.error.flatten());
+  }
+
+  const invoiceId = parseIdParam(req.params.id, "Invoice");
+  res.status(201).json(
+    await portalService.startPortalPayment(readPortalToken(req), invoiceId, parsed.data),
+  );
 }
