@@ -2,6 +2,7 @@ import { env } from "@/config/env.js";
 import cors from "cors";
 import express from "express";
 import cookieParser from "cookie-parser";
+import { NotFoundError } from "@/lib/errors.js";
 import { errorHandler } from "@/middleware/error-handler.js";
 import { requestLogger } from "@/middleware/request-logger.js";
 import { healthRouter } from "@/routes/health.js";
@@ -22,9 +23,15 @@ import { paymentGatewayRouter } from "@/modules/payment-gateway/router.js";
 const app = express();
 
 app.use(cors());
+
+// Before the body parser, deliberately. The parser rejects a malformed body by
+// throwing, and an error handler can only log through `req.log` — which the
+// logger is what installs. Registered after it, a rejected body produced a
+// response nobody could see afterwards: no request line, no error, nothing.
+app.use(requestLogger);
+
 app.use(express.json());
 app.use(cookieParser());
-app.use(requestLogger);
 
 app.use(healthRouter);
 app.use("/auth", authRouter);
@@ -48,6 +55,21 @@ app.use("/portal", tenantPortalRouter);
 // PUBLIC, and this one settles bills. Its defence is the signature on every
 // confirmation, verified before the payload is read.
 app.use("/webhooks", paymentGatewayRouter);
+
+/**
+ * Anything that matched no route above.
+ *
+ * Without this, Express answers with its own HTML page — a body every client
+ * here tries to parse as JSON and fails on, reporting a syntax error in place
+ * of the address that was wrong.
+ *
+ * It throws rather than responding, so the shape is still written in exactly
+ * one place. Position is load-bearing in both directions: ahead of the routers
+ * it would answer everything, and after the error handler it would never run.
+ */
+app.use((_req, _res, next) => {
+  next(new NotFoundError("No route matches this address"));
+});
 
 app.use(errorHandler);
 
