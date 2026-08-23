@@ -1,0 +1,67 @@
+# Render blueprint for the backend.
+#
+# The database is NOT declared here. Render's own free Postgres is deleted
+# after 90 days, which is not a place to keep a record of what tenants have
+# paid. Use a provider whose free tier persists — Neon — and paste its
+# connection string in as DATABASE_URL.
+#
+# Deploy: Render dashboard → New → Blueprint → point at this repository.
+
+services:
+  - type: web
+    name: apartment-management-api
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: backend
+
+    # `--include=dev` is not optional. Render sets NODE_ENV=production, which
+    # makes npm skip devDependencies — and prisma, typescript and tsc-alias all
+    # live there. Without it the build fails on the first line.
+    #
+    # `migrate deploy` runs here rather than at start-up so it happens once per
+    # deploy instead of on every restart, and so a failing migration fails the
+    # deploy instead of crash-looping a live service.
+    buildCommand: npm ci --include=dev && npm run build && npm run migrate:deploy
+    startCommand: npm start
+
+    # /health checks the database too, so a service that starts without one is
+    # reported unhealthy rather than quietly accepting requests it cannot serve.
+    healthCheckPath: /health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Render supplies PORT and expects the service to bind it.
+      - key: PORT
+        value: 10000
+
+      # From Neon. Use the POOLED connection string: a free Render instance
+      # restarts often and a direct connection burns through the connection
+      # limit faster than Postgres releases them.
+      - key: DATABASE_URL
+        sync: false
+
+      - key: JWT_SECRET
+        generateValue: true
+
+      - key: ACCESS_TOKEN_TTL
+        value: 15m
+      - key: REFRESH_TOKEN_TTL_DAYS
+        value: 30
+
+      # Optional. Absent, address lookup reports itself unconfigured and
+      # everything else runs.
+      - key: OPENMAP_API_KEY
+        sync: false
+
+      # payOS: all three or none. A partial set stops the service from
+      # starting on purpose — a client id without a checksum key creates
+      # payment links whose confirmations cannot be verified.
+      - key: PAYOS_CLIENT_ID
+        sync: false
+      - key: PAYOS_API_KEY
+        sync: false
+      - key: PAYOS_CHECKSUM_KEY
+        sync: false
