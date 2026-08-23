@@ -309,8 +309,17 @@ model Payment {
   /// What the gateway called this payment in reply.
   gatewayPaymentId String?
   /// What the tenant actually pays with, kept so a second visit hands back the
-  /// SAME link rather than creating another. One live link per bill is what
-  /// makes the gateway's own dashboard readable.
+  /// SAME details rather than creating another attempt. One live link per bill
+  /// is what makes the gateway's own dashboard readable.
+  ///
+  /// The bank and account are the gateway's own — it allocates a fresh virtual
+  /// account per attempt and matches an incoming transfer to the attempt by it.
+  /// Never the owner's real account: a code built against that would take the
+  /// money and be invisible to the gateway, leaving the bill unpaid forever.
+  gatewayBin           String?
+  gatewayAccountNumber String?
+  gatewayAccountName   String?
+  gatewayDescription   String?
   ///
   /// The QR is a VietQR payload string, not an image — whatever displays it
   /// renders it. A tenant scanning it in their banking app never visits the

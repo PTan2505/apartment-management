@@ -2,6 +2,7 @@ import { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import { holdFromInvoice } from "@/modules/deposits/holding.js";
+import type { CreatedPaymentLink } from "./payos.js";
 import {
   createPaymentLink,
   fetchPaymentLink,
@@ -28,6 +29,33 @@ const DESCRIPTION_MAX = 25;
 
 function paymentDescription(invoiceId: number, roomCode: string): string {
   return `HD${invoiceId} ${roomCode}`.slice(0, DESCRIPTION_MAX);
+}
+
+/**
+ * What a tenant needs in order to pay, and nothing more.
+ *
+ * Deliberately assembled rather than returning the gateway's reply as it came:
+ * that reply also carries the reference this system matches confirmations by,
+ * and a tenant has no business with it. Listing the fields here means adding
+ * one to the tenant's view is a decision somebody makes on purpose.
+ */
+function toPaymentOffer(paymentId: number, link: CreatedPaymentLink) {
+  return {
+    paymentId,
+    // Whatever displays this builds a payment code from these four. The account
+    // is the gateway's virtual one — see CreatedPaymentLink.
+    bin: link.bin,
+    accountNumber: link.accountNumber,
+    accountName: link.accountName,
+    amount: link.amount,
+    description: link.description,
+    // The raw VietQR payload, for anything that would rather draw the code
+    // itself than fetch an image of it.
+    qrCode: link.qrCode,
+    // Always offered beside the code. A tenant who prefers to pay in a browser
+    // should not have to wait for an image to fail first.
+    checkoutUrl: link.checkoutUrl,
+  };
 }
 
 /**
@@ -114,13 +142,18 @@ export async function createGatewayPayment(invoiceId: number, urls: { returnUrl:
       data: {
         gatewayOrderCode: orderCode,
         gatewayPaymentId: link.paymentLinkId,
-        // Kept so returning to this bill hands back the same link.
+        // Kept so returning to this bill hands back the same details rather
+        // than asking the gateway to allocate another account.
         gatewayCheckoutUrl: link.checkoutUrl,
         gatewayQrCode: link.qrCode,
+        gatewayBin: link.bin,
+        gatewayAccountNumber: link.accountNumber,
+        gatewayAccountName: link.accountName,
+        gatewayDescription: link.description,
       },
     });
 
-    return { paymentId: payment.id, qrCode: link.qrCode, checkoutUrl: link.checkoutUrl };
+    return toPaymentOffer(payment.id, link);
   } catch (error) {
     // Nothing pending is left behind for a request the gateway refused.
     await prisma.payment.delete({ where: { id: payment.id } });
@@ -319,8 +352,13 @@ interface PendingPayment {
   id: number;
   invoiceId: number;
   gatewayOrderCode: number | null;
+  gatewayPaymentId: string | null;
   gatewayCheckoutUrl: string | null;
   gatewayQrCode: string | null;
+  gatewayBin: string | null;
+  gatewayAccountNumber: string | null;
+  gatewayAccountName: string | null;
+  gatewayDescription: string | null;
 }
 
 interface InvoiceForPayment {
@@ -350,11 +388,16 @@ async function reuseOrRetire(existing: PendingPayment, invoice: InvoiceForPaymen
   // The gateway says it is still waiting to be paid — the ordinary case, and
   // the reason this exists. Same link, same QR, same entry on the dashboard.
   if (remote?.status === "PENDING" && existing.gatewayCheckoutUrl && existing.gatewayQrCode) {
-    return {
-      paymentId: existing.id,
-      qrCode: existing.gatewayQrCode,
+    return toPaymentOffer(existing.id, {
+      bin: existing.gatewayBin ?? "",
+      accountNumber: existing.gatewayAccountNumber ?? "",
+      accountName: existing.gatewayAccountName ?? "",
+      amount: Number(invoice.totalAmount),
+      description: existing.gatewayDescription ?? "",
       checkoutUrl: existing.gatewayCheckoutUrl,
-    };
+      qrCode: existing.gatewayQrCode,
+      paymentLinkId: existing.gatewayPaymentId ?? "",
+    });
   }
 
   // The gateway says it was PAID and we did not know.
