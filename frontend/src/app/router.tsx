@@ -1,9 +1,8 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 
 import { AppShell } from '@/layouts/AppShell'
-import { DEFAULT_PATH, DESTINATIONS } from '@/app/navigation'
+import { DEFAULT_PATH } from '@/app/navigation'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { AuthProvider } from '@/features/auth/AuthProvider'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
@@ -18,6 +17,7 @@ import { InvoiceDetailPage } from '@/features/invoices/InvoiceDetailPage'
 import { BillingRunPage } from '@/features/invoices/BillingRunPage'
 import { ExpensesPage } from '@/features/expenses/ExpensesPage'
 import { VacancyRunPage } from '@/features/expenses/VacancyRunPage'
+import { RevenueReportPage } from '@/features/reports/RevenueReportPage'
 
 /**
  * Three layers, and the order matters:
@@ -59,30 +59,13 @@ export const router = createBrowserRouter([
               { path: 'invoices/:id', element: <InvoiceDetailPage /> },
               { path: 'expenses', element: <ExpensesPage /> },
               { path: 'expenses/empty-rooms', element: <VacancyRunPage /> },
+              { path: 'revenue', element: <RevenueReportPage /> },
 
-              // The remaining destinations are still placeholders; each is
-              // replaced by its own change.
-              ...DESTINATIONS.filter(
-                (destination) =>
-                  ![
-                    '/buildings',
-                    '/rooms',
-                    '/customers',
-                    '/leases',
-                    '/invoices',
-                    '/expenses',
-                  ].includes(destination.path),
-              ).map(
-                (destination) => ({
-                  path: destination.path.replace(/^\//, ''),
-                  element: (
-                    <PlaceholderPage
-                      title={destination.label}
-                      providedBy={destination.providedBy}
-                    />
-                  ),
-                }),
-              ),
+              // Every destination in the navigation now has a screen. The
+              // placeholder mechanism that stood in for the unbuilt ones is
+              // gone rather than left behind producing an empty list — a branch
+              // that can no longer fire is a branch nobody will maintain, and
+              // the next reader would have to work out that it never runs.
 
               { path: '*', element: <NotFoundPage /> },
             ],
