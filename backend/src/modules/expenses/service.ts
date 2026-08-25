@@ -155,6 +155,12 @@ export async function recordVacancyElectricity(
     where: {
       roomId: input.roomId,
       startDate: { lte: monthEnd },
+      // A cancelled tenancy occupied nothing, so it cannot be the reason a
+      // month's consumption belongs to a tenant. Without this, cancelling a
+      // lease would leave the room's vacancy electricity unrecordable for
+      // every month that tenancy nominally spanned — the owner bearing a cost
+      // the system refuses to let them write down.
+      cancelledAt: null,
       OR: [{ moveOutDate: null }, { moveOutDate: { gt: monthEnd } }],
     },
     select: { id: true },

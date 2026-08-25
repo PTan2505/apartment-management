@@ -2,6 +2,7 @@ import { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import { mapPaginated, paginate, toSkipTake } from "@/lib/pagination.js";
+import { leaseStatus } from "@/modules/leases/mapper.js";
 import { adjustHolding } from "./holding.js";
 import type { AdjustDepositInput, ListDepositsQuery, RefundDepositInput } from "./schema.js";
 
@@ -62,7 +63,7 @@ export async function getSettlement(leaseId: number) {
 
   return {
     leaseId: lease.id,
-    status: lease.moveOutDate === null ? "active" : "finalized",
+    status: leaseStatus(lease),
     depositRequired: lease.baseRent.mul(lease.depositMonths),
     depositHeld: lease.depositHeld,
     depositCarriedIn: lease.depositCarriedIn,
@@ -86,6 +87,15 @@ export async function getSettlement(leaseId: number) {
 export async function refundDeposit(leaseId: number, input: RefundDepositInput) {
   const lease = await findLeaseOrThrow(leaseId);
 
+  // A cancelled tenancy settled its holding as part of being cancelled — the
+  // owner said there and then how much went back and how much they kept. Named
+  // here rather than left to the "still running" check below, which would tell
+  // an owner their cancelled tenancy is running.
+  if (lease.cancelledAt !== null) {
+    throw new ConflictError(
+      "That tenancy was cancelled, and its deposit was settled at the same time",
+    );
+  }
   if (lease.moveOutDate === null) {
     throw new ConflictError(
       "This tenancy is still running, so its deposit cannot be returned yet",
@@ -120,6 +130,11 @@ export async function refundDeposit(leaseId: number, input: RefundDepositInput) 
 export async function adjustDeposit(leaseId: number, input: AdjustDepositInput) {
   const lease = await findLeaseOrThrow(leaseId);
 
+  if (lease.cancelledAt !== null) {
+    throw new ConflictError(
+      "That tenancy was cancelled, so there is no holding left to adjust",
+    );
+  }
   if (lease.depositRefundedAt !== null) {
     throw new ConflictError(
       "This lease's deposit has already been returned, so there is no holding to adjust",
@@ -185,7 +200,7 @@ export async function listHeldDeposits(query: ListDepositsQuery) {
   return {
     ...mapPaginated(page, (lease) => ({
       leaseId: lease.id,
-      status: lease.moveOutDate === null ? "active" : "finalized",
+      status: leaseStatus(lease),
       room: { id: lease.room.id, roomCode: lease.room.roomCode },
       building: lease.room.building,
       tenant: lease.occupants[0]?.user ?? null,

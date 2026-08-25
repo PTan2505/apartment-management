@@ -6,6 +6,7 @@ import {
   createLeaseSchema,
   updateLeaseSchema,
   moveOutSchema,
+  cancelLeaseSchema,
   extendLeaseSchema,
   listLeasesQuerySchema,
   listOccupantsQuerySchema,
@@ -62,6 +63,19 @@ export async function moveOutHandler(req: Request, res: Response) {
     parsed.data.moveOutDate,
     parsed.data.endMeterReading,
     parsed.data.overdueCharges,
+  );
+  res.status(200).json(toLeaseResponse(lease));
+}
+
+export async function cancelLeaseHandler(req: Request, res: Response) {
+  const parsed = cancelLeaseSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    throw new ValidationError("Invalid cancellation payload", parsed.error.flatten());
+  }
+
+  const lease = await leaseService.cancelLease(
+    parseIdParam(req.params.id, "Lease"),
+    parsed.data,
   );
   res.status(200).json(toLeaseResponse(lease));
 }

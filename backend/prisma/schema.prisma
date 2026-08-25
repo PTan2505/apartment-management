@@ -156,6 +156,19 @@ model Lease {
   // holding details for only two. See design.md.
   occupantCount     Int
   moveOutDate       DateTime?
+  // When the owner gave up on a tenancy that never took place, as distinct from
+  // one that ran and ended. Recorded as a DATE rather than a flag for two
+  // reasons: a cancelled tenancy would otherwise be unplaceable in time, and
+  // the month it falls in is the month whatever the owner kept is earned in.
+  //
+  // Status stays DERIVED from this and moveOutDate rather than stored as a
+  // third enum value — a stored status could say "cancelled" on a lease that
+  // also holds a move-out date, and derivation is what stops the two
+  // contradicting each other.
+  //
+  // Nullable with no backfill: every lease predating this column is running or
+  // finalized, and an empty column says exactly that.
+  cancelledAt       DateTime?
   // The meter reading this tenancy starts from. Defaulted from the previous
   // lease's endMeterReading but overridable, so electricity used while the room
   // stood empty is not charged to the incoming tenant, and a meter replaced
@@ -206,8 +219,12 @@ model Lease {
   invoices    Invoice[]
   serviceFees LeaseServiceFee[]
 
-  // One ACTIVE lease per room (moveOutDate IS NULL) is enforced by a partial
-  // unique index added manually in the migration.
+  // One ACTIVE lease per room is enforced by a partial unique index added
+  // manually in the migration. Its predicate is "moveOutDate IS NULL AND
+  // cancelledAt IS NULL" — a cancelled tenancy has no move-out date and would
+  // otherwise keep holding the room's single active slot in the DATABASE, so
+  // the service guard could be fixed and re-letting would still fail on a
+  // constraint violation.
   @@index([roomId])
 }
 

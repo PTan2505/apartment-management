@@ -8,10 +8,12 @@ import {
   issueMoveInInvoice,
   issueOverdueInvoice,
 } from "@/modules/invoices/issue.js";
-import { carryHolding } from "@/modules/deposits/holding.js";
+import { carryHolding, deductFromDeposit } from "@/modules/deposits/holding.js";
 import { addMonths } from "./mapper.js";
+import { HOLDS_ITS_ROOM } from "./occupancy.js";
 import type {
   AddOccupantInput,
+  CancelLeaseInput,
   CreateLeaseInput,
   ExtendLeaseInput,
   ListLeasesQuery,
@@ -45,7 +47,37 @@ const leaseInclude = {
       building: { select: { id: true, displayName: true } },
     },
   },
+  /**
+   * Whether this tenancy has been billed for a month it occupied, fetched
+   * alongside rather than asked for afterwards — the same shape as a room's
+   * running tenancy, and for the same reason: a screen deciding whether to
+   * offer cancellation would otherwise need a request per row of a listing.
+   *
+   * `take: 1` because the question is whether one exists.
+   *
+   * This never reaches a caller as rows. The mapper turns it into the fact and
+   * the rule that follows from it, so the guard behind cancellation is stated
+   * once in the service and reported, rather than restated in every client.
+   */
+  invoices: {
+    where: { type: "monthly" as const, voidedAt: null },
+    select: { id: true },
+    take: 1,
+  },
 } as const;
+
+/**
+ * A cancelled tenancy never took place, so nothing that acts on the course of a
+ * tenancy applies to it — no move-out, no renewal, no change to its terms or
+ * its occupants. Refused in its own words rather than falling through to a
+ * message about a finalized lease, which would tell the owner the wrong thing
+ * about what happened to it.
+ */
+function assertNotCancelled(lease: { cancelledAt: Date | null }, what: string) {
+  if (lease.cancelledAt !== null) {
+    throw new ConflictError(`That tenancy was cancelled, so ${what}`);
+  }
+}
 
 async function findLeaseOrThrow(id: number) {
   const lease = await prisma.lease.findUnique({
@@ -110,7 +142,7 @@ export async function createLease(input: CreateLeaseInput) {
   // actually act on, rather than a date conflict against a lease that has no
   // ending date yet.
   const activeLease = await prisma.lease.findFirst({
-    where: { roomId: input.roomId, moveOutDate: null },
+    where: { roomId: input.roomId, ...HOLDS_ITS_ROOM },
   });
   if (activeLease) {
     throw new ConflictError("That room already has an active lease");
@@ -129,8 +161,14 @@ export async function createLease(input: CreateLeaseInput) {
   //
   // Equality is allowed. An ending date is the first day no longer covered, so
   // a lease beginning exactly then abuts the previous one — no gap, no overlap.
+  //
+  // A CANCELLED tenancy is excluded from this comparison entirely rather than
+  // having its dates compared. It covered no days, so there is nothing for a
+  // new tenancy to overlap; treating its dates as occupied would block the very
+  // room the cancellation was performed to free — and would do it silently,
+  // reporting a date conflict against a tenancy that never happened.
   const lastEnded = await prisma.lease.findFirst({
-    where: { roomId: input.roomId, moveOutDate: { not: null } },
+    where: { roomId: input.roomId, cancelledAt: null, moveOutDate: { not: null } },
     orderBy: { moveOutDate: "desc" },
     select: { moveOutDate: true },
   });
@@ -252,6 +290,7 @@ async function overdueLeaseIds(): Promise<number[]> {
   const rows = await prisma.$queryRawUnsafe<{ id: number }[]>(`
     SELECT id FROM "Lease"
     WHERE "moveOutDate" IS NULL
+      AND "cancelledAt" IS NULL
       AND ("startDate" + ("durationMonths" || ' months')::interval) <= now()`);
   return rows.map((row) => row.id);
 }
@@ -268,11 +307,13 @@ export async function listLeases(query: ListLeasesQuery) {
     // which matches nothing if they disagree — correct, and better than
     // silently ignoring one of them.
     ...(query.buildingId ? { room: { buildingId: query.buildingId } } : {}),
+    // "Active" is the running tenancies — which a cancelled one is not, so it
+    // falls on the same side of this filter as one that ended.
     ...(query.active === undefined
       ? {}
       : query.active
-        ? { moveOutDate: null }
-        : { moveOutDate: { not: null } }),
+        ? HOLDS_ITS_ROOM
+        : { OR: [{ moveOutDate: { not: null } }, { cancelledAt: { not: null } }] }),
     // Matches any lease the person occupied, primary or not.
     ...(query.customerId ? { occupants: { some: { userId: query.customerId } } } : {}),
     ...(overdueIds === null ? {} : { id: { in: overdueIds } }),
@@ -303,6 +344,7 @@ export async function getLeaseById(id: number) {
 export async function updateLease(id: number, input: UpdateLeaseInput) {
   const lease = await findLeaseOrThrow(id);
 
+  assertNotCancelled(lease, "its terms can no longer be changed");
   if (lease.moveOutDate !== null) {
     throw new ConflictError("Cannot update a finalized lease");
   }
@@ -339,6 +381,7 @@ export async function updateLease(id: number, input: UpdateLeaseInput) {
 export async function extendLease(id: number, input: ExtendLeaseInput) {
   const lease = await findLeaseOrThrow(id);
 
+  assertNotCancelled(lease, "there is no tenancy to renew");
   if (lease.moveOutDate !== null) {
     throw new ConflictError(
       "That lease has already recorded a move-out, so it cannot be extended",
@@ -524,6 +567,7 @@ export async function recordMoveOut(
 ) {
   const lease = await findLeaseOrThrow(id);
 
+  assertNotCancelled(lease, "nobody ever moved in to move out of");
   if (lease.moveOutDate !== null) {
     throw new ConflictError("That lease has already recorded a move-out");
   }
@@ -591,6 +635,180 @@ export async function recordMoveOut(
   return findLeaseOrThrow(id);
 }
 
+/**
+ * Recording that a tenancy never took place — which is a different event from
+ * one ending, and is deliberately not expressible as one.
+ *
+ * A move-out closes a tenancy that happened: it takes a closing meter reading,
+ * bills a final month, and prorates the days occupied. A tenant who signed in
+ * advance and then backed out gives it none of those, and the move-out rightly
+ * refuses both sensible dates — before the start, and on it. Before this
+ * existed those two refusals were the whole of the system's answer, and the
+ * lease was stuck permanently: its room held, its move-in invoice outstanding,
+ * nothing correctable.
+ *
+ * What becomes of the money is the owner's decision and not a calculation.
+ * Nothing in the record says whether a tenant who changed their mind gets their
+ * deposit back; that is between the two of them, and this only writes down what
+ * they agreed.
+ */
+export async function cancelLease(id: number, input: CancelLeaseInput) {
+  const lease = await findLeaseOrThrow(id);
+
+  if (lease.cancelledAt !== null) {
+    throw new ConflictError("That lease has already been cancelled");
+  }
+  if (lease.moveOutDate !== null) {
+    throw new ConflictError(
+      "That tenancy has recorded a move-out, so it cannot be recorded as never having taken place",
+    );
+  }
+
+  // A monthly invoice is the point past which a tenancy has demonstrably been
+  // lived in and billed for. Unwinding one of those is a larger problem —
+  // issued invoices, possibly paid, possibly metered — and this guard exists so
+  // it is not attempted by accident.
+  //
+  // The MOVE-IN invoice deliberately does not count, though it charges the
+  // first month's rent alongside the deposit. Every lease has one from the
+  // moment it is created, so counting it would make cancellation impossible for
+  // every tenancy that has ever collected a deposit — which is every tenancy
+  // this feature exists for.
+  const billedMonth = await prisma.invoice.findFirst({
+    where: { leaseId: id, type: "monthly", voidedAt: null },
+    select: { id: true },
+  });
+  if (billedMonth) {
+    throw new ConflictError(
+      "That tenancy has been billed for a month, so it cannot be recorded as never having taken place. Record a move-out instead",
+    );
+  }
+
+  const held = lease.depositHeld;
+  const returned = new Decimal(input.depositReturned ?? 0).toDecimalPlaces(0);
+  const kept = new Decimal(input.depositKept ?? 0).toDecimalPlaces(0);
+
+  if (held.isZero()) {
+    // Nothing was collected, so there is nothing to divide. Naming amounts
+    // anyway is refused rather than ignored: an owner who thinks they are
+    // handing back money should not be told the cancellation succeeded.
+    if (!returned.isZero() || !kept.isZero()) {
+      throw new ValidationError(
+        "This tenancy is holding no deposit, so there is nothing to return or keep",
+      );
+    }
+  } else {
+    if (input.depositReturned === undefined || input.depositKept === undefined) {
+      throw new ValidationError(
+        "State how much of the deposit is returned and how much is kept",
+      );
+    }
+    // Settled against the holding AS A WHOLE, not per charge. The owner took
+    // one payment and will hand back one amount; asking them to apportion it
+    // between the deposit and the first month's rent would be asking them to
+    // reconstruct a distinction they never made.
+    if (!returned.add(kept).equals(held)) {
+      throw new ValidationError(
+        `Returned and kept must account for the whole deposit of ${held.toFixed(0)} held against this tenancy — they come to ${returned.add(kept).toFixed(0)}`,
+      );
+    }
+  }
+
+  const cancelledAt = input.cancelledAt ?? new Date();
+
+  // One transaction. A lease cancelled while its holding survived would report
+  // money held on behalf of a tenancy that does not exist, and a holding closed
+  // without the cancellation would lose the deposit with nothing to notice it
+  // by.
+  await prisma.$transaction(async (tx) => {
+    // An unpaid bill for a tenancy that never happened counts a debt nobody
+    // owes, in every report from now on. Voiding is already the operation for
+    // an invoice that should not have been issued, and it is permitted here
+    // precisely because nothing was paid against it.
+    //
+    // No holding is released alongside: a holding only ever comes from an
+    // invoice that was PAID, and those are not touched here.
+    await tx.invoice.updateMany({
+      where: { leaseId: id, voidedAt: null, paymentStatus: "pending" },
+      data: { voidedAt: cancelledAt },
+    });
+
+    // What the owner keeps is recorded through the machinery that already
+    // exists: an ad-hoc invoice carrying an owner-named charge, settled out of
+    // the deposit. The revenue report counts `charge` lines as revenue and
+    // excludes `deposit` ones, so nothing there needs teaching — and teaching
+    // it would mean a second path into the same total, which is how a total
+    // stops adding up.
+    //
+    // Issued dated the cancellation, so it lands in the month the owner gave
+    // up. Created AFTER the void above, so it is not caught by it.
+    if (!kept.isZero()) {
+      const invoice = await tx.invoice.create({
+        data: {
+          leaseId: id,
+          type: "adhoc",
+          issueDate: cancelledAt,
+          totalAmount: kept,
+          lineItems: {
+            create: [
+              {
+                kind: "charge",
+                chargeCategory: "penalty",
+                description: "Deposit kept on cancellation",
+                // No basis to report: the amount IS the decision, and a
+                // quantity of 1 would read as information without being any.
+                quantity: null,
+                unitAmount: null,
+                amount: kept,
+                position: 1,
+                periodStart: null,
+                periodEnd: null,
+              },
+            ],
+          },
+        },
+      });
+
+      // The money reached the owner months ago; this records that it has
+      // stopped being the tenant's. Written exactly as `markPaid` writes a
+      // deposit deduction, because it is one.
+      await deductFromDeposit(tx, id, kept);
+      await tx.payment.create({
+        data: {
+          invoiceId: invoice.id,
+          amount: kept,
+          method: "deposit_deduction",
+          paidAt: cancelledAt,
+          state: "succeeded",
+        },
+      });
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: { paymentStatus: "paid" },
+      });
+    }
+
+    await tx.lease.update({
+      where: { id },
+      data: {
+        cancelledAt,
+        // Whatever was not kept goes back, and the holding closes either way.
+        // Nothing is recorded for the returned amount beyond this: it is the
+        // tenant's own money going back, which this system already treats as
+        // changing whose hands money is in rather than as earning.
+        //
+        // Untouched where nothing was held — writing a refund of zero would
+        // claim a settlement that never took place.
+        ...(held.isZero()
+          ? {}
+          : { depositHeld: new Decimal(0), depositRefunded: returned, depositRefundedAt: cancelledAt }),
+      },
+    });
+  });
+
+  return findLeaseOrThrow(id);
+}
+
 export async function listOccupants(leaseId: number, query: ListOccupantsQuery) {
   await findLeaseOrThrow(leaseId);
   const where = { leaseId };
@@ -610,6 +828,7 @@ export async function listOccupants(leaseId: number, query: ListOccupantsQuery) 
 export async function addOccupant(leaseId: number, input: AddOccupantInput) {
   const lease = await findLeaseOrThrow(leaseId);
 
+  assertNotCancelled(lease, "nobody can be recorded as living there");
   if (lease.moveOutDate !== null) {
     throw new ConflictError("Cannot add an occupant to a finalized lease");
   }
@@ -683,6 +902,7 @@ export async function departOccupant(
 export async function transferPrimary(leaseId: number, customerId: number) {
   const lease = await findLeaseOrThrow(leaseId);
 
+  assertNotCancelled(lease, "there is no responsibility left to transfer");
   if (lease.moveOutDate !== null) {
     throw new ConflictError("Cannot transfer responsibility on a finalized lease");
   }
@@ -720,7 +940,7 @@ export async function transferPrimary(leaseId: number, customerId: number) {
 /** Used by the rooms and buildings retire guards. */
 export async function roomHasActiveLease(roomId: number) {
   const lease = await prisma.lease.findFirst({
-    where: { roomId, moveOutDate: null },
+    where: { roomId, ...HOLDS_ITS_ROOM },
     select: { id: true },
   });
   return lease !== null;
@@ -728,7 +948,7 @@ export async function roomHasActiveLease(roomId: number) {
 
 export async function buildingHasActiveLease(buildingId: number) {
   const lease = await prisma.lease.findFirst({
-    where: { moveOutDate: null, room: { buildingId } },
+    where: { ...HOLDS_ITS_ROOM, room: { buildingId } },
     select: { id: true },
   });
   return lease !== null;
