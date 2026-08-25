@@ -177,7 +177,9 @@ What is reported SHALL be exactly the work outstanding: a room SHALL leave the r
 
 The opening reading SHALL be the same figure the recorded cost would be computed from. A figure that merely resembles it would let a caller present a plausible wrong number for a person to check their typing against.
 
-**A room with no known reading at all SHALL NOT be reported.** Consumption is a difference, and a room never let and never recorded has nothing to subtract from — the system already refuses to record a vacancy for it. Its first reading is taken when it is first let, which is a different operation on a different screen.
+**A room that has never been let SHALL be reported, provided it has a known meter position** — which it now has whenever it was created with an opening reading. Such a room is exactly the case this exists for: it stands empty, its meter runs, and until it is first let nothing else in the system will ever produce a reading for it. Excluding it, as this requirement previously did, silently discarded every month of that cost.
+
+**A room with no known reading at all SHALL still NOT be reported.** Consumption is a difference, and a room with nothing recorded anywhere has nothing to subtract from; the system refuses to record a vacancy for it, and offering a row that cannot be acted on is worse than omitting it. That is now a narrow case — a room added before opening readings were recorded, or one created without stating a figure — rather than the ordinary state of every new room.
 
 The result SHALL identify each room and its building, and SHALL be narrowable by building.
 
@@ -208,6 +210,11 @@ Retired rooms SHALL be excluded. A room taken out of service is not one the owne
 - **WHEN** a tenancy recorded a move-out before that month's last day
 - **THEN** the room is reported, because it stood empty when the month closed
 
+#### Scenario: A room that has never been let
+
+- **WHEN** a room was created with an opening reading and has never been let
+- **THEN** it is reported, opening from that reading, because it stood empty all month and its meter ran
+
 #### Scenario: A retired room
 
 - **WHEN** a room has been retired
@@ -215,13 +222,13 @@ Retired rooms SHALL be excluded. A room taken out of service is not one the owne
 
 #### Scenario: The opening reading matches what the cost would use
 
-- **WHEN** a room's most recent known reading comes from a previous tenancy's closing reading or an earlier vacancy record
+- **WHEN** a room's most recent known reading comes from a previous tenancy's closing reading, an earlier vacancy record, or its own opening figure
 - **THEN** that is the reading reported
 
 #### Scenario: A room with no reading at all
 
-- **WHEN** a room has never been let and has no vacancy recorded
-- **THEN** it is not reported, because there is no baseline to measure consumption against and recording one would be refused
+- **WHEN** a room has no opening reading recorded and has never been let
+- **THEN** it is not reported, because there is nothing to measure consumption against and recording one would be refused
 
 #### Scenario: Narrowed to one building
 
@@ -237,3 +244,4 @@ Retired rooms SHALL be excluded. A room taken out of service is not one the owne
 
 - **WHEN** an unauthenticated request asks what is outstanding
 - **THEN** the system responds with HTTP 401
+
