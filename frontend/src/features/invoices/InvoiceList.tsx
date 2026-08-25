@@ -35,13 +35,13 @@ function StatusChips({ invoice }: { invoice: Invoice }) {
     <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
       <Chip size="small" variant="outlined" label={invoiceTypeLabel(invoice.type)} />
       {invoice.voidedAt !== null ? (
-        <Chip size="small" color="default" variant="filled" label="Voided" />
+        <Chip size="small" color="default" variant="filled" label="Đã rút" />
       ) : (
         <Chip
           size="small"
           color={invoice.paymentStatus === 'paid' ? 'success' : 'warning'}
           variant={invoice.paymentStatus === 'paid' ? 'filled' : 'outlined'}
-          label={invoice.paymentStatus === 'paid' ? 'Paid' : 'Unpaid'}
+          label={invoice.paymentStatus === 'paid' ? 'Đã trả' : 'Chưa trả'}
         />
       )}
     </Stack>
@@ -59,7 +59,7 @@ function periodLabel(invoice: Invoice): string {
   if (invoice.year !== null && invoice.month !== null) {
     return monthLabel(invoice.year, invoice.month)
   }
-  return `Issued ${formatDate(invoice.issueDate)}`
+  return `Xuất ${formatDate(invoice.issueDate)}`
 }
 
 export function InvoiceList({ invoices, onOpen }: InvoiceListProps) {
@@ -70,10 +70,10 @@ export function InvoiceList({ invoices, onOpen }: InvoiceListProps) {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Period</TableCell>
-              <TableCell>Tenancy</TableCell>
-              <TableCell align="right">Amount</TableCell>
-              <TableCell>Status</TableCell>
+              <TableCell>Kỳ</TableCell>
+              <TableCell>Hợp đồng</TableCell>
+              <TableCell align="right">Số tiền</TableCell>
+              <TableCell>Trạng thái</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -91,7 +91,7 @@ export function InvoiceList({ invoices, onOpen }: InvoiceListProps) {
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2" color="text.secondary">
-                    Lease #{invoice.leaseId}
+                    Hợp đồng #{invoice.leaseId}
                   </Typography>
                 </TableCell>
                 <TableCell align="right">
@@ -125,7 +125,7 @@ export function InvoiceList({ invoices, onOpen }: InvoiceListProps) {
                     <StatusChips invoice={invoice} />
                   </Box>
                   <Typography variant="body2" color="text.secondary">
-                    Lease #{invoice.leaseId}
+                    Hợp đồng #{invoice.leaseId}
                   </Typography>
                   <Typography variant="body2" sx={{ fontWeight: 500 }}>
                     {formatMoney(invoice.totalAmount)}

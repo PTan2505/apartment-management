@@ -11,11 +11,11 @@ import { z } from 'zod'
  */
 
 const rate = z
-  .number({ message: 'Enter a number' })
-  .nonnegative('Must not be negative')
+  .number({ message: 'Nhập một con số' })
+  .nonnegative('Không được là số âm')
 
 export const buildingFormSchema = z.object({
-  displayName: z.string().trim().min(1, 'Name is required'),
+  displayName: z.string().trim().min(1, 'Vui lòng nhập tên'),
   address: z.string().trim().min(1, 'Street address is required'),
   ward: z.string().trim().min(1, 'Ward is required'),
   city: z.string().trim().min(1, 'City is required'),

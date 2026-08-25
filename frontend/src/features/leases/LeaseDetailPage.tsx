@@ -29,8 +29,8 @@ import type { Lease } from '@/features/leases/types'
 
 /** The three states a tenancy can be in, as an owner would name them. */
 function statusLabel(status: Lease['status']): string {
-  if (status === 'active') return 'Running'
-  return status === 'cancelled' ? 'Cancelled' : 'Ended'
+  if (status === 'active') return 'Đang thuê'
+  return status === 'cancelled' ? 'Đã huỷ' : 'Đã kết thúc'
 }
 
 /** A labelled fact. Enough of them that a component beats repeating the markup. */
@@ -70,7 +70,7 @@ function TermsCard({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
               flexWrap: 'wrap',
             }}
           >
-            <Typography variant="h6">Terms</Typography>
+            <Typography variant="h6">Điều khoản</Typography>
             {/*
               Withheld on a finished tenancy rather than offered and refused:
               the API answers 409, and a control that cannot work is worse than
@@ -78,7 +78,7 @@ function TermsCard({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
             */}
             {isRunning && (
               <Button size="small" startIcon={<EditIcon />} onClick={onEdit}>
-                Edit
+                Sửa
               </Button>
             )}
           </Box>
@@ -88,8 +88,8 @@ function TermsCard({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
             spacing={3}
             sx={{ flexWrap: 'wrap', rowGap: 2 }}
           >
-            <Field label="Rent" value={`${formatMoney(lease.baseRent)} / month`} />
-            <Field label="Duration" value={`${lease.durationMonths} months`} />
+            <Field label="Giá thuê" value={`${formatMoney(lease.baseRent)} / tháng`} />
+            <Field label="Thời hạn" value={`${lease.durationMonths} tháng`} />
             {/*
               The deposit with the months it was agreed in. The amount alone
               cannot be checked against anything — the months are what was
@@ -97,9 +97,9 @@ function TermsCard({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
               agreed at signing.
             */}
             <Field
-              label="Deposit"
+              label="Tiền cọc"
               value={formatMoney(lease.depositAmount)}
-              hint={`${lease.depositMonths} ${lease.depositMonths === 1 ? 'month' : 'months'} of rent`}
+              hint={`${lease.depositMonths} tháng tiền thuê`}
             />
           </Stack>
 
@@ -117,7 +117,7 @@ function TermsCard({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
               instead.
             */}
             <Field
-              label={isCancelled ? 'Was to start' : 'Started'}
+              label={isCancelled ? 'Dự kiến bắt đầu' : 'Bắt đầu'}
               value={formatDate(lease.startDate)}
             />
             {/*
@@ -126,12 +126,12 @@ function TermsCard({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
               boundary the API reports — see dates.ts.
             */}
             <Field
-              label={isCancelled ? 'Was agreed through' : 'Agreed through'}
+              label="Thoả thuận đến hết"
               value={formatCoveredThrough(lease.expectedEndDate)}
               hint={
                 isCancelled
-                  ? 'What was agreed. No day of it was occupied'
-                  : `${lease.durationMonths} months from the start date`
+                  ? 'Đây là thoả thuận. Không có ngày nào thực sự ở'
+                  : `${lease.durationMonths} tháng kể từ ngày bắt đầu`
               }
             />
             {/*
@@ -141,16 +141,16 @@ function TermsCard({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
             */}
             {lease.cancelledAt !== null && (
               <Field
-                label="Cancelled"
+                label="Ngày huỷ"
                 value={formatDate(lease.cancelledAt)}
-                hint="Recorded as never having taken place"
+                hint="Ghi nhận là chưa từng diễn ra"
               />
             )}
             {lease.moveOutDate !== null && (
               <Field
-                label="Actually through"
+                label="Thực tế đến hết"
                 value={formatCoveredThrough(lease.moveOutDate)}
-                hint={ranPastTerm ? 'Stayed past the agreed term' : 'Left within the agreed term'}
+                hint={ranPastTerm ? 'Ở quá hạn thoả thuận' : 'Trả phòng trong hạn'}
               />
             )}
           </Stack>
@@ -182,11 +182,11 @@ export function LeaseDetailPage() {
     if (isApiError(leaseQuery.error) && leaseQuery.error.isNotFound) {
       return (
         <EmptyState
-          title="Lease not found"
-          description="It may have been removed, or the address may be wrong."
+          title="Không tìm thấy hợp đồng"
+          description="Có thể nó đã bị xoá, hoặc địa chỉ sai."
           action={
             <Button variant="outlined" onClick={() => void navigate('/leases')}>
-              Back to leases
+              Về danh sách hợp đồng
             </Button>
           }
         />
@@ -197,11 +197,11 @@ export function LeaseDetailPage() {
         severity={isApiError(leaseQuery.error) && leaseQuery.error.isTransport ? 'warning' : 'error'}
         action={
           <Button color="inherit" size="small" onClick={() => void leaseQuery.refetch()}>
-            Retry
+            Thử lại
           </Button>
         }
       >
-        <AlertTitle>Could not load this lease</AlertTitle>
+        <AlertTitle>Không tải được hợp đồng này</AlertTitle>
         {isApiError(leaseQuery.error) ? leaseQuery.error.message : 'An unexpected error occurred.'}
       </Alert>
     )
@@ -219,7 +219,7 @@ export function LeaseDetailPage() {
     <Box>
       <Breadcrumbs sx={{ mb: 1 }}>
         <Link component={RouterLink} to="/leases" underline="hover" color="inherit">
-          Leases
+          Hợp đồng
         </Link>
         <Typography color="text.primary">{roomLabel}</Typography>
       </Breadcrumbs>
@@ -258,7 +258,7 @@ export function LeaseDetailPage() {
             }
           >
             {lease.tenant?.fullName ??
-              (lease.status === 'active' ? 'Nobody responsible' : 'No tenant recorded')}
+              (lease.status === 'active' ? 'Chưa ai đứng tên' : 'Không có người đứng tên')}
             {lease.tenant?.phone ? ` · ${lease.tenant.phone}` : ''}
           </Typography>
         </Box>
@@ -280,25 +280,25 @@ export function LeaseDetailPage() {
             variant={lease.status === 'finalized' ? 'outlined' : 'filled'}
           />
           {isTermRunOut(lease) && (
-            <Chip color="warning" icon={<WarningAmberIcon />} label="Term run out" />
+            <Chip color="warning" icon={<WarningAmberIcon />} label="Hết hạn" />
           )}
         </Stack>
       </Box>
 
       {lease.status === 'cancelled' && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          <AlertTitle>This tenancy never took place</AlertTitle>
-          It was cancelled on {formatDate(lease.cancelledAt)} and nobody occupied
-          the room. Its occupants and its move-in bill are kept as the record of
-          what was agreed and then abandoned.
+          <AlertTitle>Hợp đồng này chưa từng diễn ra</AlertTitle>
+          Đã huỷ ngày {formatDate(lease.cancelledAt)} và không ai từng ở phòng này.
+          Danh sách người ở và hoá đơn nhận phòng vẫn được giữ, làm bằng chứng
+          cho những gì đã thoả thuận rồi bỏ dở.
         </Alert>
       )}
 
       {isTermRunOut(lease) && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          <AlertTitle>The agreed term has run out</AlertTitle>
-          No further invoice can be issued for this tenancy, and its room stays
-          held against a new one until it is closed or renewed.
+          <AlertTitle>Đã hết hạn thoả thuận</AlertTitle>
+          Không xuất thêm được hoá đơn nào cho hợp đồng này, và phòng vẫn bị giữ
+          cho tới khi trả phòng hoặc gia hạn.
         </Alert>
       )}
 
@@ -319,11 +319,11 @@ export function LeaseDetailPage() {
               startIcon={<EventBusyIcon />}
               onClick={() => setCancelOpen(true)}
             >
-              Cancel tenancy
+              Huỷ hợp đồng
             </Button>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-              For a tenant who signed and then never moved in. Records that the
-              tenancy never took place, and frees the room.
+              Dành cho khách đã ký nhưng không bao giờ dọn vào. Ghi nhận hợp đồng chưa
+              từng diễn ra, và trả phòng về trạng thái trống.
             </Typography>
           </Box>
         )}
@@ -336,9 +336,9 @@ export function LeaseDetailPage() {
         */}
         {lease.status === 'active' && !lease.cancellable && lease.hasBilledMonth && (
           <Alert severity="info">
-            <AlertTitle>This tenancy cannot be cancelled</AlertTitle>
-            It has been billed for a month, so it was lived in. A tenancy that
-            has been billed is ended by recording a move-out.
+            <AlertTitle>Không huỷ được hợp đồng này</AlertTitle>
+            Đã xuất hoá đơn tháng, tức là đã có người ở. Hợp đồng đã xuất hoá đơn thì
+            kết thúc bằng cách ghi nhận trả phòng.
           </Alert>
         )}
       </Stack>

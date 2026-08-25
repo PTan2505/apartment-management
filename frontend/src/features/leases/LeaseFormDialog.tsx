@@ -158,7 +158,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
       onClose()
     } catch (error) {
       if (!isApiError(error)) {
-        setFormError('Something went wrong. Please try again.')
+        setFormError('Có lỗi xảy ra. Vui lòng thử lại.')
         return
       }
 
@@ -197,7 +197,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
       fullWidth
       maxWidth="sm"
     >
-      <DialogTitle>New lease</DialogTitle>
+      <DialogTitle>Hợp đồng mới</DialogTitle>
       <DialogContent>
         {formError && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -215,7 +215,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
         >
           {fixedRoom ? (
             <TextField
-              label="Room"
+              label="Phòng"
               fullWidth
               value={`${fixedRoom.roomCode} · ${fixedRoom.building.displayName}`}
               slotProps={{ input: { readOnly: true }, inputLabel: { shrink: true } }}
@@ -226,7 +226,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
             <>
               <TextField
                 select
-                label="Building"
+                label="Toà nhà"
                 fullWidth
                 value={pickerBuildingId === '' ? '' : String(pickerBuildingId)}
                 onChange={(event) => {
@@ -235,9 +235,9 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
                   // cannot stay selected.
                   setValue('roomId', 0)
                 }}
-                helperText="Narrows the rooms below"
+                helperText="Lọc bớt danh sách phòng bên dưới"
               >
-                <MenuItem value="">All buildings</MenuItem>
+                <MenuItem value="">Tất cả toà nhà</MenuItem>
                 {(buildingsQuery.data?.data ?? []).map((building) => (
                   <MenuItem key={building.id} value={String(building.id)}>
                     {building.displayName}
@@ -251,14 +251,14 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
               render={({ field }) => (
                 <TextField
                   select
-                  label="Room"
+                  label="Phòng"
                   fullWidth
                   value={field.value ? String(field.value) : ''}
                   onChange={(event) => field.onChange(Number(event.target.value))}
                   onBlur={field.onBlur}
                   inputRef={field.ref}
                   error={Boolean(errors.roomId)}
-                  helperText={errors.roomId?.message ?? 'Only rooms with no running tenancy'}
+                  helperText={errors.roomId?.message ?? 'Chỉ những phòng chưa có hợp đồng đang chạy'}
                 >
                   {vacantRooms.map((room) => (
                     <MenuItem key={room.id} value={String(room.id)}>
@@ -281,7 +281,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
             render={({ field }) => (
               <TextField
                 select
-                label="Tenant"
+                label="Người đứng tên"
                 fullWidth
                 value={field.value ? String(field.value) : ''}
                 onChange={(event) => field.onChange(Number(event.target.value))}
@@ -289,7 +289,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
                 inputRef={field.ref}
                 error={Boolean(errors.signatoryId)}
                 helperText={
-                  errors.signatoryId?.message ?? 'The person responsible for the agreement'
+                  errors.signatoryId?.message ?? 'Người đứng tên trên hợp đồng'
                 }
               >
                 {customers.map((customer) => (
@@ -303,7 +303,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
           />
 
           <TextField
-            label="Start date"
+            label="Ngày bắt đầu"
             type="date"
             fullWidth
             slotProps={{ inputLabel: { shrink: true } }}
@@ -314,16 +314,16 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
-              label="Duration"
+              label="Thời hạn"
               type="number"
               fullWidth
               slotProps={{ htmlInput: { min: 1, step: 1 } }}
               error={Boolean(errors.durationMonths)}
-              helperText={errors.durationMonths?.message ?? 'Months'}
+              helperText={errors.durationMonths?.message ?? 'Số tháng'}
               {...register('durationMonths', { valueAsNumber: true })}
             />
             <TextField
-              label="Bill for"
+              label="Tính cho"
               type="number"
               fullWidth
               slotProps={{ htmlInput: { min: 1, step: 1 } }}
@@ -331,13 +331,13 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
               // Named for what it does. It drives utility billing and is NOT the
               // number of people recorded on the tenancy — the two are kept
               // apart deliberately, and may legitimately differ.
-              helperText={errors.occupantCount?.message ?? 'People, for utilities'}
+              helperText={errors.occupantCount?.message ?? 'Số người, dùng tính điện nước'}
               {...register('occupantCount', { valueAsNumber: true })}
             />
           </Stack>
 
           <TextField
-            label="Deposit"
+            label="Tiền cọc"
             type="number"
             fullWidth
             slotProps={{ htmlInput: { min: 0, step: 1 } }}
@@ -350,7 +350,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
              * and months later only one of those is safe to refund against.
              */
             helperText={
-              errors.depositMonths?.message ?? "Months of rent. Enter 0 if no deposit was taken"
+              errors.depositMonths?.message ?? 'Số tháng tiền thuê. Nhập 0 nếu không thu cọc'
             }
             {...register('depositMonths', { valueAsNumber: true })}
           />
@@ -359,12 +359,12 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
-              label="Agreed rent"
+              label="Giá thuê thoả thuận"
               type="number"
               fullWidth
               slotProps={{ htmlInput: { min: 0, step: 'any' } }}
               error={Boolean(errors.baseRent)}
-              helperText={errors.baseRent?.message ?? "Blank: the room's current rent"}
+              helperText={errors.baseRent?.message ?? 'Để trống: lấy giá thuê hiện tại của phòng'}
               {...register('baseRent', {
                 // An empty number input reads as NaN, which the schema would
                 // reject. Undefined is what "leave it to the API" looks like.
@@ -372,7 +372,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
               })}
             />
             <TextField
-              label="Opening meter reading"
+              label="Số điện đầu kỳ"
               type="number"
               fullWidth
               slotProps={{
@@ -392,11 +392,11 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
               helperText={
                 errors.startMeterReading?.message ??
                 (meterQuery.isFetching
-                  ? 'Reading the room…'
+                  ? 'Đang lấy số điện của phòng…'
                   : meterQuery.data?.reading !== null && meterQuery.data?.reading !== undefined
-                    ? "The room's last known reading — correct it if the meter says otherwise"
+                    ? 'Số điện gần nhất của phòng — sửa lại nếu công tơ khác'
                     : chosenRoomId
-                      ? 'This room has no earlier reading, so it needs one'
+                      ? 'Phòng này chưa có số điện nào, cần nhập'
                       : undefined)
               }
               {...register('startMeterReading', {
@@ -409,17 +409,17 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
             <Alert severity="info">
               <AlertTitle>
                 {pickerBuildingId === ''
-                  ? 'Every room is let'
+                  ? 'Mọi phòng đều đã cho thuê'
                   : 'Every room in this building is let'}
               </AlertTitle>
-              A tenancy has to end before its room can take another.
+              Phải kết thúc hợp đồng cũ thì phòng mới nhận được hợp đồng khác.
             </Alert>
           )}
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={isSubmitting}>
-          Cancel
+          Huỷ
         </Button>
         <Button
           type="submit"
@@ -428,7 +428,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
           disabled={isSubmitting}
           startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
-          {isSubmitting ? 'Creating…' : 'Create'}
+          {isSubmitting ? 'Đang tạo…' : 'Tạo hợp đồng'}
         </Button>
       </DialogActions>
     </Dialog>

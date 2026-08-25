@@ -105,7 +105,7 @@ export function ExpensesPage() {
       await remove.mutateAsync(removing.id)
       setRemoving(null)
     } catch (cause) {
-      setRemoveError(isApiError(cause) ? cause.message : 'Could not remove that cost.')
+      setRemoveError(isApiError(cause) ? cause.message : 'Không xoá được chi phí đó.')
     }
   }
 
@@ -113,12 +113,12 @@ export function ExpensesPage() {
   function RowActions({ expense }: { expense: Expense }) {
     return (
       <Stack direction="row" spacing={0.5}>
-        <IconButton size="small" aria-label="Correct" onClick={() => openEdit(expense)}>
+        <IconButton size="small" aria-label="Sửa" onClick={() => openEdit(expense)}>
           <EditIcon fontSize="small" />
         </IconButton>
         <IconButton
           size="small"
-          aria-label="Remove"
+          aria-label="Xoá"
           color="error"
           onClick={() => setRemoving(expense)}
         >
@@ -147,11 +147,11 @@ export function ExpensesPage() {
           }
           action={
             <Button color="inherit" size="small" onClick={() => void expensesQuery.refetch()}>
-              Retry
+              Thử lại
             </Button>
           }
         >
-          <AlertTitle>Could not load costs</AlertTitle>
+          <AlertTitle>Không tải được danh sách chi phí</AlertTitle>
           {isApiError(expensesQuery.error)
             ? expensesQuery.error.message
             : 'An unexpected error occurred.'}
@@ -162,21 +162,21 @@ export function ExpensesPage() {
     if (!expenses || expenses.length === 0) {
       return hasFilters ? (
         <EmptyState
-          title="No costs match these filters"
-          description="Try a different building or period, or clear the filters."
+          title="Không có chi phí nào khớp bộ lọc"
+          description="Thử toà nhà hoặc khoảng thời gian khác, hoặc xoá bộ lọc."
           action={
             <Button variant="outlined" onClick={clearFilters}>
-              Clear filters
+              Xoá bộ lọc
             </Button>
           }
         />
       ) : (
         <EmptyState
-          title="No costs recorded yet"
-          description="Until costs are recorded, the revenue report subtracts nothing and every figure in it is too flattering."
+          title="Chưa ghi chi phí nào"
+          description="Chưa ghi chi phí thì báo cáo doanh thu không trừ gì cả, và mọi con số trong đó đều đẹp hơn thực tế."
           action={
             <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
-              Record a cost
+              Ghi chi phí
             </Button>
           }
         />
@@ -190,11 +190,11 @@ export function ExpensesPage() {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Date</TableCell>
-                <TableCell>What for</TableCell>
-                <TableCell>Kind</TableCell>
-                <TableCell>Based on</TableCell>
-                <TableCell align="right">Amount</TableCell>
+                <TableCell>Ngày</TableCell>
+                <TableCell>Nội dung</TableCell>
+                <TableCell>Loại</TableCell>
+                <TableCell>Tính theo</TableCell>
+                <TableCell align="right">Số tiền</TableCell>
                 <TableCell />
               </TableRow>
             </TableHead>
@@ -216,7 +216,7 @@ export function ExpensesPage() {
                         rather than wondering who put it there.
                       */}
                       {expense.origin === 'system' && (
-                        <Chip size="small" color="info" variant="outlined" label="Automatic" />
+                        <Chip size="small" color="info" variant="outlined" label="Tự động" />
                       )}
                     </Stack>
                   </TableCell>
@@ -257,7 +257,7 @@ export function ExpensesPage() {
                   <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
                     <Chip size="small" variant="outlined" label={categoryLabel(expense.category)} />
                     {expense.origin === 'system' && (
-                      <Chip size="small" color="info" variant="outlined" label="Automatic" />
+                      <Chip size="small" color="info" variant="outlined" label="Tự động" />
                     )}
                   </Stack>
                   <Typography variant="body2" color="text.secondary">
@@ -291,7 +291,7 @@ export function ExpensesPage() {
         }}
       >
         <Typography variant="h5" component="h2">
-          Costs
+          Chi phí
         </Typography>
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
           <Button
@@ -300,10 +300,10 @@ export function ExpensesPage() {
             component={RouterLink}
             to="/expenses/empty-rooms"
           >
-            Empty rooms
+            Phòng trống
           </Button>
           <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
-            Record a cost
+            Ghi chi phí
           </Button>
         </Stack>
       </Box>
@@ -311,7 +311,7 @@ export function ExpensesPage() {
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
         <TextField
           select
-          label="Building"
+          label="Toà nhà"
           size="small"
           value={filters.buildingId ?? ''}
           onChange={(event) =>
@@ -322,7 +322,7 @@ export function ExpensesPage() {
           }
           sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
         >
-          <MenuItem value="">All buildings</MenuItem>
+          <MenuItem value="">Tất cả toà nhà</MenuItem>
           {(buildingsQuery.data?.data ?? []).map((building) => (
             <MenuItem key={building.id} value={String(building.id)}>
               {building.displayName}
@@ -332,7 +332,7 @@ export function ExpensesPage() {
 
         <TextField
           select
-          label="Room"
+          label="Phòng"
           size="small"
           value={filters.roomId ?? ''}
           onChange={(event) =>
@@ -340,7 +340,7 @@ export function ExpensesPage() {
           }
           sx={{ minWidth: 180, flexGrow: { xs: 1, sm: 0 } }}
         >
-          <MenuItem value="">All rooms</MenuItem>
+          <MenuItem value="">Tất cả phòng</MenuItem>
           {(roomsQuery.data?.data ?? []).map((room) => (
             <MenuItem key={room.id} value={String(room.id)}>
               {buildingId ? room.roomCode : `${room.roomCode} · ${room.building.displayName}`}
@@ -350,7 +350,7 @@ export function ExpensesPage() {
 
         <TextField
           select
-          label="Kind"
+          label="Loại"
           size="small"
           value={filters.category ?? ''}
           onChange={(event) =>
@@ -358,7 +358,7 @@ export function ExpensesPage() {
           }
           sx={{ minWidth: 180 }}
         >
-          <MenuItem value="">All kinds</MenuItem>
+          <MenuItem value="">Tất cả các loại</MenuItem>
           {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((key) => (
             <MenuItem key={key} value={key}>
               {CATEGORY_LABELS[key]}
@@ -367,7 +367,7 @@ export function ExpensesPage() {
         </TextField>
 
         <TextField
-          label="From"
+          label="Từ"
           type="date"
           size="small"
           value={filters.from ?? ''}
@@ -377,7 +377,7 @@ export function ExpensesPage() {
           slotProps={{ inputLabel: { shrink: true } }}
         />
         <TextField
-          label="To"
+          label="Đến"
           type="date"
           size="small"
           value={filters.to ?? ''}
@@ -389,7 +389,7 @@ export function ExpensesPage() {
 
         {hasFilters && (
           <Button onClick={clearFilters} size="small">
-            Clear filters
+            Xoá bộ lọc
           </Button>
         )}
       </Box>
@@ -404,26 +404,24 @@ export function ExpensesPage() {
         leaves a record — true in one place and false in the other.
       */}
       <Dialog open={removing !== null} onClose={() => setRemoving(null)} fullWidth maxWidth="xs">
-        <DialogTitle>Remove this cost?</DialogTitle>
+        <DialogTitle>Xoá chi phí này?</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             {removeError && <Alert severity="error">{removeError}</Alert>}
             <DialogContentText>
-              {removing?.description} — {formatMoney(removing?.amount)}. It will be
-              gone from every listing and total. This cannot be undone.
+              {removing?.description} — {formatMoney(removing?.amount)}. Sẽ biến mất khỏi mọi danh sách và mọi con số tổng. Không hoàn tác được.
             </DialogContentText>
             {removing?.origin === 'system' && (
               <Alert severity="warning">
-                This cost was recorded automatically from a meter reading. If the
-                reading was wrong, correcting it keeps the record; removing it
-                does not.
+                Chi phí này do hệ thống tự ghi từ số công tơ. Nếu số điện sai thì sửa lại
+                sẽ giữ được bản ghi; xoá thì không.
               </Alert>
             )}
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setRemoving(null)} disabled={remove.isPending}>
-            Keep it
+            Giữ lại
           </Button>
           <Button
             variant="contained"
@@ -431,7 +429,7 @@ export function ExpensesPage() {
             onClick={() => void confirmRemove()}
             disabled={remove.isPending}
           >
-            {remove.isPending ? 'Removing…' : 'Remove'}
+            {remove.isPending ? 'Đang xoá…' : 'Xoá'}
           </Button>
         </DialogActions>
       </Dialog>

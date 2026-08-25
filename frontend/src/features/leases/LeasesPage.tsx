@@ -84,11 +84,11 @@ export function LeasesPage() {
           severity={isApiError(leasesQuery.error) && leasesQuery.error.isTransport ? 'warning' : 'error'}
           action={
             <Button color="inherit" size="small" onClick={() => void leasesQuery.refetch()}>
-              Retry
+              Thử lại
             </Button>
           }
         >
-          <AlertTitle>Could not load leases</AlertTitle>
+          <AlertTitle>Không tải được danh sách hợp đồng</AlertTitle>
           {isApiError(leasesQuery.error) ? leasesQuery.error.message : 'An unexpected error occurred.'}
         </Alert>
       )
@@ -97,21 +97,21 @@ export function LeasesPage() {
     if (!leases || leases.length === 0) {
       return hasFilters ? (
         <EmptyState
-          title="No leases match these filters"
-          description="Try a different room or person, or clear the filters."
+          title="Không có hợp đồng nào khớp bộ lọc"
+          description="Thử phòng hoặc người khác, hoặc xoá bộ lọc."
           action={
             <Button variant="outlined" onClick={clearFilters}>
-              Clear filters
+              Xoá bộ lọc
             </Button>
           }
         />
       ) : (
         <EmptyState
-          title="No leases yet"
-          description="Sign the first tenancy to get started."
+          title="Chưa có hợp đồng nào"
+          description="Ký hợp đồng đầu tiên để bắt đầu."
           action={
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormOpen(true)}>
-              New lease
+              Hợp đồng mới
             </Button>
           }
         />
@@ -129,13 +129,13 @@ export function LeasesPage() {
   return (
     <Box>
       <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-        Leases
+        Hợp đồng
       </Typography>
 
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
         <TextField
           select
-          label="Building"
+          label="Toà nhà"
           size="small"
           value={filters.buildingId ?? ''}
           onChange={(event) =>
@@ -150,7 +150,7 @@ export function LeasesPage() {
           }
           sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
         >
-          <MenuItem value="">All buildings</MenuItem>
+          <MenuItem value="">Tất cả toà nhà</MenuItem>
           {(buildingsQuery.data?.data ?? []).map((building) => (
             <MenuItem key={building.id} value={String(building.id)}>
               {building.displayName}
@@ -160,7 +160,7 @@ export function LeasesPage() {
 
         <TextField
           select
-          label="Room"
+          label="Phòng"
           size="small"
           value={filters.roomId ?? ''}
           onChange={(event) =>
@@ -168,7 +168,7 @@ export function LeasesPage() {
           }
           sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
         >
-          <MenuItem value="">All rooms</MenuItem>
+          <MenuItem value="">Tất cả phòng</MenuItem>
           {(roomsQuery.data?.data ?? []).map((room) => (
             <MenuItem key={room.id} value={String(room.id)}>
               {/* The building is established by the filter above once chosen,
@@ -180,7 +180,7 @@ export function LeasesPage() {
 
         <TextField
           select
-          label="Person"
+          label="Người"
           size="small"
           value={filters.customerId ?? ''}
           onChange={(event) =>
@@ -188,10 +188,10 @@ export function LeasesPage() {
           }
           // Finds every tenancy this person occupied, not only the ones they
           // signed — which is what makes it a question about their history.
-          helperText="Anyone who lived there, not only the signatory"
+          helperText="Bất kỳ ai từng ở, không riêng người đứng tên"
           sx={{ minWidth: 220, flexGrow: { xs: 1, sm: 0 } }}
         >
-          <MenuItem value="">Anyone</MenuItem>
+          <MenuItem value="">Bất kỳ ai</MenuItem>
           {(customersQuery.data?.data ?? []).map((customer) => (
             <MenuItem key={customer.id} value={String(customer.id)}>
               {customer.fullName}
@@ -201,7 +201,7 @@ export function LeasesPage() {
 
         <TextField
           select
-          label="Status"
+          label="Trạng thái"
           size="small"
           value={filters.active ?? ''}
           onChange={(event) =>
@@ -209,9 +209,9 @@ export function LeasesPage() {
           }
           sx={{ minWidth: 150 }}
         >
-          <MenuItem value="">All</MenuItem>
-          <MenuItem value="true">Running</MenuItem>
-          <MenuItem value="false">Ended</MenuItem>
+          <MenuItem value="">Tất cả</MenuItem>
+          <MenuItem value="true">Đang thuê</MenuItem>
+          <MenuItem value="false">Đã kết thúc</MenuItem>
         </TextField>
 
         <FormControlLabel
@@ -223,12 +223,12 @@ export function LeasesPage() {
               }
             />
           }
-          label="Needs attention"
+          label="Cần xử lý"
         />
 
         {hasFilters && (
           <Button onClick={clearFilters} size="small">
-            Clear filters
+            Xoá bộ lọc
           </Button>
         )}
       </Box>
@@ -251,24 +251,23 @@ export function LeasesPage() {
           sx={{ mb: 2 }}
           action={
             <Button color="inherit" size="small" onClick={() => setFilter('overdue', 'true')}>
-              Show them
+              Xem ngay
             </Button>
           }
         >
           <AlertTitle>
             {overdueCount === 1
-              ? '1 tenancy needs attention'
-              : `${overdueCount} tenancies need attention`}
+              ? '1 hợp đồng cần xử lý'
+              : `${overdueCount} hợp đồng cần xử lý`}
           </AlertTitle>
-          Their agreed term has run out with no move-out recorded. No further
-          invoice can be issued for them, and their rooms stay held against a new
-          tenancy.
+          Đã hết hạn thoả thuận mà chưa ghi nhận trả phòng. Không xuất thêm được
+          hoá đơn nào cho chúng, và phòng vẫn bị giữ, không cho thuê lại được.
         </Alert>
       )}
 
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormOpen(true)}>
-          New lease
+          Hợp đồng mới
         </Button>
       </Box>
 

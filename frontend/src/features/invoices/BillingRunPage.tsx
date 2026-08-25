@@ -118,9 +118,9 @@ export function BillingRunPage() {
    */
   function localProblem(row: DueForMonth, entry: string): string | null {
     const reading = parseReading(entry)
-    if (reading === null) return 'Enter a whole number'
+    if (reading === null) return 'Nhập một số nguyên'
     if (reading < row.previousElectricityUse) {
-      return `Below the opening reading of ${row.previousElectricityUse}`
+      return `Thấp hơn số đầu kỳ ${row.previousElectricityUse}`
     }
     return null
   }
@@ -146,7 +146,7 @@ export function BillingRunPage() {
     } catch (cause) {
       setRow(row.leaseId, {
         status: 'failed',
-        error: isApiError(cause) ? cause.message : 'Could not issue this invoice.',
+        error: isApiError(cause) ? cause.message : 'Không xuất được hoá đơn này.',
       })
     }
   }
@@ -175,11 +175,11 @@ export function BillingRunPage() {
           severity={isApiError(dueQuery.error) && dueQuery.error.isTransport ? 'warning' : 'error'}
           action={
             <Button color="inherit" size="small" onClick={() => void dueQuery.refetch()}>
-              Retry
+              Thử lại
             </Button>
           }
         >
-          <AlertTitle>Could not load what is due</AlertTitle>
+          <AlertTitle>Không tải được danh sách cần xuất</AlertTitle>
           {isApiError(dueQuery.error) ? dueQuery.error.message : 'An unexpected error occurred.'}
         </Alert>
       )
@@ -191,8 +191,8 @@ export function BillingRunPage() {
       // reassuring thing this screen can say.
       return (
         <Alert severity="success" icon={<CheckCircleIcon />}>
-          <AlertTitle>{monthLabel(period.year, period.month)} is closed</AlertTitle>
-          Every tenancy that occupied a room that month has been billed for it.
+          <AlertTitle>{monthLabel(period.year, period.month)} đã xong</AlertTitle>
+          Mọi hợp đồng có người ở trong tháng đó đều đã được xuất hoá đơn.
         </Alert>
       )
     }
@@ -201,9 +201,9 @@ export function BillingRunPage() {
       <>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
           {due.length === 1
-            ? '1 tenancy still to bill'
-            : `${due.length} tenancies still to bill`}{' '}
-          — each disappears once its invoice is issued.
+            ? 'Còn 1 hợp đồng chưa xuất'
+            : `Còn ${due.length} hợp đồng chưa xuất`}{' '}
+          — mỗi dòng biến mất khi đã xuất hoá đơn.
         </Typography>
 
         {/* Desktop */}
@@ -211,10 +211,10 @@ export function BillingRunPage() {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Room</TableCell>
-                <TableCell>Tenant</TableCell>
-                <TableCell align="right">Opens from</TableCell>
-                <TableCell>Closing reading</TableCell>
+                <TableCell>Phòng</TableCell>
+                <TableCell>Người đứng tên</TableCell>
+                <TableCell align="right">Số đầu kỳ</TableCell>
+                <TableCell>Số điện cuối kỳ</TableCell>
                 <TableCell />
               </TableRow>
             </TableHead>
@@ -269,7 +269,7 @@ export function BillingRunPage() {
                       }
                       onClick={() => void issue(row)}
                     >
-                      {rows[row.leaseId]?.status === 'issuing' ? 'Issuing…' : 'Issue'}
+                      {rows[row.leaseId]?.status === 'issuing' ? 'Đang xuất…' : 'Xuất'}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -300,13 +300,13 @@ export function BillingRunPage() {
                     size="small"
                     type="number"
                     fullWidth
-                    label="Closing reading"
+                    label="Số điện cuối kỳ"
                     value={rows[row.leaseId]?.reading ?? ''}
                     onChange={(event) =>
                       setRow(row.leaseId, { reading: event.target.value, status: 'idle' })
                     }
                     error={rowError(row) !== undefined}
-                    helperText={rowError(row) ?? `Opens from ${row.previousElectricityUse}`}
+                    helperText={rowError(row) ?? `Số đầu kỳ ${row.previousElectricityUse}`}
                     slotProps={{
                       htmlInput: { min: row.previousElectricityUse, step: 1 },
                       inputLabel: { shrink: true },
@@ -320,11 +320,11 @@ export function BillingRunPage() {
                     }
                     onClick={() => void issue(row)}
                   >
-                    {rows[row.leaseId]?.status === 'issuing' ? 'Issuing…' : 'Issue invoice'}
+                    {rows[row.leaseId]?.status === 'issuing' ? 'Đang xuất…' : 'Xuất hoá đơn'}
                   </Button>
                   <Typography variant="caption" color="text.secondary">
-                    Rent {formatMoney(row.baseRent)} · billed for {row.occupantCount}{' '}
-                    {row.occupantCount === 1 ? 'person' : 'people'}
+                    Giá thuê {formatMoney(row.baseRent)} · tính cho {row.occupantCount}{' '}
+                    người
                   </Typography>
                 </Stack>
               </CardContent>
@@ -338,17 +338,17 @@ export function BillingRunPage() {
   return (
     <Box>
       <Typography variant="h5" component="h2" sx={{ mb: 0.5 }}>
-        Close off a month
+        Chốt sổ tháng
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Every tenancy that should be billed for the month and has not been. Work
-        down the list — what is left is what is still to do.
+        Mọi hợp đồng đáng ra phải xuất hoá đơn cho tháng này mà chưa xuất. Làm dần
+        từ trên xuống — thứ còn lại là thứ còn phải làm.
       </Typography>
 
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
         <TextField
           select
-          label="Month"
+          label="Tháng"
           size="small"
           value={`${period.year}-${period.month}`}
           onChange={(event) => {
@@ -369,7 +369,7 @@ export function BillingRunPage() {
 
         <TextField
           select
-          label="Building"
+          label="Toà nhà"
           size="small"
           value={buildingId === '' ? '' : String(buildingId)}
           onChange={(event) => {
@@ -378,7 +378,7 @@ export function BillingRunPage() {
           }}
           sx={{ minWidth: 220 }}
         >
-          <MenuItem value="">All buildings</MenuItem>
+          <MenuItem value="">Tất cả toà nhà</MenuItem>
           {(buildingsQuery.data?.data ?? []).map((building) => (
             <MenuItem key={building.id} value={String(building.id)}>
               {building.displayName}

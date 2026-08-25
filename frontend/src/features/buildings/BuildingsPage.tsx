@@ -73,10 +73,10 @@ export function BuildingsPage() {
       }}
     >
       <Typography variant="h5" component="h2">
-        Buildings
+        Toà nhà
       </Typography>
       <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-        New building
+        Thêm toà nhà
       </Button>
     </Box>
   )
@@ -99,11 +99,11 @@ export function BuildingsPage() {
           severity={isApiError(error) && error.isTransport ? 'warning' : 'error'}
           action={
             <Button color="inherit" size="small" onClick={() => buildingsQuery.refetch()}>
-              Retry
+              Thử lại
             </Button>
           }
         >
-          <AlertTitle>Could not load buildings</AlertTitle>
+          <AlertTitle>Không tải được danh sách toà nhà</AlertTitle>
           {isApiError(error) ? error.message : 'An unexpected error occurred.'}
         </Alert>
       )
@@ -116,21 +116,21 @@ export function BuildingsPage() {
       // a filter applied that they have no buildings is simply false.
       return hasFilters ? (
         <EmptyState
-          title="No buildings match these filters"
-          description="Try a different city or ward, or clear the filters to see everything."
+          title="Không có toà nhà nào khớp bộ lọc"
+          description="Thử tỉnh/thành hoặc phường/xã khác, hoặc xoá bộ lọc để xem tất cả."
           action={
             <Button variant="outlined" onClick={clearFilters}>
-              Clear filters
+              Xoá bộ lọc
             </Button>
           }
         />
       ) : (
         <EmptyState
-          title="No buildings yet"
-          description="Add the first building you manage to get started."
+          title="Chưa có toà nhà nào"
+          description="Thêm toà nhà đầu tiên bạn quản lý để bắt đầu."
           action={
             <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-              New building
+              Thêm toà nhà
             </Button>
           }
         />

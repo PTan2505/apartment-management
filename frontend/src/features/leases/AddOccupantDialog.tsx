@@ -53,7 +53,7 @@ export function AddOccupantDialog({ open, leaseId, onClose }: AddOccupantDialogP
       await addMutation.mutateAsync({ leaseId, customerId: Number(customerId) })
       onClose()
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : 'Could not add that person.')
+      setError(isApiError(cause) ? cause.message : 'Không thêm được người này.')
     }
   }
 
@@ -61,19 +61,19 @@ export function AddOccupantDialog({ open, leaseId, onClose }: AddOccupantDialogP
 
   return (
     <Dialog open={open} onClose={isSubmitting ? undefined : onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Add person</DialogTitle>
+      <DialogTitle>Thêm người</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           <DialogContentText>
-            Records that this person lives here. It does not change how many
-            people the room is billed for.
+            Ghi nhận người này đang ở đây. Không làm thay đổi số người
+            dùng để tính tiền phòng.
           </DialogContentText>
 
           {error && <Alert severity="error">{error}</Alert>}
 
           <TextField
             select
-            label="Person"
+            label="Người"
             fullWidth
             value={customerId === '' ? '' : String(customerId)}
             onChange={(event) => setCustomerId(Number(event.target.value))}
@@ -89,7 +89,7 @@ export function AddOccupantDialog({ open, leaseId, onClose }: AddOccupantDialogP
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={isSubmitting}>
-          Cancel
+          Huỷ
         </Button>
         <Button
           variant="contained"

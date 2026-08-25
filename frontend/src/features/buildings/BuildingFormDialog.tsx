@@ -232,7 +232,7 @@ export function BuildingFormDialog({
       fullWidth
       maxWidth="sm"
     >
-      <DialogTitle>{isEdit ? "Edit building" : "New building"}</DialogTitle>
+      <DialogTitle>{isEdit ? "Sửa toà nhà" : "Thêm toà nhà"}</DialogTitle>
       <DialogContent>
         {formError && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -251,7 +251,7 @@ export function BuildingFormDialog({
           sx={{ mt: 1 }}
         >
           <TextField
-            label="Name"
+            label="Tên"
             fullWidth
             autoFocus
             error={Boolean(errors.displayName)}
@@ -270,14 +270,14 @@ export function BuildingFormDialog({
               may no longer be the ones it supplied. */}
           {lookup.notConfigured && (
             <Alert severity="info">
-              Address lookup is not configured on this server. Type the address
+              Máy chủ này chưa bật tra cứu địa chỉ. Bạn hãy tự nhập địa chỉ
               below.
             </Alert>
           )}
 
           {isResolving && (
             <Alert severity="info" icon={<CircularProgress size={16} />}>
-              Loading the chosen address…
+              Đang tải địa chỉ đã chọn…
             </Alert>
           )}
 
@@ -286,7 +286,7 @@ export function BuildingFormDialog({
           {locked && (
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <Typography variant="body2" color="text.secondary">
-                Address filled from the place you chose.
+                Địa chỉ lấy từ nơi bạn đã chọn.
               </Typography>
               <Link
                 component="button"
@@ -294,20 +294,20 @@ export function BuildingFormDialog({
                 variant="body2"
                 onClick={unlockAddress}
               >
-                Edit manually
+                Tự nhập
               </Link>
             </Box>
           )}
 
           <Box>
             <TextField
-              label="Street address"
+              label="Địa chỉ"
               fullWidth
               error={Boolean(errors.address)}
               helperText={
                 errors.address?.message ??
                 (lookup.available && !locked
-                  ? "Start typing to search, or enter it yourself"
+                  ? "Gõ để tìm, hoặc tự nhập"
                   : "House number and street only")
               }
               slotProps={{
@@ -326,7 +326,7 @@ export function BuildingFormDialog({
           </Box>
 
           <TextField
-            label="Ward"
+            label="Phường/Xã"
             fullWidth
             error={Boolean(errors.ward)}
             helperText={errors.ward?.message}
@@ -337,7 +337,7 @@ export function BuildingFormDialog({
             {...register("ward")}
           />
           <TextField
-            label="City"
+            label="Tỉnh/Thành"
             fullWidth
             error={Boolean(errors.city)}
             helperText={errors.city?.message}
@@ -348,7 +348,7 @@ export function BuildingFormDialog({
             {...register("city")}
           />
           <TextField
-            label="Country"
+            label="Quốc gia"
             fullWidth
             error={Boolean(errors.country)}
             helperText={errors.country?.message}
@@ -360,7 +360,7 @@ export function BuildingFormDialog({
           />
 
           <TextField
-            label="Electricity rate"
+            label="Giá điện"
             type="number"
             fullWidth
             onFocus={(e) => e.target.select()}
@@ -369,7 +369,7 @@ export function BuildingFormDialog({
               htmlInput: { step: "any", min: 0 },
               input: {
                 endAdornment: (
-                  <InputAdornment position="end">VND / kWh</InputAdornment>
+                  <InputAdornment position="end">đ / kWh</InputAdornment>
                 ),
               },
             }}
@@ -378,7 +378,7 @@ export function BuildingFormDialog({
             {...register("electricityRate", { valueAsNumber: true })}
           />
           <TextField
-            label="Water rate"
+            label="Giá nước"
             type="number"
             fullWidth
             onFocus={(e) => e.target.select()}
@@ -402,7 +402,7 @@ export function BuildingFormDialog({
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={isSubmitting}>
-          Cancel
+          Huỷ
         </Button>
         <Button
           type="submit"
@@ -415,7 +415,7 @@ export function BuildingFormDialog({
             ) : undefined
           }
         >
-          {isSubmitting ? "Saving…" : isEdit ? "Save" : "Create"}
+          {isSubmitting ? "Đang lưu…" : isEdit ? "Lưu" : "Tạo"}
         </Button>
       </DialogActions>
     </Dialog>

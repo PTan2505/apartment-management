@@ -101,7 +101,7 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
       })
       onClose()
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : 'Could not cancel this tenancy.')
+      setError(isApiError(cause) ? cause.message : 'Không huỷ được hợp đồng này.')
     }
   }
 
@@ -115,13 +115,13 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
       fullWidth
       maxWidth="sm"
     >
-      <DialogTitle>Cancel this tenancy</DialogTitle>
+      <DialogTitle>Huỷ hợp đồng này</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           <DialogContentText>
-            This records that the tenancy never took place — not that it ended.
+            Đây là ghi nhận hợp đồng CHƯA TỪNG diễn ra — không phải là kết thúc.
             Nobody occupied {roomLabel}, so there is no final month to bill and
-            no meter reading to take. The room becomes available immediately.
+            không có số điện để chốt. Phòng sẽ trống ngay lập tức.
           </DialogContentText>
 
           {error && <Alert severity="error">{error}</Alert>}
@@ -132,14 +132,14 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
                 <AlertTitle sx={{ mb: 0.5 }}>
                   You are holding {formatMoney(held)}
                 </AlertTitle>
-                Say how much goes back to the tenant and how much you keep.
-                Whether they get it back is your decision — nothing in the
+                Ghi rõ trả lại khách bao nhiêu và bạn giữ lại bao nhiêu.
+                Trả hay không là quyết định của bạn — không có gì trong
                 record settles it.
               </Alert>
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField
-                  label="Returned to tenant"
+                  label="Trả lại khách"
                   type="number"
                   fullWidth
                   value={returned}
@@ -147,7 +147,7 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
                   slotProps={{ htmlInput: { min: 0, step: 1000 } }}
                 />
                 <TextField
-                  label="You keep"
+                  label="Chủ giữ lại"
                   type="number"
                   fullWidth
                   value={kept}
@@ -188,15 +188,15 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
               {(keptValue ?? 0) > 0 && (
                 <Alert severity="warning">
                   {formatMoney(keptValue ?? 0)} will be recorded as revenue for
-                  this month, as a charge against this tenancy.
+                  tháng này, dưới dạng một khoản thu của hợp đồng này.
                 </Alert>
               )}
             </>
           ) : (
             <Alert severity="info">
-              <AlertTitle>Nothing to settle</AlertTitle>
-              No deposit was ever collected for this tenancy — its move-in bill
-              was never paid. That bill will be voided, so it stops being
+              <AlertTitle>Không có gì để tất toán</AlertTitle>
+              Hợp đồng này chưa thu được đồng cọc nào — hoá đơn nhận phòng
+              chưa hề được thanh toán. Hoá đơn đó sẽ được rút, để thôi bị
               counted as owed.
             </Alert>
           )}
@@ -204,7 +204,7 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={isSubmitting}>
-          Keep tenancy
+          Giữ hợp đồng
         </Button>
         <Button
           variant="contained"
@@ -213,7 +213,7 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
           disabled={isSubmitting || blocked}
           startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
-          {isSubmitting ? 'Cancelling…' : 'Cancel tenancy'}
+          {isSubmitting ? 'Đang huỷ…' : 'Huỷ hợp đồng'}
         </Button>
       </DialogActions>
     </Dialog>

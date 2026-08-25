@@ -10,18 +10,18 @@ import { z } from 'zod'
  */
 
 const wholeMonths = z
-  .number({ message: 'Enter a number of months' })
-  .int('Must be a whole number of months')
+  .number({ message: 'Nhập số tháng' })
+  .int('Phải là số tháng nguyên')
 
 export const createLeaseFormSchema = z.object({
-  roomId: z.number({ message: 'Choose a room' }).int().positive('Choose a room'),
-  signatoryId: z.number({ message: 'Choose a tenant' }).int().positive('Choose a tenant'),
-  startDate: z.string().min(1, 'Start date is required'),
-  durationMonths: wholeMonths.min(1, 'Must be at least 1 month'),
+  roomId: z.number({ message: 'Chọn phòng' }).int().positive('Chọn phòng'),
+  signatoryId: z.number({ message: 'Chọn người đứng tên' }).int().positive('Chọn người đứng tên'),
+  startDate: z.string().min(1, 'Vui lòng chọn ngày bắt đầu'),
+  durationMonths: wholeMonths.min(1, 'Tối thiểu 1 tháng'),
   occupantCount: z
-    .number({ message: 'Enter how many people to bill for' })
-    .int('Must be a whole number')
-    .min(1, 'Must be at least 1'),
+    .number({ message: 'Nhập số người dùng để tính tiền' })
+    .int('Phải là số nguyên')
+    .min(1, 'Tối thiểu là 1'),
   /**
    * Required, and zero is accepted.
    *
@@ -29,24 +29,24 @@ export const createLeaseFormSchema = z.object({
    * and "the deposit was not recorded" identically, and only one of those is
    * safe to act on later. The API requires it for the same reason.
    */
-  depositMonths: wholeMonths.nonnegative('Must not be negative'),
+  depositMonths: wholeMonths.nonnegative('Không được là số âm'),
   /** Absent means the room's current rent. */
-  baseRent: z.number().nonnegative('Must not be negative').optional(),
+  baseRent: z.number().nonnegative('Không được là số âm').optional(),
   /** Absent means the previous tenancy's closing reading. */
   startMeterReading: z
     .number()
-    .int('Must be a whole number')
-    .nonnegative('Must not be negative')
+    .int('Phải là số nguyên')
+    .nonnegative('Không được là số âm')
     .optional(),
 })
 
 /** Only these two, matching what the API accepts on a running lease. */
 export const updateLeaseFormSchema = z.object({
-  durationMonths: wholeMonths.min(1, 'Must be at least 1 month'),
+  durationMonths: wholeMonths.min(1, 'Tối thiểu 1 tháng'),
   occupantCount: z
-    .number({ message: 'Enter how many people to bill for' })
-    .int('Must be a whole number')
-    .min(1, 'Must be at least 1'),
+    .number({ message: 'Nhập số người dùng để tính tiền' })
+    .int('Phải là số nguyên')
+    .min(1, 'Tối thiểu là 1'),
 })
 
 export type CreateLeaseFormValues = z.input<typeof createLeaseFormSchema>

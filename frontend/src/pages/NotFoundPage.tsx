@@ -13,14 +13,13 @@ export function NotFoundPage() {
   return (
     <Box>
       <Typography variant="h4" component="h2" gutterBottom>
-        Page not found
+        Không tìm thấy trang
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
-        There is nothing at this address. Use the navigation, or go back to the
-        start.
+        Không có gì ở địa chỉ này. Dùng thanh điều hướng, hoặc quay về trang đầu.
       </Typography>
       <Button variant="contained" component={Link} to={DEFAULT_PATH}>
-        Go to Buildings
+        Về danh sách toà nhà
       </Button>
     </Box>
   )

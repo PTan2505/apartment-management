@@ -51,17 +51,17 @@ export function RetireBuildingDialog({ building, onClose }: RetireBuildingDialog
         setConflict(error.message)
         return
       }
-      setOtherError(isApiError(error) ? error.message : 'Something went wrong.')
+      setOtherError(isApiError(error) ? error.message : 'Có lỗi xảy ra.')
     }
   }
 
   return (
     <Dialog open={building !== null} onClose={retireMutation.isPending ? undefined : onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Retire building</DialogTitle>
+      <DialogTitle>Ngừng sử dụng toà nhà</DialogTitle>
       <DialogContent>
         {conflict && (
           <Alert severity="warning" sx={{ mb: 2 }}>
-            <AlertTitle>Cannot retire this building yet</AlertTitle>
+            <AlertTitle>Chưa thể ngừng toà nhà này</AlertTitle>
             {conflict}
           </Alert>
         )}
@@ -71,14 +71,14 @@ export function RetireBuildingDialog({ building, onClose }: RetireBuildingDialog
           </Alert>
         )}
         <DialogContentText>
-          Retire <strong>{building?.displayName}</strong>? It will be hidden from
-          the default list and from the location filters. Its rooms are not
-          affected, and you can restore it at any time.
+          Ngừng sử dụng <strong>{building?.displayName}</strong>? Toà nhà sẽ được ẩn khỏi
+          danh sách mặc định và khỏi bộ lọc vị trí. Các phòng bên trong không bị
+          ảnh hưởng, và bạn có thể dùng lại bất cứ lúc nào.
         </DialogContentText>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={retireMutation.isPending}>
-          Cancel
+          Huỷ
         </Button>
         <Button
           color="warning"
@@ -87,7 +87,7 @@ export function RetireBuildingDialog({ building, onClose }: RetireBuildingDialog
           disabled={retireMutation.isPending || conflict !== null}
           startIcon={retireMutation.isPending ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
-          {retireMutation.isPending ? 'Retiring…' : 'Retire'}
+          {retireMutation.isPending ? 'Đang ngừng…' : 'Ngừng sử dụng'}
         </Button>
       </DialogActions>
     </Dialog>

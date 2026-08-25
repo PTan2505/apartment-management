@@ -10,20 +10,20 @@ import type { InvoiceType, PaymentMethod } from '@/features/invoices/types'
  * than money earned.
  */
 const INVOICE_TYPE_LABELS: Record<InvoiceType, string> = {
-  moveIn: 'Move-in',
-  monthly: 'Monthly',
-  final: 'Final',
-  overdue: 'Overdue',
-  adhoc: 'Charges',
+  moveIn: 'Nhận phòng',
+  monthly: 'Hàng tháng',
+  final: 'Kết thúc',
+  overdue: 'Quá hạn',
+  adhoc: 'Phát sinh',
 }
 
 const INVOICE_TYPE_EXPLANATIONS: Record<InvoiceType, string> = {
-  moveIn: 'The deposit and the first month’s rent, charged when the tenancy began.',
+  moveIn: 'Tiền cọc và tiền nhà tháng đầu, thu khi bắt đầu hợp đồng.',
   monthly:
-    'A month’s utilities together with the FOLLOWING month’s rent, which is why two months are named on it.',
-  final: 'The closing utilities of a tenancy, up to the day the tenant left.',
-  overdue: 'Charges for days stayed beyond the agreed term, decided by the owner.',
-  adhoc: 'Charges the owner decided rather than calculated — damage, a lost key, a penalty.',
+    'Điện nước của tháng này cộng tiền nhà của THÁNG SAU — vì vậy trên hoá đơn có hai tháng khác nhau.',
+  final: 'Điện nước lần cuối của hợp đồng, tính đến ngày khách trả phòng.',
+  overdue: 'Khoản thu cho những ngày ở quá hạn thoả thuận, do chủ quyết định.',
+  adhoc: 'Khoản chủ tự đặt chứ không tính ra — hư hỏng, mất chìa, phạt.',
 }
 
 export function invoiceTypeLabel(type: InvoiceType): string {
@@ -35,26 +35,28 @@ export function invoiceTypeExplanation(type: InvoiceType): string {
 }
 
 const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  cash: 'Cash',
-  bank_transfer: 'Bank transfer',
+  cash: 'Tiền mặt',
+  bank_transfer: 'Chuyển khoản',
   // Not "deduction": the money genuinely reached the owner months ago, and
   // what happened here is that it stopped being the tenant's.
-  deposit_deduction: 'From the deposit held',
-  gateway: 'Online payment',
+  deposit_deduction: 'Trừ vào tiền cọc',
+  gateway: 'Thanh toán online',
 }
 
 export function paymentMethodLabel(method: PaymentMethod): string {
   return PAYMENT_METHOD_LABELS[method] ?? method
 }
 
-/** `2026-06` as a person reads it. */
+/**
+ * `2026-06` as a Vietnamese reader says it: "Tháng 6/2026".
+ *
+ * Written out rather than taken from `toLocaleDateString('vi-VN')`, which
+ * renders "tháng 6 năm 2026" — correct, and long enough to wrap in a table cell
+ * and a dropdown, both of which show a month on every row.
+ */
 export function monthLabel(year: number | null, month: number | null): string {
   if (year === null || month === null) return '—'
-  return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('en-GB', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
+  return `Tháng ${month}/${year}`
 }
 
 /** The twelve months of a year, most recent first — billing looks backwards. */

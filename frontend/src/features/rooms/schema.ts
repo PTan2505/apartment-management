@@ -9,7 +9,7 @@ import { z } from 'zod'
  * would have accepted.
  */
 
-const rent = z.number({ message: 'Enter a number' }).nonnegative('Must not be negative')
+const rent = z.number({ message: 'Nhập một con số' }).nonnegative('Không được là số âm')
 
 /**
  * The meter reading, which is optional and where an empty field is meaningful.
@@ -25,13 +25,13 @@ const meterReading = z
   .optional()
   .transform((value) => (value === undefined || Number.isNaN(value) ? undefined : value))
   .refine((value) => value === undefined || (Number.isInteger(value) && value >= 0), {
-    message: 'Must be a whole number, not negative',
+    message: 'Phải là số nguyên, không âm',
   })
 
 /** Creating fixes the building; the API has no way to move a room afterwards. */
 export const createRoomFormSchema = z.object({
-  buildingId: z.number({ message: 'Choose a building' }).int().positive('Choose a building'),
-  roomCode: z.string().trim().min(1, 'Room code is required'),
+  buildingId: z.number({ message: 'Chọn toà nhà' }).int().positive('Chọn toà nhà'),
+  roomCode: z.string().trim().min(1, 'Vui lòng nhập mã phòng'),
   baseRent: rent,
   initialMeterReading: meterReading,
 })
@@ -43,7 +43,7 @@ export const createRoomFormSchema = z.object({
  * comes from those instead.
  */
 export const updateRoomFormSchema = z.object({
-  roomCode: z.string().trim().min(1, 'Room code is required'),
+  roomCode: z.string().trim().min(1, 'Vui lòng nhập mã phòng'),
   baseRent: rent,
 })
 

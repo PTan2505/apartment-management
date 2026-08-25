@@ -84,11 +84,11 @@ export function InvoicesPage() {
           }
           action={
             <Button color="inherit" size="small" onClick={() => void invoicesQuery.refetch()}>
-              Retry
+              Thử lại
             </Button>
           }
         >
-          <AlertTitle>Could not load invoices</AlertTitle>
+          <AlertTitle>Không tải được danh sách hoá đơn</AlertTitle>
           {isApiError(invoicesQuery.error)
             ? invoicesQuery.error.message
             : 'An unexpected error occurred.'}
@@ -99,25 +99,25 @@ export function InvoicesPage() {
     if (!invoices || invoices.length === 0) {
       return hasFilters ? (
         <EmptyState
-          title="No invoices match these filters"
-          description="Try a different month or building, or clear the filters."
+          title="Không có hoá đơn nào khớp bộ lọc"
+          description="Thử tháng hoặc toà nhà khác, hoặc xoá bộ lọc."
           action={
             <Button variant="outlined" onClick={clearFilters}>
-              Clear filters
+              Xoá bộ lọc
             </Button>
           }
         />
       ) : (
         <EmptyState
-          title="No invoices yet"
-          description="Close off a month to bill the tenancies that occupied it."
+          title="Chưa có hoá đơn nào"
+          description="Chốt sổ một tháng để xuất hoá đơn cho các hợp đồng đã ở trong tháng đó."
           action={
             <Button
               variant="contained"
               startIcon={<EventAvailableIcon />}
               onClick={() => void navigate('/invoices/billing-run')}
             >
-              Close off a month
+              Chốt sổ tháng
             </Button>
           }
         />
@@ -148,7 +148,7 @@ export function InvoicesPage() {
         }}
       >
         <Typography variant="h5" component="h2">
-          Invoices
+          Hoá đơn
         </Typography>
         <Button
           variant="contained"
@@ -156,14 +156,14 @@ export function InvoicesPage() {
           component={RouterLink}
           to="/invoices/billing-run"
         >
-          Close off a month
+          Chốt sổ tháng
         </Button>
       </Box>
 
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
         <TextField
           select
-          label="Building"
+          label="Toà nhà"
           size="small"
           value={filters.buildingId ?? ''}
           onChange={(event) =>
@@ -176,7 +176,7 @@ export function InvoicesPage() {
           }
           sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
         >
-          <MenuItem value="">All buildings</MenuItem>
+          <MenuItem value="">Tất cả toà nhà</MenuItem>
           {(buildingsQuery.data?.data ?? []).map((building) => (
             <MenuItem key={building.id} value={String(building.id)}>
               {building.displayName}
@@ -186,7 +186,7 @@ export function InvoicesPage() {
 
         <TextField
           select
-          label="Room"
+          label="Phòng"
           size="small"
           value={filters.roomId ?? ''}
           onChange={(event) =>
@@ -194,7 +194,7 @@ export function InvoicesPage() {
           }
           sx={{ minWidth: 180, flexGrow: { xs: 1, sm: 0 } }}
         >
-          <MenuItem value="">All rooms</MenuItem>
+          <MenuItem value="">Tất cả phòng</MenuItem>
           {(roomsQuery.data?.data ?? []).map((room) => (
             <MenuItem key={room.id} value={String(room.id)}>
               {buildingId ? room.roomCode : `${room.roomCode} · ${room.building.displayName}`}
@@ -204,7 +204,7 @@ export function InvoicesPage() {
 
         <TextField
           select
-          label="Month"
+          label="Tháng"
           size="small"
           value={filters.period ?? ''}
           onChange={(event) =>
@@ -212,7 +212,7 @@ export function InvoicesPage() {
           }
           sx={{ minWidth: 180 }}
         >
-          <MenuItem value="">All months</MenuItem>
+          <MenuItem value="">Tất cả các tháng</MenuItem>
           {months.map((m) => (
             <MenuItem key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>
               {monthLabel(m.year, m.month)}
@@ -226,7 +226,7 @@ export function InvoicesPage() {
         */}
         <TextField
           select
-          label="Settled"
+          label="Tình trạng"
           size="small"
           value={filters.paymentStatus ?? ''}
           onChange={(event) =>
@@ -235,8 +235,8 @@ export function InvoicesPage() {
           sx={{ minWidth: 150 }}
         >
           <MenuItem value="">All</MenuItem>
-          <MenuItem value="pending">Unpaid</MenuItem>
-          <MenuItem value="paid">Paid</MenuItem>
+          <MenuItem value="pending">Chưa trả</MenuItem>
+          <MenuItem value="paid">Đã trả</MenuItem>
         </TextField>
 
         <FormControlLabel
@@ -248,12 +248,12 @@ export function InvoicesPage() {
               }
             />
           }
-          label="Include voided"
+          label="Kể cả đã rút"
         />
 
         {hasFilters && (
           <Button onClick={clearFilters} size="small">
-            Clear filters
+            Xoá bộ lọc
           </Button>
         )}
       </Box>

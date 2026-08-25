@@ -12,8 +12,8 @@ import { z } from 'zod'
  * empty field.
  */
 export const loginFormSchema = z.object({
-  phone: z.string().min(1, 'Phone number is required'),
-  password: z.string().min(1, 'Password is required'),
+  phone: z.string().min(1, 'Vui lòng nhập số điện thoại'),
+  password: z.string().min(1, 'Vui lòng nhập mật khẩu'),
 })
 
 export type LoginFormValues = z.infer<typeof loginFormSchema>

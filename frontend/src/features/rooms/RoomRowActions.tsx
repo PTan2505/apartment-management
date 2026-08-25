@@ -70,21 +70,21 @@ export function RoomRowActions({
             <ListItemIcon>
               <DescriptionIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>New lease</ListItemText>
+            <ListItemText>Hợp đồng mới</ListItemText>
           </MenuItem>
         )}
         <MenuItem onClick={() => run(onEdit)}>
           <ListItemIcon>
             <EditIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Edit</ListItemText>
+          <ListItemText>Sửa</ListItemText>
         </MenuItem>
         {room.isActive ? (
           <MenuItem onClick={() => run(onRetire)}>
             <ListItemIcon>
               <ArchiveIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Retire</ListItemText>
+            <ListItemText>Ngừng sử dụng</ListItemText>
           </MenuItem>
         ) : (
           // Restoring can still be refused — another room may have taken this
@@ -93,7 +93,7 @@ export function RoomRowActions({
             <ListItemIcon>
               <UnarchiveIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Restore</ListItemText>
+            <ListItemText>Dùng lại</ListItemText>
           </MenuItem>
         )}
       </Menu>

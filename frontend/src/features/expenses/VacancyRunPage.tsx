@@ -90,9 +90,9 @@ export function VacancyRunPage() {
    */
   function localProblem(row: VacancyDue, entry: string): string | null {
     const reading = parseReading(entry)
-    if (reading === null) return 'Enter a whole number'
+    if (reading === null) return 'Nhập một số nguyên'
     if (reading < row.previousReading) {
-      return `Below the opening reading of ${row.previousReading}`
+      return `Thấp hơn số đầu kỳ ${row.previousReading}`
     }
     return null
   }
@@ -116,12 +116,12 @@ export function VacancyRunPage() {
       // A meter that has not moved is a real outcome with nothing to charge.
       // The room still leaves the list, so this is only worth a note.
       if (result.expense === null) {
-        setRow(row.roomId, { status: 'idle', note: 'Meter unchanged — nothing to charge' })
+        setRow(row.roomId, { status: 'idle', note: 'Công tơ không đổi — không có gì để tính' })
       }
     } catch (cause) {
       setRow(row.roomId, {
         status: 'failed',
-        error: isApiError(cause) ? cause.message : 'Could not record this reading.',
+        error: isApiError(cause) ? cause.message : 'Không ghi được số điện này.',
       })
     }
   }
@@ -158,11 +158,11 @@ export function VacancyRunPage() {
           severity={isApiError(dueQuery.error) && dueQuery.error.isTransport ? 'warning' : 'error'}
           action={
             <Button color="inherit" size="small" onClick={() => void dueQuery.refetch()}>
-              Retry
+              Thử lại
             </Button>
           }
         >
-          <AlertTitle>Could not load what is outstanding</AlertTitle>
+          <AlertTitle>Không tải được danh sách còn thiếu</AlertTitle>
           {isApiError(dueQuery.error) ? dueQuery.error.message : 'An unexpected error occurred.'}
         </Alert>
       )
@@ -171,8 +171,8 @@ export function VacancyRunPage() {
     if (due.length === 0) {
       return (
         <Alert severity="success" icon={<CheckCircleIcon />}>
-          <AlertTitle>{monthLabel(period.year, period.month)} is done</AlertTitle>
-          Every empty room has had its electricity recorded for that month.
+          <AlertTitle>{monthLabel(period.year, period.month)} đã xong</AlertTitle>
+          Mọi phòng trống đều đã được ghi số điện cho tháng đó.
         </Alert>
       )
     }
@@ -180,8 +180,8 @@ export function VacancyRunPage() {
     return (
       <>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          {due.length === 1 ? '1 empty room' : `${due.length} empty rooms`} still to
-          record — each disappears once its reading is entered.
+          {due.length === 1 ? '1 phòng trống' : `${due.length} phòng trống`} chưa ghi —
+          mỗi dòng biến mất khi đã nhập số điện.
         </Typography>
 
         {/* Desktop */}
@@ -189,10 +189,10 @@ export function VacancyRunPage() {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Room</TableCell>
-                <TableCell align="right">Opens from</TableCell>
-                <TableCell>Closing reading</TableCell>
-                <TableCell>Cost</TableCell>
+                <TableCell>Phòng</TableCell>
+                <TableCell align="right">Số đầu kỳ</TableCell>
+                <TableCell>Số điện cuối kỳ</TableCell>
+                <TableCell>Thành tiền</TableCell>
                 <TableCell />
               </TableRow>
             </TableHead>
@@ -243,7 +243,7 @@ export function VacancyRunPage() {
                       }
                       onClick={() => void save(row)}
                     >
-                      {rows[row.roomId]?.status === 'saving' ? 'Saving…' : 'Record'}
+                      {rows[row.roomId]?.status === 'saving' ? 'Đang lưu…' : 'Ghi'}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -270,14 +270,14 @@ export function VacancyRunPage() {
                     size="small"
                     type="number"
                     fullWidth
-                    label="Closing reading"
+                    label="Số điện cuối kỳ"
                     value={rows[row.roomId]?.reading ?? ''}
                     onChange={(event) =>
                       setRow(row.roomId, { reading: event.target.value, status: 'idle' })
                     }
                     error={rowError(row) !== undefined}
                     helperText={
-                      rowError(row) ?? preview(row) ?? `Opens from ${row.previousReading}`
+                      rowError(row) ?? preview(row) ?? `Số đầu kỳ ${row.previousReading}`
                     }
                     slotProps={{
                       htmlInput: { min: row.previousReading, step: 1 },
@@ -292,7 +292,7 @@ export function VacancyRunPage() {
                     }
                     onClick={() => void save(row)}
                   >
-                    {rows[row.roomId]?.status === 'saving' ? 'Saving…' : 'Record reading'}
+                    {rows[row.roomId]?.status === 'saving' ? 'Đang lưu…' : 'Ghi số điện'}
                   </Button>
                 </Stack>
               </CardContent>
@@ -306,17 +306,17 @@ export function VacancyRunPage() {
   return (
     <Box>
       <Typography variant="h5" component="h2" sx={{ mb: 0.5 }}>
-        Empty rooms this month
+        Phòng trống trong tháng
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        A room standing empty still runs its meter, and nobody is billed for it.
-        What is left here is electricity you paid for and have not recorded.
+        Phòng để trống thì công tơ vẫn chạy, và không ai bị tính tiền. Thứ còn lại
+        ở đây là tiền điện bạn đã trả mà chưa ghi vào sổ.
       </Typography>
 
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
         <TextField
           select
-          label="Month"
+          label="Tháng"
           size="small"
           value={`${period.year}-${period.month}`}
           onChange={(event) => {
@@ -336,7 +336,7 @@ export function VacancyRunPage() {
 
         <TextField
           select
-          label="Building"
+          label="Toà nhà"
           size="small"
           value={buildingId === '' ? '' : String(buildingId)}
           onChange={(event) => {
@@ -345,7 +345,7 @@ export function VacancyRunPage() {
           }}
           sx={{ minWidth: 220 }}
         >
-          <MenuItem value="">All buildings</MenuItem>
+          <MenuItem value="">Tất cả toà nhà</MenuItem>
           {(buildingsQuery.data?.data ?? []).map((building) => (
             <MenuItem key={building.id} value={String(building.id)}>
               {building.displayName}

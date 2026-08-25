@@ -62,7 +62,7 @@ export function VoidInvoiceDialog({ open, invoice, onClose }: VoidInvoiceDialogP
       await voidInvoice.mutateAsync({ id: invoice.id, reason: reason.trim() })
       onClose()
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : 'Could not withdraw this bill.')
+      setError(isApiError(cause) ? cause.message : 'Không rút được hoá đơn này.')
     }
   }
 
@@ -74,13 +74,12 @@ export function VoidInvoiceDialog({ open, invoice, onClose }: VoidInvoiceDialogP
 
   return (
     <Dialog open={open} onClose={isSubmitting ? undefined : onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Withdraw this bill</DialogTitle>
+      <DialogTitle>Rút hoá đơn này</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           <DialogContentText>
             {formatMoney(invoice.totalAmount)}
-            {period ? ` for ${period}` : ''} will stop counting towards what is
-            owed.
+            {period ? ` for ${period}` : ''} sẽ không còn được tính vào khoản phải thu.
           </DialogContentText>
 
           {error && <Alert severity="error">{error}</Alert>}
@@ -92,26 +91,26 @@ export function VoidInvoiceDialog({ open, invoice, onClose }: VoidInvoiceDialogP
             misled about what they just did.
           */}
           <Alert severity="info">
-            <AlertTitle>The bill is kept, not deleted</AlertTitle>
-            It stays on record as what was charged, marked as withdrawn.
-            {period ? ` The tenancy returns to ${period}'s billing list, where it can be reissued.` : ''}
+            <AlertTitle>Hoá đơn được GIỮ LẠI, không bị xoá</AlertTitle>
+            Vẫn nằm trong hồ sơ như bằng chứng đã thu khoản gì, đánh dấu là đã rút.
+            {period ? ` Hợp đồng sẽ quay lại danh sách cần xuất của ${period}, có thể xuất lại ở đó.` : ''}
           </Alert>
 
           <TextField
-            label="Why is it being withdrawn?"
+            label="Vì sao rút hoá đơn này?"
             fullWidth
             multiline
             minRows={2}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
             slotProps={{ htmlInput: { maxLength: 500 } }}
-            helperText="Read months later by whoever asks about this bill — including the tenant"
+            helperText="Vài tháng sau sẽ có người đọc lại khi thắc mắc về hoá đơn này — kể cả khách"
           />
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={isSubmitting}>
-          Keep bill
+          Giữ hoá đơn
         </Button>
         <Button
           variant="contained"
@@ -122,7 +121,7 @@ export function VoidInvoiceDialog({ open, invoice, onClose }: VoidInvoiceDialogP
           disabled={isSubmitting || reason.trim() === ''}
           startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
-          {isSubmitting ? 'Withdrawing…' : 'Withdraw bill'}
+          {isSubmitting ? 'Đang rút…' : 'Rút hoá đơn'}
         </Button>
       </DialogActions>
     </Dialog>
