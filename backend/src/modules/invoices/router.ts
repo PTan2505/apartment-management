@@ -6,6 +6,7 @@ import {
   generateInvoiceHandler,
   issueAdhocInvoiceHandler,
   listInvoicesHandler,
+  listDueHandler,
   getInvoiceHandler,
   markPaidHandler,
   voidInvoiceHandler,
@@ -20,6 +21,9 @@ invoicesRouter.post("/", generateInvoiceHandler);
 // its own operation — which is what settles the invoice's kind.
 invoicesRouter.post("/adhoc", issueAdhocInvoiceHandler);
 invoicesRouter.get("/", listInvoicesHandler);
+// What is still to be billed for a month. Registered before "/:id" so the
+// literal path is not swallowed by the id route.
+invoicesRouter.get("/due", listDueHandler);
 invoicesRouter.get("/:id", getInvoiceHandler);
 invoicesRouter.post("/:id/pay", markPaidHandler);
 invoicesRouter.post("/:id/void", voidInvoiceHandler);
