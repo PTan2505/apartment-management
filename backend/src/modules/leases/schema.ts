@@ -68,6 +68,25 @@ export const moveOutSchema = z.object({
     .default([]),
 });
 
+/**
+ * Recording that a tenancy never took place.
+ *
+ * Both amounts are optional in the SHAPE and required by the SERVICE wherever a
+ * holding exists — the rule is that they account for the whole holding, and a
+ * schema cannot see the holding. Deliberately no default of any kind: returning
+ * everything and keeping everything are both ordinary outcomes, so a default
+ * would be a decision made on the owner's behalf and accepted without being
+ * noticed.
+ */
+export const cancelLeaseSchema = z.object({
+  // Defaults to now in the service. Settable because an owner may be entering
+  // last week's decision, and the month this falls in is the month whatever
+  // they kept is earned in.
+  cancelledAt: isoDate.optional(),
+  depositReturned: z.coerce.number().nonnegative("must not be negative").optional(),
+  depositKept: z.coerce.number().nonnegative("must not be negative").optional(),
+});
+
 export const listLeasesQuerySchema = z.object({
   ...paginationQueryFields,
   roomId: z.coerce.number().int().positive().optional(),
@@ -110,3 +129,4 @@ export type UpdateLeaseInput = z.infer<typeof updateLeaseSchema>;
 export type ListLeasesQuery = z.infer<typeof listLeasesQuerySchema>;
 export type AddOccupantInput = z.infer<typeof addOccupantSchema>;
 export type ExtendLeaseInput = z.infer<typeof extendLeaseSchema>;
+export type CancelLeaseInput = z.infer<typeof cancelLeaseSchema>;

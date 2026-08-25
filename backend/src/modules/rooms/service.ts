@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma.js";
 import { mapPaginated, paginate, toSkipTake } from "@/lib/pagination.js";
 import { findLatestKnownReading } from "@/lib/meter-history.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
+import { HOLDS_ITS_ROOM } from "@/modules/leases/occupancy.js";
 import type { CreateRoomInput, ListRoomsQuery, UpdateRoomInput } from "./schema.js";
 
 /**
@@ -40,7 +41,7 @@ const roomSelect = {
    * counts a Prisma version supports filtering.
    */
   leases: {
-    where: { moveOutDate: null },
+    where: HOLDS_ITS_ROOM,
     select: { id: true },
     take: 1,
   },
@@ -122,7 +123,7 @@ export async function listRooms(query: ListRoomsQuery) {
     // Rooms that can be let. Applied in the query rather than by filtering the
     // page afterwards: post-filtering would return short pages and a total that
     // counts rooms the caller was not shown.
-    ...(query.vacant ? { leases: { none: { moveOutDate: null } } } : {}),
+    ...(query.vacant ? { leases: { none: HOLDS_ITS_ROOM } } : {}),
   };
 
   return mapPaginated(

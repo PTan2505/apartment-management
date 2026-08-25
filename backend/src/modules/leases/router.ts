@@ -13,6 +13,7 @@ import {
   getLeaseHandler,
   updateLeaseHandler,
   moveOutHandler,
+  cancelLeaseHandler,
   extendLeaseHandler,
   listOccupantsHandler,
   addOccupantHandler,
@@ -29,6 +30,10 @@ leasesRouter.get("/", listLeasesHandler);
 leasesRouter.get("/:id", getLeaseHandler);
 leasesRouter.patch("/:id", updateLeaseHandler);
 leasesRouter.post("/:id/move-out", moveOutHandler);
+// Recording that a tenancy never took place. A different event from a move-out
+// and deliberately a different endpoint: the two take different inputs, refuse
+// on different grounds, and mean different things about the room's history.
+leasesRouter.post("/:id/cancel", cancelLeaseHandler);
 // Renewing: closes this lease at its agreed end date and opens a successor
 // beginning the same day, carrying the deposit rather than charging it again.
 leasesRouter.post("/:id/extend", extendLeaseHandler);

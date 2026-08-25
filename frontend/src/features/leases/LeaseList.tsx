@@ -65,11 +65,28 @@ function tenantColor(lease: Lease): 'text.primary' | 'text.secondary' | 'warning
 function StatusChips({ lease }: { lease: Lease }) {
   return (
     <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+      {/*
+        Three labels, not two. A cancelled tenancy shown as "Ended" would be
+        counted among the times a room was let and a person rented — history
+        that never happened, and unrecoverable once it reads that way.
+      */}
       <Chip
         size="small"
-        label={lease.status === 'active' ? 'Running' : 'Ended'}
-        color={lease.status === 'active' ? 'success' : 'default'}
-        variant={lease.status === 'active' ? 'filled' : 'outlined'}
+        label={
+          lease.status === 'active'
+            ? 'Running'
+            : lease.status === 'cancelled'
+              ? 'Cancelled'
+              : 'Ended'
+        }
+        color={
+          lease.status === 'active'
+            ? 'success'
+            : lease.status === 'cancelled'
+              ? 'error'
+              : 'default'
+        }
+        variant={lease.status === 'finalized' ? 'outlined' : 'filled'}
       />
       {isTermRunOut(lease) && (
         <Chip
@@ -85,6 +102,12 @@ function StatusChips({ lease }: { lease: Lease }) {
 
 /** What the tenancy covers, always as the last day covered — never the boundary. */
 function coverLabel(lease: Lease): string {
+  // A cancelled tenancy covered no days at all, so it gets no range. Printing
+  // its agreed dates in a column headed "Covers" would state as occupancy the
+  // one thing this status exists to deny.
+  if (lease.status === 'cancelled') {
+    return `Cancelled ${formatDate(lease.cancelledAt)}`
+  }
   const from = formatDate(lease.startDate)
   const to = formatCoveredThrough(lease.moveOutDate ?? lease.expectedEndDate)
   return `${from} – ${to}`

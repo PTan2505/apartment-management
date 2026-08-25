@@ -37,6 +37,23 @@ export async function updateLease(id: number, input: UpdateLeaseFormOutput): Pro
   return data
 }
 
+/**
+ * Records that a tenancy never took place, and settles whatever deposit was
+ * held against it.
+ *
+ * Both amounts are sent together or neither is. Where a holding exists the API
+ * requires them to account for all of it and answers 400 otherwise; where
+ * nothing was collected it answers 400 for amounts sent anyway. Answers 409 on
+ * a tenancy that has been billed a month, has ended, or was already cancelled.
+ */
+export async function cancelLease(
+  id: number,
+  settlement: { depositReturned: number; depositKept: number } | null,
+): Promise<Lease> {
+  const { data } = await apiClient.post<Lease>(`/leases/${id}/cancel`, settlement ?? {})
+  return data
+}
+
 export async function listOccupants(leaseId: number): Promise<Paginated<Occupant>> {
   const { data } = await apiClient.get<Paginated<Occupant>>(`/leases/${leaseId}/occupants`, {
     // Occupants of one tenancy are few, and the screen shows the whole history
