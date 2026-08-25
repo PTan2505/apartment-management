@@ -6,6 +6,7 @@ import {
   issueAdhocInvoiceSchema,
   markPaidSchema,
   listInvoicesQuerySchema,
+  listDueQuerySchema,
 } from "./schema.js";
 import * as invoiceService from "./service.js";
 
@@ -27,6 +28,18 @@ export async function listInvoicesHandler(req: Request, res: Response) {
 
   const invoices = await invoiceService.listInvoices(parsed.data);
   res.status(200).json(invoices);
+}
+
+export async function listDueHandler(req: Request, res: Response) {
+  const parsed = listDueQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    throw new ValidationError("Invalid query parameters", parsed.error.flatten());
+  }
+
+  const due = await invoiceService.listDueForMonth(parsed.data);
+  // A bare array, not a paginated envelope: this is a worklist rather than a
+  // page of records, and nothing about it is navigable.
+  res.status(200).json({ data: due });
 }
 
 export async function getInvoiceHandler(req: Request, res: Response) {
