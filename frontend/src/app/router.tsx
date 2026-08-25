@@ -13,6 +13,9 @@ import { RoomsPage } from '@/features/rooms/RoomsPage'
 import { CustomersPage } from '@/features/customers/CustomersPage'
 import { LeasesPage } from '@/features/leases/LeasesPage'
 import { LeaseDetailPage } from '@/features/leases/LeaseDetailPage'
+import { InvoicesPage } from '@/features/invoices/InvoicesPage'
+import { InvoiceDetailPage } from '@/features/invoices/InvoiceDetailPage'
+import { BillingRunPage } from '@/features/invoices/BillingRunPage'
 
 /**
  * Three layers, and the order matters:
@@ -48,12 +51,18 @@ export const router = createBrowserRouter([
               { path: 'customers', element: <CustomersPage /> },
               { path: 'leases', element: <LeasesPage /> },
               { path: 'leases/:id', element: <LeaseDetailPage /> },
+              { path: 'invoices', element: <InvoicesPage /> },
+              // Before `invoices/:id`, so the literal path is not read as an id.
+              { path: 'invoices/billing-run', element: <BillingRunPage /> },
+              { path: 'invoices/:id', element: <InvoiceDetailPage /> },
 
               // The remaining destinations are still placeholders; each is
               // replaced by its own change.
               ...DESTINATIONS.filter(
                 (destination) =>
-                  !['/buildings', '/rooms', '/customers', '/leases'].includes(destination.path),
+                  !['/buildings', '/rooms', '/customers', '/leases', '/invoices'].includes(
+                    destination.path,
+                  ),
               ).map(
                 (destination) => ({
                   path: destination.path.replace(/^\//, ''),
