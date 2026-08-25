@@ -9,10 +9,10 @@ import type { ExpenseCategory } from '@/features/expenses/types'
  * for a mistake.
  */
 export const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
-  repair: 'Repair',
-  cleaning: 'Cleaning',
-  vacancy_electricity: 'Vacancy electricity',
-  other: 'Other',
+  repair: 'Sửa chữa',
+  cleaning: 'Vệ sinh',
+  vacancy_electricity: 'Điện phòng trống',
+  other: 'Khác',
 }
 
 export function categoryLabel(category: ExpenseCategory): string {

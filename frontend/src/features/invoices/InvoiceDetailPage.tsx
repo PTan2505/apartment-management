@@ -70,16 +70,16 @@ function ChargesCard({ invoice }: { invoice: Invoice }) {
     <Card variant="outlined">
       <CardContent>
         <Typography variant="h6" sx={{ mb: 1.5 }}>
-          Charges
+          Các khoản
         </Typography>
         <TableContainer sx={{ overflowX: 'auto' }}>
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>What</TableCell>
-                <TableCell>Based on</TableCell>
-                <TableCell>Covers</TableCell>
-                <TableCell align="right">Amount</TableCell>
+                <TableCell>Khoản mục</TableCell>
+                <TableCell>Tính theo</TableCell>
+                <TableCell>Thời gian</TableCell>
+                <TableCell align="right">Số tiền</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -106,7 +106,7 @@ function ChargesCard({ invoice }: { invoice: Invoice }) {
               <TableRow>
                 <TableCell colSpan={3}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    Total
+                    Tổng cộng
                   </Typography>
                 </TableCell>
                 <TableCell align="right">
@@ -147,12 +147,12 @@ function PaymentsCard({
     <Card variant="outlined">
       <CardContent>
         <Typography variant="h6" sx={{ mb: 1.5 }}>
-          Payments
+          Thanh toán
         </Typography>
 
         {real.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
-            Nothing has been recorded against this bill.
+            Chưa ghi nhận khoản thanh toán nào cho hoá đơn này.
           </Typography>
         ) : (
           <Stack spacing={1.5}>
@@ -173,12 +173,12 @@ function PaymentsCard({
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
                     {payment.state === 'reversed'
-                      ? `Received ${formatDate(payment.paidAt)}, reversed ${formatDate(payment.reversedAt)}`
-                      : `Received ${formatDate(payment.paidAt)}`}
+                      ? `Nhận ${formatDate(payment.paidAt)}, đảo ${formatDate(payment.reversedAt)}`
+                      : `Nhận ${formatDate(payment.paidAt)}`}
                   </Typography>
                 </Box>
                 {payment.state === 'reversed' ? (
-                  <Chip size="small" label="Reversed" />
+                  <Chip size="small" label="Đã đảo" />
                 ) : (
                   <Button
                     size="small"
@@ -187,7 +187,7 @@ function PaymentsCard({
                     disabled={reversing === payment.id}
                     onClick={() => onReverse(payment)}
                   >
-                    {reversing === payment.id ? 'Reversing…' : 'Reverse'}
+                    {reversing === payment.id ? 'Đang đảo…' : 'Đảo giao dịch'}
                   </Button>
                 )}
               </Box>
@@ -241,11 +241,11 @@ export function InvoiceDetailPage() {
     if (isApiError(invoiceQuery.error) && invoiceQuery.error.isNotFound) {
       return (
         <EmptyState
-          title="Invoice not found"
-          description="It may have been removed, or the address may be wrong."
+          title="Không tìm thấy hoá đơn"
+          description="Có thể nó đã bị xoá, hoặc địa chỉ sai."
           action={
             <Button variant="outlined" onClick={() => void navigate('/invoices')}>
-              Back to invoices
+              Về danh sách hoá đơn
             </Button>
           }
         />
@@ -258,11 +258,11 @@ export function InvoiceDetailPage() {
         }
         action={
           <Button color="inherit" size="small" onClick={() => void invoiceQuery.refetch()}>
-            Retry
+            Thử lại
           </Button>
         }
       >
-        <AlertTitle>Could not load this invoice</AlertTitle>
+        <AlertTitle>Không tải được hoá đơn này</AlertTitle>
         {isApiError(invoiceQuery.error)
           ? invoiceQuery.error.message
           : 'An unexpected error occurred.'}
@@ -274,7 +274,7 @@ export function InvoiceDetailPage() {
   const isVoided = invoice.voidedAt !== null
   const period = covered
     ? monthLabel(invoice.year, invoice.month)
-    : `Issued ${formatDate(invoice.issueDate)}`
+    : `Xuất ${formatDate(invoice.issueDate)}`
 
   /**
    * Where reissuing happens — the billing list for the month this bill covered,
@@ -303,7 +303,7 @@ export function InvoiceDetailPage() {
         reversedAt: new Date().toISOString().slice(0, 10),
       })
     } catch (cause) {
-      setActionError(isApiError(cause) ? cause.message : 'Could not reverse that payment.')
+      setActionError(isApiError(cause) ? cause.message : 'Không đảo được giao dịch đó.')
     } finally {
       setReversing(null)
     }
@@ -313,7 +313,7 @@ export function InvoiceDetailPage() {
     <Box>
       <Breadcrumbs sx={{ mb: 1 }}>
         <Link component={RouterLink} to="/invoices" underline="hover" color="inherit">
-          Invoices
+          Hoá đơn
         </Link>
         <Typography color="text.primary">{period}</Typography>
       </Breadcrumbs>
@@ -335,19 +335,19 @@ export function InvoiceDetailPage() {
           <Typography variant="body2" color="text.secondary">
             {period} ·{' '}
             <Link component={RouterLink} to={`/leases/${invoice.leaseId}`} underline="hover">
-              Lease #{invoice.leaseId}
+              Hợp đồng #{invoice.leaseId}
             </Link>
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
           <Chip variant="outlined" label={invoiceTypeLabel(invoice.type)} />
           {isVoided ? (
-            <Chip label="Voided" />
+            <Chip label="Đã rút" />
           ) : (
             <Chip
               color={invoice.paymentStatus === 'paid' ? 'success' : 'warning'}
               variant={invoice.paymentStatus === 'paid' ? 'filled' : 'outlined'}
-              label={invoice.paymentStatus === 'paid' ? 'Paid' : 'Unpaid'}
+              label={invoice.paymentStatus === 'paid' ? 'Đã trả' : 'Chưa trả'}
             />
           )}
         </Stack>
@@ -360,7 +360,7 @@ export function InvoiceDetailPage() {
         explains it once.
       */}
       <Alert severity="info" sx={{ mb: 2 }}>
-        <AlertTitle>{invoiceTypeLabel(invoice.type)} invoice</AlertTitle>
+        <AlertTitle>Hoá đơn {invoiceTypeLabel(invoice.type)}</AlertTitle>
         {invoiceTypeExplanation(invoice.type)}
       </Alert>
 
@@ -379,12 +379,12 @@ export function InvoiceDetailPage() {
                 component={RouterLink}
                 to={billingRunPath}
               >
-                Go there
+                Tới đó
               </Button>
             ) : undefined
           }
         >
-          <AlertTitle>This bill was withdrawn</AlertTitle>
+          <AlertTitle>Hoá đơn này đã bị rút</AlertTitle>
           {/*
             The reason, where there is one. Null means the bill was voided
             before reasons were recorded — a real state, said as such rather
@@ -397,13 +397,12 @@ export function InvoiceDetailPage() {
             </>
           ) : (
             <>
-              No reason was recorded — this bill was withdrawn before reasons
-              were kept.
+              Không ghi nhận lý do — hoá đơn này bị rút từ trước khi hệ thống lưu lý do.
               <br />
             </>
           )}
-          Voided on {formatDate(invoice.voidedAt)}. It is kept as a record of what
-          was charged, and counts towards nothing.
+          Rút ngày {formatDate(invoice.voidedAt)}. Vẫn được giữ làm bằng chứng đã thu
+          những khoản gì, và không tính vào bất kỳ con số nào.
           {/*
             Withdrawing is almost never the goal — the owner is correcting a
             bill, and stopping at "withdrawn" leaves them mid-task with no sign
@@ -412,14 +411,13 @@ export function InvoiceDetailPage() {
           {billingRunPath && !alreadyReissued && (
             <>
               <br />
-              This tenancy is back on {period}&apos;s billing list, where it can be
-              reissued.
+              Hợp đồng này đã quay lại danh sách cần xuất của {period}, có thể xuất lại ở đó.
             </>
           )}
           {billingRunPath && alreadyReissued && (
             <>
               <br />
-              A replacement has already been issued for {period}.
+              Đã có hoá đơn thay thế cho {period}.
             </>
           )}
         </Alert>
@@ -438,11 +436,11 @@ export function InvoiceDetailPage() {
           <Card variant="outlined">
             <CardContent>
               <Typography variant="h6" sx={{ mb: 1 }}>
-                Meter
+                Công tơ
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 {invoice.previousElectricityUse} → {invoice.currentElectricityUse} ·{' '}
-                {invoice.currentElectricityUse - invoice.previousElectricityUse} kWh billed
+                tính {invoice.currentElectricityUse - invoice.previousElectricityUse} kWh
               </Typography>
             </CardContent>
           </Card>
@@ -464,10 +462,10 @@ export function InvoiceDetailPage() {
                 startIcon={<PaymentsIcon />}
                 onClick={() => setPayOpen(true)}
               >
-                Record payment
+                Ghi nhận thanh toán
               </Button>
               {/*
-                The correction path for a bill issued in error — most often a
+                Đường sửa cho một hoá đơn xuất nhầm — most often a
                 mistyped meter reading, which no check on the billing screen can
                 catch once it is above the opening reading.
               */}
@@ -477,7 +475,7 @@ export function InvoiceDetailPage() {
                 startIcon={<BlockIcon />}
                 onClick={() => setVoidOpen(true)}
               >
-                Withdraw bill
+                Rút hoá đơn
               </Button>
             </Stack>
           </Box>
@@ -493,10 +491,9 @@ export function InvoiceDetailPage() {
         */}
         {!isVoided && invoice.paymentStatus === 'paid' && (
           <Alert severity="info">
-            <AlertTitle>To withdraw this bill, reverse its payment first</AlertTitle>
-            A paid bill cannot be withdrawn — the money paid for it would be left
-            against nothing. Reverse the payment above, then withdrawing becomes
-            available.
+            <AlertTitle>Muốn rút hoá đơn này thì phải đảo giao dịch trước</AlertTitle>
+            Hoá đơn đã thanh toán thì không rút được — số tiền đã trả sẽ không còn gắn
+            với khoản nào. Đảo giao dịch ở trên trước, rồi mới rút được.
           </Alert>
         )}
       </Stack>

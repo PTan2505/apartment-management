@@ -45,13 +45,13 @@ export function RoomsPage() {
   return (
     <Box>
       <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-        Rooms
+        Phòng
       </Typography>
 
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
         <TextField
           select
-          label="Building"
+          label="Toà nhà"
           size="small"
           value={filters.buildingId ?? ''}
           onChange={(event) =>
@@ -59,7 +59,7 @@ export function RoomsPage() {
           }
           sx={{ minWidth: 220, flexGrow: { xs: 1, sm: 0 } }}
         >
-          <MenuItem value="">All buildings</MenuItem>
+          <MenuItem value="">Tất cả toà nhà</MenuItem>
           {buildings.map((building) => (
             <MenuItem key={building.id} value={String(building.id)}>
               {building.displayName}
@@ -68,11 +68,11 @@ export function RoomsPage() {
         </TextField>
 
         <SearchField
-          label="Search room code"
+          label="Tìm mã phòng"
           size="small"
           value={filters.search ?? ''}
           onDebouncedChange={(value) => setFilter('search', value || undefined)}
-          helperText="Matches any code containing what you type"
+          helperText="Khớp mọi mã phòng có chứa nội dung bạn gõ"
           sx={{ minWidth: 220, flexGrow: { xs: 1, sm: 0 } }}
         />
 
@@ -85,12 +85,12 @@ export function RoomsPage() {
               }
             />
           }
-          label="Include retired"
+          label="Kể cả đã ngừng"
         />
 
         {hasFilters && (
           <Button onClick={clearFilters} size="small">
-            Clear filters
+            Xoá bộ lọc
           </Button>
         )}
       </Box>

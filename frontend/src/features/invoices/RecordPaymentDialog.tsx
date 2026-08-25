@@ -68,7 +68,7 @@ export function RecordPaymentDialog({ open, invoice, onClose }: RecordPaymentDia
       await markPaid.mutateAsync({ id: invoice.id, paymentMethod: method, paidAt })
       onClose()
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : 'Could not record that payment.')
+      setError(isApiError(cause) ? cause.message : 'Không ghi nhận được thanh toán.')
     }
   }
 
@@ -77,54 +77,54 @@ export function RecordPaymentDialog({ open, invoice, onClose }: RecordPaymentDia
 
   return (
     <Dialog open={open} onClose={isSubmitting ? undefined : onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Record payment</DialogTitle>
+      <DialogTitle>Ghi nhận thanh toán</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           <DialogContentText>
-            {formatMoney(invoice.totalAmount)} collected against this bill.
+            {formatMoney(invoice.totalAmount)} thu cho hoá đơn này.
           </DialogContentText>
 
           {error && <Alert severity="error">{error}</Alert>}
 
           <TextField
             select
-            label="How it arrived"
+            label="Hình thức"
             fullWidth
             value={method}
             onChange={(event) => setMethod(event.target.value as PaymentMethod)}
           >
-            <MenuItem value="cash">Cash</MenuItem>
-            <MenuItem value="bank_transfer">Bank transfer</MenuItem>
-            <MenuItem value="deposit_deduction">From the deposit held</MenuItem>
+            <MenuItem value="cash">Tiền mặt</MenuItem>
+            <MenuItem value="bank_transfer">Chuyển khoản</MenuItem>
+            <MenuItem value="deposit_deduction">Trừ vào tiền cọc</MenuItem>
           </TextField>
 
           {method === 'deposit_deduction' && (
             <Alert severity={depositCovers ? 'info' : 'warning'}>
               <AlertTitle>
-                {held === null ? 'Checking the deposit…' : `${formatMoney(held)} held`}
+                {held === null ? 'Đang kiểm tra tiền cọc…' : `Đang giữ ${formatMoney(held)}`}
               </AlertTitle>
               {held === null
-                ? 'Fetching what this tenancy is holding.'
+                ? 'Đang lấy số tiền cọc của hợp đồng này.'
                 : depositCovers
-                  ? 'The money reached you when the tenancy began; this records that it has been spent on this bill.'
-                  : 'This bill is larger than the deposit held, so it cannot be settled from it.'}
+                  ? 'Tiền đã về tay bạn từ lúc bắt đầu hợp đồng; đây là ghi nhận nó được dùng để trả hoá đơn này.'
+                  : 'Hoá đơn này lớn hơn số cọc đang giữ, nên không trừ vào cọc được.'}
             </Alert>
           )}
 
           <TextField
-            label="Date the money arrived"
+            label="Ngày nhận tiền"
             type="date"
             fullWidth
             value={paidAt}
             onChange={(event) => setPaidAt(event.target.value)}
             slotProps={{ inputLabel: { shrink: true } }}
-            helperText="Not the date you are entering it — reports are keyed on when it arrived"
+            helperText="Không phải ngày bạn nhập — báo cáo tính theo ngày tiền thực về"
           />
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={isSubmitting}>
-          Cancel
+          Huỷ
         </Button>
         <Button
           variant="contained"
@@ -132,7 +132,7 @@ export function RecordPaymentDialog({ open, invoice, onClose }: RecordPaymentDia
           disabled={isSubmitting || blocked}
           startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
-          {isSubmitting ? 'Recording…' : 'Record payment'}
+          {isSubmitting ? 'Đang ghi…' : 'Ghi nhận thanh toán'}
         </Button>
       </DialogActions>
     </Dialog>

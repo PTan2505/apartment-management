@@ -35,12 +35,25 @@ export function coveredThrough(exclusiveEnd: string): Date {
   return new Date(boundary.getTime() - 24 * 60 * 60 * 1000)
 }
 
-/** A date as a reader expects it. Absent renders as a dash, never as today. */
+/**
+ * A date as a reader expects it. Absent renders as a dash, never as today.
+ *
+ * Two-digit day and month are stated rather than left to the locale. `vi-VN`
+ * alone renders 25 August as `25/8/2026`, dropping the leading zero — which
+ * changes the width of a date from row to row, and these appear in columns.
+ * With them stated, the output is `25/08/2026`, exactly what this produced
+ * before.
+ */
 export function formatDate(value: string | Date | null | undefined): string {
   if (value === null || value === undefined) return '—'
   const date = typeof value === 'string' ? new Date(value) : value
   if (Number.isNaN(date.getTime())) return '—'
-  return date.toLocaleDateString('en-GB', { timeZone: 'UTC' })
+  return date.toLocaleDateString('vi-VN', {
+    timeZone: 'UTC',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
 }
 
 /** The last day covered, formatted. The only way this feature shows an ending. */

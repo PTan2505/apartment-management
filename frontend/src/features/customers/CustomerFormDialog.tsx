@@ -105,7 +105,7 @@ export function CustomerFormDialog({
       onClose()
     } catch (error) {
       if (!isApiError(error)) {
-        setFormError('Something went wrong. Please try again.')
+        setFormError('Có lỗi xảy ra. Vui lòng thử lại.')
         return
       }
       // A phone number belonging to an owner account, or to another customer on
@@ -131,7 +131,7 @@ export function CustomerFormDialog({
       fullWidth
       maxWidth="sm"
     >
-      <DialogTitle>{isEdit ? 'Edit customer' : 'New customer'}</DialogTitle>
+      <DialogTitle>{isEdit ? 'Sửa khách' : 'Thêm khách'}</DialogTitle>
 
       {/* noValidate: without it the browser validates first and its own bubble
           pre-empts the field message, which has bitten both earlier form
@@ -141,17 +141,17 @@ export function CustomerFormDialog({
           <Stack spacing={2} sx={{ mt: 1 }}>
             {matched && (
               <Alert severity="warning">
-                <AlertTitle>That phone number already belongs to someone</AlertTitle>
-                {matched.phone} is already on file for <strong>{matched.fullName}</strong>. No new
-                customer was created, and the name you entered was not saved. Correct the number
-                to add someone new, or close this if {matched.fullName} is who you meant.
+                <AlertTitle>Số điện thoại này đã thuộc về người khác</AlertTitle>
+                {matched.phone} đã được ghi cho <strong>{matched.fullName}</strong>. Không tạo
+                người mới, và tên bạn vừa nhập không được lưu. Sửa lại số để thêm người khác,
+                hoặc đóng lại nếu {matched.fullName} đúng là người bạn cần.
               </Alert>
             )}
 
             {formError && <Alert severity="error">{formError}</Alert>}
 
             <TextField
-              label="Full name"
+              label="Họ tên"
               required
               autoFocus
               {...register('fullName')}
@@ -161,14 +161,14 @@ export function CustomerFormDialog({
             />
 
             <TextField
-              label="Phone number"
+              label="Số điện thoại"
               {...register('phone')}
               error={Boolean(errors.phone)}
               helperText={
                 errors.phone?.message ??
                 (isEdit && customer?.phone
                   ? 'Leaving this empty keeps the current number — a phone number cannot be removed once recorded.'
-                  : 'Optional. Someone without a phone of their own can be left blank.')
+                  : 'Không bắt buộc. Người không có điện thoại riêng thì để trống.')
               }
               fullWidth
             />
@@ -177,10 +177,10 @@ export function CustomerFormDialog({
 
         <DialogActions>
           <Button onClick={onClose} disabled={isSubmitting}>
-            Cancel
+            Huỷ
           </Button>
           <Button type="submit" variant="contained" disabled={isSubmitting}>
-            {isSubmitting ? <CircularProgress size={20} /> : isEdit ? 'Save' : 'Add customer'}
+            {isSubmitting ? <CircularProgress size={20} /> : isEdit ? 'Lưu' : 'Thêm khách'}
           </Button>
         </DialogActions>
       </form>

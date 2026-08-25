@@ -111,18 +111,18 @@ function Breakdown({
 }
 
 const EXPENSE_LABELS: Record<string, string> = {
-  vacancy_electricity: 'Vacancy electricity',
-  cleaning: 'Cleaning',
-  repair: 'Repair',
-  other: 'Other',
+  vacancy_electricity: 'Điện phòng trống',
+  cleaning: 'Vệ sinh',
+  repair: 'Sửa chữa',
+  other: 'Khác',
 }
 
 const CHARGE_LABELS: Record<string, string> = {
-  damage: 'Damage',
-  cleaning: 'Cleaning',
-  lost_item: 'Lost item',
-  penalty: 'Penalty',
-  other: 'Other',
+  damage: 'Hư hỏng',
+  cleaning: 'Vệ sinh',
+  lost_item: 'Mất đồ',
+  penalty: 'Phạt',
+  other: 'Khác',
 }
 
 /**
@@ -173,15 +173,15 @@ function ArrivedSection({ months, total }: { months: MonthFigures[]; total: Tota
 
   return (
     <Box>
-      <Typography variant="subtitle2">Money that actually arrived</Typography>
+      <Typography variant="subtitle2">Tiền thực nhận trong tháng</Typography>
       <Typography variant="caption" color="text.secondary">
-        Counted in the month the payment was taken, whenever the bill was issued
-        — so this deliberately does not line up with the table above.
+        Tính theo tháng NHẬN được tiền, bất kể hoá đơn xuất khi nào — nên nó cố ý
+        KHÔNG khớp với bảng phía trên.
       </Typography>
       <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, mt: 1 }}>
         {active.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
-            No money arrived in this range.
+            Không có tiền nào về trong khoảng này.
           </Typography>
         ) : (
           active.map((m) => (
@@ -194,7 +194,7 @@ function ArrivedSection({ months, total }: { months: MonthFigures[]; total: Tota
         )}
       </Stack>
       <Typography variant="body2" sx={{ mt: 1, fontWeight: 600 }}>
-        {formatMoney(total.received)} across the range
+        {formatMoney(total.received)} trong cả khoảng
       </Typography>
     </Box>
   )
@@ -211,17 +211,17 @@ function BuildingSection({ report }: { report: BuildingReport }) {
 
           <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap', rowGap: 2 }}>
             <Figure
-              label="Billed"
+              label="Đã xuất hoá đơn"
               value={total.billed}
-              hint="Revenue billed out, deposits excluded"
+              hint="Tiền đã ghi hoá đơn trong tháng, không tính cọc"
             />
-            <Figure label="Settled" value={total.settled} hint="Of that, since paid" />
-            <Figure label="Outstanding" value={total.outstanding} hint="Of that, still owed" />
-            <Figure label="Spent" value={total.expenses} hint="Costs incurred" />
+            <Figure label="Đã thu" value={total.settled} hint="Trong số đó, khách đã trả" />
+            <Figure label="Còn nợ" value={total.outstanding} hint="Trong số đó, khách còn nợ" />
+            <Figure label="Chi phí" value={total.expenses} hint="Đã chi ra trong tháng" />
             <Figure
-              label="Net"
+              label="Còn lại"
               value={total.netBilled}
-              hint="Billed less spent"
+              hint="Đã xuất hoá đơn trừ chi phí"
               tone="loss"
             />
           </Stack>
@@ -240,7 +240,7 @@ function BuildingSection({ report }: { report: BuildingReport }) {
                 component={RouterLink}
                 to={`/invoices?buildingId=${report.buildingId}&paymentStatus=pending`}
               >
-                See the unpaid bills
+                Xem các hoá đơn chưa trả
               </Button>
             </Box>
           )}
@@ -251,12 +251,12 @@ function BuildingSection({ report }: { report: BuildingReport }) {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Month</TableCell>
-                  <TableCell align="right">Billed</TableCell>
-                  <TableCell align="right">Settled</TableCell>
-                  <TableCell align="right">Outstanding</TableCell>
-                  <TableCell align="right">Spent</TableCell>
-                  <TableCell align="right">Net</TableCell>
+                  <TableCell>Tháng</TableCell>
+                  <TableCell align="right">Đã xuất HĐ</TableCell>
+                  <TableCell align="right">Đã thu</TableCell>
+                  <TableCell align="right">Còn nợ</TableCell>
+                  <TableCell align="right">Chi phí</TableCell>
+                  <TableCell align="right">Còn lại</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -281,20 +281,20 @@ function BuildingSection({ report }: { report: BuildingReport }) {
                     {monthLabel(m.year, m.month)}
                   </Typography>
                   <Stack spacing={0.25}>
-                    <Typography variant="body2">Billed {formatMoney(m.billed)}</Typography>
+                    <Typography variant="body2">Đã xuất HĐ {formatMoney(m.billed)}</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Settled {formatMoney(m.settled)} · Outstanding{' '}
+                      Đã thu {formatMoney(m.settled)} · Còn nợ{' '}
                       {formatMoney(m.outstanding)}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Spent {formatMoney(m.expenses)}
+                      Chi phí {formatMoney(m.expenses)}
                     </Typography>
                     <Typography
                       variant="body2"
                       sx={{ fontWeight: 500 }}
                       color={m.netBilled < 0 ? 'error.main' : 'text.primary'}
                     >
-                      Net {formatMoney(m.netBilled)}
+                      Còn lại {formatMoney(m.netBilled)}
                     </Typography>
                   </Stack>
                 </CardContent>
@@ -307,15 +307,15 @@ function BuildingSection({ report }: { report: BuildingReport }) {
           <ArrivedSection months={report.months} total={total} />
 
           <Breakdown
-            title="What was spent, by kind"
-            partOf={`Parts of the ${formatMoney(total.expenses)} spent`}
+            title="Chi phí theo loại"
+            partOf={`Các phần của ${formatMoney(total.expenses)} chi phí`}
             values={total.expensesByCategory}
             labels={EXPENSE_LABELS}
           />
 
           <Breakdown
-            title="Charges you decided, by kind"
-            partOf={`Already counted inside the ${formatMoney(total.billed)} billed — not an addition to it`}
+            title="Khoản bạn tự đặt, theo loại"
+            partOf={`Đã nằm TRONG ${formatMoney(total.billed)} đã xuất hoá đơn — không cộng thêm`}
             values={total.chargesByCategory}
             labels={CHARGE_LABELS}
           />
@@ -360,11 +360,11 @@ export function RevenueReportPage() {
           }
           action={
             <Button color="inherit" size="small" onClick={() => void reportQuery.refetch()}>
-              Retry
+              Thử lại
             </Button>
           }
         >
-          <AlertTitle>Could not load the report</AlertTitle>
+          <AlertTitle>Không tải được báo cáo</AlertTitle>
           {isApiError(reportQuery.error)
             ? reportQuery.error.message
             : 'An unexpected error occurred.'}
@@ -375,8 +375,8 @@ export function RevenueReportPage() {
     if (!report || report.buildings.length === 0) {
       return (
         <Alert severity="info">
-          <AlertTitle>No buildings to report on</AlertTitle>
-          Add a building and record some billing to see figures here.
+          <AlertTitle>Chưa có toà nhà nào để báo cáo</AlertTitle>
+          Thêm toà nhà và xuất vài hoá đơn để thấy số liệu ở đây.
         </Alert>
       )
     }
@@ -395,17 +395,17 @@ export function RevenueReportPage() {
           <Card variant="outlined">
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Across all buildings</Typography>
+                <Typography variant="h6">Tất cả các toà nhà</Typography>
                 <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap', rowGap: 2 }}>
-                  <Figure label="Billed" value={report.total.billed} />
-                  <Figure label="Settled" value={report.total.settled} />
-                  <Figure label="Outstanding" value={report.total.outstanding} />
-                  <Figure label="Spent" value={report.total.expenses} />
-                  <Figure label="Net" value={report.total.netBilled} tone="loss" />
+                  <Figure label="Đã xuất hoá đơn" value={report.total.billed} />
+                  <Figure label="Đã thu" value={report.total.settled} />
+                  <Figure label="Còn nợ" value={report.total.outstanding} />
+                  <Figure label="Chi phí" value={report.total.expenses} />
+                  <Figure label="Còn lại" value={report.total.netBilled} tone="loss" />
                   <Figure
-                    label="Arrived"
+                    label="Tiền thực nhận"
                     value={report.total.received}
-                    hint="Money taken in, by payment date"
+                    hint="Tiền vào tay, tính theo ngày nhận"
                   />
                 </Stack>
               </Stack>
@@ -419,16 +419,16 @@ export function RevenueReportPage() {
   return (
     <Box>
       <Typography variant="h5" component="h2" sx={{ mb: 0.5 }}>
-        Revenue
+        Doanh thu
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        What your buildings billed, what has been paid, and what they cost you.
+        Các toà nhà đã xuất hoá đơn bao nhiêu, thu được bao nhiêu, và tốn của bạn bao nhiêu.
       </Typography>
 
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
         <TextField
           select
-          label="From"
+          label="Từ"
           size="small"
           value={toParam(from)}
           onChange={(event) => {
@@ -446,7 +446,7 @@ export function RevenueReportPage() {
 
         <TextField
           select
-          label="To"
+          label="Đến"
           size="small"
           value={toParam(to)}
           onChange={(event) => {
@@ -464,7 +464,7 @@ export function RevenueReportPage() {
 
         <TextField
           select
-          label="Buildings"
+          label="Toà nhà"
           size="small"
           value={buildingIds.length === 1 ? String(buildingIds[0]) : ''}
           onChange={(event) =>
@@ -472,7 +472,7 @@ export function RevenueReportPage() {
           }
           sx={{ minWidth: 220 }}
         >
-          <MenuItem value="">All buildings</MenuItem>
+          <MenuItem value="">Tất cả toà nhà</MenuItem>
           {(buildingsQuery.data?.data ?? []).map((building) => (
             <MenuItem key={building.id} value={String(building.id)}>
               {building.displayName}
@@ -487,7 +487,7 @@ export function RevenueReportPage() {
       */}
       {from.year * 12 + from.month > to.year * 12 + to.month && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          The first month is after the last one.
+          Tháng bắt đầu đang sau tháng kết thúc.
         </Alert>
       )}
 

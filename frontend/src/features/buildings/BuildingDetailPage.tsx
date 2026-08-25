@@ -48,7 +48,7 @@ export function BuildingDetailPage() {
     if (isApiError(error) && error.isNotFound) return <NotFound />
     return (
       <Alert severity={isApiError(error) && error.isTransport ? 'warning' : 'error'}>
-        <AlertTitle>Could not load this building</AlertTitle>
+        <AlertTitle>Không tải được toà nhà này</AlertTitle>
         {isApiError(error) ? error.message : 'An unexpected error occurred.'}
       </Alert>
     )
@@ -59,14 +59,14 @@ export function BuildingDetailPage() {
   return (
     <Box>
       <Button component={RouterLink} to="/buildings" startIcon={<ArrowBackIcon />} sx={{ mb: 1 }}>
-        All buildings
+        Tất cả toà nhà
       </Button>
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
         <Typography variant="h5" component="h2">
           {building.displayName}
         </Typography>
-        {!building.isActive && <Chip label="Retired" size="small" variant="outlined" />}
+        {!building.isActive && <Chip label="Đã ngừng" size="small" variant="outlined" />}
       </Box>
       <Typography color="text.secondary">{building.address}</Typography>
       <Typography color="text.secondary" sx={{ mb: 1 }}>
@@ -80,7 +80,7 @@ export function BuildingDetailPage() {
       <Divider sx={{ my: 3 }} />
 
       <Typography variant="h6" component="h3" sx={{ mb: 1 }}>
-        Rooms
+        Phòng
       </Typography>
       <RoomsSection
         rooms={roomsQuery.data?.data}
@@ -99,14 +99,14 @@ function NotFound() {
   return (
     <Box>
       <Typography variant="h5" component="h2" gutterBottom>
-        Building not found
+        Không tìm thấy toà nhà
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
-        There is no building at this address. It may have been removed, or the
+        Không có toà nhà nào ở địa chỉ này. Có thể nó đã bị xoá, hoặc
         link may be wrong.
       </Typography>
       <Button variant="contained" component={RouterLink} to="/buildings">
-        All buildings
+        Tất cả toà nhà
       </Button>
     </Box>
   )

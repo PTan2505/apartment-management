@@ -59,7 +59,7 @@ export function TransferPrimaryDialog({
       await transferMutation.mutateAsync({ leaseId, customerId: Number(customerId) })
       onClose()
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : 'Could not transfer responsibility.')
+      setError(isApiError(cause) ? cause.message : 'Không chuyển được người đứng tên.')
     }
   }
 
@@ -67,23 +67,23 @@ export function TransferPrimaryDialog({
 
   return (
     <Dialog open={open} onClose={isSubmitting ? undefined : onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Transfer responsibility</DialogTitle>
+      <DialogTitle>Chuyển người đứng tên</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           <DialogContentText>
             {holder?.fullName ?? 'The current holder'} answers for this agreement
-            today. They stay living here; only who is responsible changes.
+            kể từ hôm nay. Họ vẫn ở đây; chỉ đổi người đứng tên.
           </DialogContentText>
 
           {error && <Alert severity="error">{error}</Alert>}
 
           <TextField
             select
-            label="Takes over"
+            label="Người nhận"
             fullWidth
             value={customerId === '' ? '' : String(customerId)}
             onChange={(event) => setCustomerId(Number(event.target.value))}
-            helperText="Only people currently living here"
+            helperText="Chỉ những người đang ở tại đây"
           >
             {candidates.map((candidate) => (
               <MenuItem key={candidate.id} value={String(candidate.customerId)}>
@@ -95,7 +95,7 @@ export function TransferPrimaryDialog({
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={isSubmitting}>
-          Cancel
+          Huỷ
         </Button>
         <Button
           variant="contained"

@@ -108,7 +108,7 @@ export function RoomFormDialog({
       onClose()
     } catch (error) {
       if (!isApiError(error)) {
-        setFormError('Something went wrong. Please try again.')
+        setFormError('Có lỗi xảy ra. Vui lòng thử lại.')
         return
       }
       // A duplicate room code arrives as a conflict with a message naming the
@@ -140,7 +140,7 @@ export function RoomFormDialog({
       fullWidth
       maxWidth="sm"
     >
-      <DialogTitle>{isEdit ? 'Edit room' : 'New room'}</DialogTitle>
+      <DialogTitle>{isEdit ? 'Sửa phòng' : 'Thêm phòng'}</DialogTitle>
       <DialogContent>
         {formError && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -156,13 +156,13 @@ export function RoomFormDialog({
           onSubmit={handleSubmit(onSubmit)} sx={{ mt: 1 }}>
           {fixedBuilding !== undefined ? (
             <TextField
-              label="Building"
+              label="Toà nhà"
               fullWidth
               value={fixedBuilding}
               slotProps={{ input: { readOnly: true }, inputLabel: { shrink: true } }}
               helperText={
                 isEdit
-                  ? 'A room cannot be moved between buildings'
+                  ? 'Không thể chuyển phòng sang toà nhà khác'
                   : 'Creating in this building'
               }
             />
@@ -177,7 +177,7 @@ export function RoomFormDialog({
               render={({ field }) => (
                 <TextField
                   select
-                  label="Building"
+                  label="Toà nhà"
                   fullWidth
                   value={field.value ? String(field.value) : ''}
                   onChange={(event) => field.onChange(Number(event.target.value))}
@@ -185,7 +185,7 @@ export function RoomFormDialog({
                   inputRef={field.ref}
                   error={Boolean(errors.buildingId)}
                   helperText={
-                    errors.buildingId?.message ?? 'Only buildings in service can take a room'
+                    errors.buildingId?.message ?? 'Chỉ toà nhà đang dùng mới thêm được phòng'
                   }
                 >
                   {buildings.map((building) => (
@@ -199,20 +199,20 @@ export function RoomFormDialog({
           )}
 
           <TextField
-            label="Room code"
+            label="Mã phòng"
             fullWidth
             autoFocus
             error={Boolean(errors.roomCode)}
-            helperText={errors.roomCode?.message ?? 'Unique among rooms in service in this building'}
+            helperText={errors.roomCode?.message ?? 'Không trùng với phòng đang dùng trong toà nhà này'}
             {...register('roomCode')}
           />
           <TextField
-            label="Monthly rent"
+            label="Giá thuê hàng tháng"
             type="number"
             fullWidth
             slotProps={{ htmlInput: { step: 'any', min: 0 } }}
             error={Boolean(errors.baseRent)}
-            helperText={errors.baseRent?.message ?? 'Đồng per month'}
+            helperText={errors.baseRent?.message ?? 'Đồng mỗi tháng'}
             {...register('baseRent', { valueAsNumber: true })}
           />
 
@@ -230,14 +230,14 @@ export function RoomFormDialog({
           */}
           {!isEdit && (
             <TextField
-              label="Electricity meter now (optional)"
+              label="Số điện hiện tại (không bắt buộc)"
               type="number"
               fullWidth
               slotProps={{ htmlInput: { step: 1, min: 0 } }}
               error={Boolean(errors.initialMeterReading)}
               helperText={
                 errors.initialMeterReading?.message ??
-                'A starting point, never charged. Without it, months this room stands empty before its first tenancy cannot be costed.'
+                'Chỉ là mốc khởi đầu, không bị tính tiền. Không có nó thì những tháng phòng trống trước hợp đồng đầu tiên sẽ không ghi được chi phí điện.'
               }
               {...register('initialMeterReading', { valueAsNumber: true })}
             />
@@ -246,7 +246,7 @@ export function RoomFormDialog({
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={isSubmitting}>
-          Cancel
+          Huỷ
         </Button>
         <Button
           type="submit"
@@ -255,7 +255,7 @@ export function RoomFormDialog({
           disabled={isSubmitting}
           startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
-          {isSubmitting ? 'Saving…' : isEdit ? 'Save' : 'Create'}
+          {isSubmitting ? 'Đang lưu…' : isEdit ? 'Lưu' : 'Tạo'}
         </Button>
       </DialogActions>
     </Dialog>

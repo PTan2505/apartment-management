@@ -139,7 +139,7 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
       }
       onClose()
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : 'Could not save this cost.')
+      setError(isApiError(cause) ? cause.message : 'Không lưu được chi phí này.')
     }
   }
 
@@ -147,15 +147,15 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
 
   return (
     <Dialog open={open} onClose={isSubmitting ? undefined : onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{isEditing ? 'Correct this cost' : 'Record a cost'}</DialogTitle>
+      <DialogTitle>{isEditing ? 'Sửa chi phí' : 'Ghi chi phí'}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
 
           {isEditing && expense.origin === 'system' && (
             <Alert severity="info">
-              This cost was recorded by the system from a meter reading. It can be
-              corrected — a mistyped reading has to be fixable after the fact.
+              Chi phí này do hệ thống ghi từ số công tơ. Vẫn sửa được — gõ nhầm số điện
+              thì phải sửa lại được.
             </Alert>
           )}
 
@@ -163,7 +163,7 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
             <>
               <TextField
                 select
-                label="Building"
+                label="Toà nhà"
                 fullWidth
                 value={buildingId === '' ? '' : String(buildingId)}
                 onChange={(event) => {
@@ -182,15 +182,15 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
 
               <TextField
                 select
-                label="Room (optional)"
+                label="Phòng (không bắt buộc)"
                 fullWidth
                 value={roomId === '' ? '' : String(roomId)}
                 onChange={(event) =>
                   setRoomId(event.target.value === '' ? '' : Number(event.target.value))
                 }
-                helperText="Leave blank for a cost that belongs to the whole building"
+                helperText="Để trống nếu chi phí thuộc về cả toà nhà"
               >
-                <MenuItem value="">No particular room</MenuItem>
+                <MenuItem value="">Không thuộc phòng nào</MenuItem>
                 {(roomsQuery.data?.data ?? []).map((room) => (
                   <MenuItem key={room.id} value={String(room.id)}>
                     {room.roomCode}
@@ -202,7 +202,7 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
 
           <TextField
             select
-            label="Kind"
+            label="Loại"
             fullWidth
             value={category}
             onChange={(event) => setCategory(event.target.value as ExpenseCategory)}
@@ -215,15 +215,15 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
           </TextField>
 
           <TextField
-            label="What it was for"
+            label="Nội dung chi"
             fullWidth
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            helperText="Checked against a receipt months later — a kind and an amount alone cannot be"
+            helperText="Vài tháng sau sẽ đối chiếu với hoá đơn giấy — chỉ có loại và số tiền thì không đối chiếu được"
           />
 
           <TextField
-            label="Date it was incurred"
+            label="Ngày phát sinh"
             type="date"
             fullWidth
             value={incurredAt}
@@ -239,7 +239,7 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
                   onChange={(event) => setMeasured(event.target.checked)}
                 />
               }
-              label="This cost is measured (a quantity at a rate)"
+              label="Chi phí này đo được (số lượng × đơn giá)"
             />
           )}
 
@@ -247,7 +247,7 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
             <>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField
-                  label="Quantity"
+                  label="Số lượng"
                   type="number"
                   fullWidth
                   value={quantity}
@@ -255,7 +255,7 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
                   slotProps={{ htmlInput: { min: 0, step: 'any' } }}
                 />
                 <TextField
-                  label="Rate"
+                  label="Đơn giá"
                   type="number"
                   fullWidth
                   value={unitRate}
@@ -269,13 +269,13 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
                 here would invite a third number that disagrees with both.
               */}
               <Typography variant="body2" color="text.secondary">
-                Amount: {derived === null ? '—' : formatMoney(derived)} (computed from
-                the quantity and rate)
+                Thành tiền: {derived === null ? '—' : formatMoney(derived)} (tính từ số
+                lượng và đơn giá)
               </Typography>
             </>
           ) : (
             <TextField
-              label="Amount"
+              label="Số tiền"
               type="number"
               fullWidth
               value={amount}
@@ -287,7 +287,7 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={isSubmitting}>
-          Cancel
+          Huỷ
         </Button>
         <Button
           variant="contained"
@@ -295,7 +295,7 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
           disabled={isSubmitting || !ready}
           startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
-          {isSubmitting ? 'Saving…' : isEditing ? 'Save correction' : 'Record cost'}
+          {isSubmitting ? 'Đang lưu…' : isEditing ? 'Lưu sửa đổi' : 'Ghi chi phí'}
         </Button>
       </DialogActions>
     </Dialog>

@@ -85,7 +85,7 @@ export function AppShell() {
     <Box>
       <Toolbar>
         <Typography variant="h6" noWrap>
-          Apartments
+          Quản lý trọ
         </Typography>
       </Toolbar>
       <Divider />
@@ -108,7 +108,7 @@ export function AppShell() {
           <IconButton
             color="inherit"
             edge="start"
-            aria-label="Open navigation"
+            aria-label="Mở menu"
             onClick={() => setMobileOpen(true)}
             sx={{
               mr: 2,
@@ -120,7 +120,7 @@ export function AppShell() {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="h1" sx={{ flexGrow: 1 }}>
-            {activeDestination?.label ?? 'Apartment Management'}
+            {activeDestination?.label ?? 'Quản lý trọ'}
           </Typography>
           <AccountMenu />
         </Toolbar>

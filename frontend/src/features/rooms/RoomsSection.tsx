@@ -74,7 +74,7 @@ export function RoomsSection({
       // since it was retired. The owner did nothing wrong and the reason is not
       // obvious, so the API's own message is shown rather than a generic one.
       setRestoreError(
-        isApiError(err) ? err.message : 'Could not restore that room.',
+        isApiError(err) ? err.message : 'Không dùng lại được phòng đó.',
       )
     }
   }
@@ -94,11 +94,11 @@ export function RoomsSection({
           severity={isApiError(error) && error.isTransport ? 'warning' : 'error'}
           action={
             <Button color="inherit" size="small" onClick={onRetry}>
-              Retry
+              Thử lại
             </Button>
           }
         >
-          <AlertTitle>Could not load rooms</AlertTitle>
+          <AlertTitle>Không tải được danh sách phòng</AlertTitle>
           {isApiError(error) ? error.message : 'An unexpected error occurred.'}
         </Alert>
       )
@@ -107,19 +107,19 @@ export function RoomsSection({
     if (!rooms || rooms.length === 0) {
       return hasFilters ? (
         <EmptyState
-          title="No rooms match these filters"
-          description="Try a different building or code, or clear the filters."
+          title="Không có phòng nào khớp bộ lọc"
+          description="Thử toà nhà hoặc mã phòng khác, hoặc xoá bộ lọc."
           action={
             onClearFilters && (
               <Button variant="outlined" onClick={onClearFilters}>
-                Clear filters
+                Xoá bộ lọc
               </Button>
             )
           }
         />
       ) : (
         <EmptyState
-          title="No rooms yet"
+          title="Chưa có phòng nào"
           description={
             buildingId
               ? 'Add the first room in this building.'
@@ -127,7 +127,7 @@ export function RoomsSection({
           }
           action={
             <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-              New room
+              Thêm phòng
             </Button>
           }
         />
@@ -156,13 +156,13 @@ export function RoomsSection({
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
         <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-          New room
+          Thêm phòng
         </Button>
       </Box>
 
       {restoreError && (
         <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setRestoreError(null)}>
-          <AlertTitle>Cannot restore this room</AlertTitle>
+          <AlertTitle>Chưa thể dùng lại phòng này</AlertTitle>
           {restoreError}
         </Alert>
       )}

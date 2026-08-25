@@ -43,7 +43,7 @@ export function AccountMenu() {
       {/* Phone: icon only. */}
       <IconButton
         color="inherit"
-        aria-label="Account"
+        aria-label="Tài khoản"
         onClick={(event) => setAnchorEl(event.currentTarget)}
         sx={{ display: { xs: 'inline-flex', [MOBILE_BREAKPOINT]: 'none' } }}
       >
@@ -84,7 +84,7 @@ export function AccountMenu() {
           <ListItemIcon>
             <LogoutIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Sign out</ListItemText>
+          <ListItemText>Đăng xuất</ListItemText>
         </MenuItem>
       </Menu>
     </>

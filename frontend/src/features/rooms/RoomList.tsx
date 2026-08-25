@@ -31,7 +31,7 @@ interface RoomListProps {
 }
 
 function RetiredChip() {
-  return <Chip label="Retired" size="small" variant="outlined" />
+  return <Chip label="Đã ngừng" size="small" variant="outlined" />
 }
 
 /**
@@ -44,9 +44,9 @@ function RetiredChip() {
  */
 function OccupancyChip({ isLet }: { isLet: boolean }) {
   return isLet ? (
-    <Chip label="Let" size="small" color="info" variant="outlined" />
+    <Chip label="Đang cho thuê" size="small" color="info" variant="outlined" />
   ) : (
-    <Chip label="Vacant" size="small" variant="outlined" />
+    <Chip label="Còn trống" size="small" variant="outlined" />
   )
 }
 
@@ -85,11 +85,11 @@ export function RoomList({
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Room</TableCell>
-              {!hideBuilding && <TableCell>Building</TableCell>}
-              <TableCell>Rent</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>Phòng</TableCell>
+              {!hideBuilding && <TableCell>Toà nhà</TableCell>}
+              <TableCell>Giá thuê</TableCell>
+              <TableCell>Trạng thái</TableCell>
+              <TableCell align="right">Thao tác</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -106,12 +106,12 @@ export function RoomList({
                   </TableCell>
                 )}
                 <TableCell>
-                  <Typography variant="body2">{formatMoney(room.baseRent)} / month</Typography>
+                  <Typography variant="body2">{formatMoney(room.baseRent)} / tháng</Typography>
                 </TableCell>
                 <TableCell>
                   <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
                     {room.isActive ? (
-                      <Chip label="Active" size="small" color="success" variant="outlined" />
+                      <Chip label="Đang dùng" size="small" color="success" variant="outlined" />
                     ) : (
                       <RetiredChip />
                     )}
@@ -140,7 +140,7 @@ export function RoomList({
                       {room.building.displayName}
                     </Typography>
                   )}
-                  <Typography variant="body2">{formatMoney(room.baseRent)} / month</Typography>
+                  <Typography variant="body2">{formatMoney(room.baseRent)} / tháng</Typography>
                 </Box>
                 <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
                   {!room.isActive && <RetiredChip />}

@@ -22,37 +22,37 @@ export interface Destination {
  */
 export const DESTINATIONS: readonly Destination[] = [
   {
-    label: 'Buildings',
+    label: 'Toà nhà',
     path: '/buildings',
     icon: ApartmentIcon,
   },
   {
-    label: 'Rooms',
+    label: 'Phòng',
     path: '/rooms',
     icon: MeetingRoomIcon,
   },
   {
-    label: 'Customers',
+    label: 'Khách',
     path: '/customers',
     icon: PeopleIcon,
   },
   {
-    label: 'Leases',
+    label: 'Hợp đồng',
     path: '/leases',
     icon: DescriptionIcon,
   },
   {
-    label: 'Invoices',
+    label: 'Hoá đơn',
     path: '/invoices',
     icon: ReceiptIcon,
   },
   {
-    label: 'Expenses',
+    label: 'Chi phí',
     path: '/expenses',
     icon: PaymentsIcon,
   },
   {
-    label: 'Revenue',
+    label: 'Doanh thu',
     path: '/revenue',
     icon: BarChartIcon,
   },
