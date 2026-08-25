@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router'
 import Alert from '@mui/material/Alert'
 import AlertTitle from '@mui/material/AlertTitle'
 import Box from '@mui/material/Box'
@@ -67,10 +68,22 @@ function parseReading(value: string): number | null {
 
 export function BillingRunPage() {
   const months = recentMonths()
-  // Defaults to LAST month, not this one. A month is billed once it is over —
-  // its utilities are not known until then — so the month an owner opens this
-  // screen to close off is almost never the one they are standing in.
-  const [period, setPeriod] = useState(() => months[1] ?? months[0]!)
+  const [searchParams] = useSearchParams()
+
+  const [period, setPeriod] = useState(() => {
+    // A month named in the address wins. Withdrawing a bill sends the owner
+    // here to reissue it, and landing them on a different month's work — with
+    // their room nowhere in sight — would strand them mid-correction.
+    const year = Number(searchParams.get('year'))
+    const month = Number(searchParams.get('month'))
+    if (Number.isInteger(year) && year > 2000 && month >= 1 && month <= 12) {
+      return { year, month }
+    }
+    // Otherwise LAST month, not this one. A month is billed once it is over —
+    // its utilities are not known until then — so the month an owner opens this
+    // screen to close off is almost never the one they are standing in.
+    return months[1] ?? months[0]!
+  })
   const [buildingId, setBuildingId] = useState<number | ''>('')
   const [rows, setRows] = useState<Record<number, RowState>>({})
 

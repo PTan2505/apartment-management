@@ -19,6 +19,7 @@ import TableContainer from '@mui/material/TableContainer'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import Typography from '@mui/material/Typography'
+import BlockIcon from '@mui/icons-material/Block'
 import PaymentsIcon from '@mui/icons-material/Payments'
 import UndoIcon from '@mui/icons-material/Undo'
 
@@ -26,7 +27,7 @@ import { isApiError } from '@/lib/api-error'
 import { formatMoney } from '@/lib/format'
 import { EmptyState } from '@/components/EmptyState'
 import { formatDate } from '@/features/leases/dates'
-import { useInvoice, useReversePayment } from '@/features/invoices/hooks'
+import { useInvoice, useInvoices, useReversePayment } from '@/features/invoices/hooks'
 import {
   invoiceTypeExplanation,
   invoiceTypeLabel,
@@ -34,6 +35,7 @@ import {
   paymentMethodLabel,
 } from '@/features/invoices/labels'
 import { RecordPaymentDialog } from '@/features/invoices/RecordPaymentDialog'
+import { VoidInvoiceDialog } from '@/features/invoices/VoidInvoiceDialog'
 import type { Invoice, InvoiceLineItem, Payment } from '@/features/invoices/types'
 
 /**
@@ -202,7 +204,28 @@ export function InvoiceDetailPage() {
   const navigate = useNavigate()
   const invoiceQuery = useInvoice(Number(id))
   const reverse = useReversePayment()
+
+  // Derived before the early returns below, because hooks cannot be called
+  // conditionally and the query that follows depends on these.
+  const loaded = invoiceQuery.data
+  const covered = loaded?.year != null && loaded?.month != null
+
+  /**
+   * Whether a replacement already exists for that lease and month.
+   *
+   * Asked so the withdrawn banner does not assert something false. Without it,
+   * a bill voided and reissued last month would still say its tenancy "is back
+   * on the list", and the owner following that link would find nothing there.
+   */
+  const replacements = useInvoices(
+    { leaseId: loaded?.leaseId ?? 0, year: loaded?.year ?? undefined, month: loaded?.month ?? undefined },
+    // Only where there is something to ask about: a bill covering no month is
+    // on no billing list, so the question does not arise.
+    loaded !== undefined && covered && loaded.voidedAt !== null,
+  )
+
   const [payOpen, setPayOpen] = useState(false)
+  const [voidOpen, setVoidOpen] = useState(false)
   const [reversing, setReversing] = useState<number | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
@@ -249,10 +272,24 @@ export function InvoiceDetailPage() {
 
   const invoice = invoiceQuery.data
   const isVoided = invoice.voidedAt !== null
-  const period =
-    invoice.year !== null && invoice.month !== null
-      ? monthLabel(invoice.year, invoice.month)
-      : `Issued ${formatDate(invoice.issueDate)}`
+  const period = covered
+    ? monthLabel(invoice.year, invoice.month)
+    : `Issued ${formatDate(invoice.issueDate)}`
+
+  /**
+   * Where reissuing happens — the billing list for the month this bill covered,
+   * NOT the current month, which is a different month's work.
+   *
+   * Null for a bill covering no month. A move-in or ad-hoc invoice is not on
+   * any billing list, and sending an owner to one would land them on a screen
+   * that does not mention their room.
+   */
+  const billingRunPath = covered
+    ? `/invoices/billing-run?year=${invoice.year}&month=${invoice.month}`
+    : null
+
+  const alreadyReissued =
+    covered && (replacements.data?.data ?? []).some((other) => other.id !== invoice.id)
 
   async function handleReverse(payment: Payment) {
     setActionError(null)
@@ -328,10 +365,63 @@ export function InvoiceDetailPage() {
       </Alert>
 
       {isVoided && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
+        <Alert
+          severity="warning"
+          sx={{ mb: 2 }}
+          // Offered only where a billing list actually covers this bill, and
+          // only while nothing has replaced it. A move-in or ad-hoc invoice
+          // belongs to no month, and no list will ever offer it — see below.
+          action={
+            billingRunPath && !alreadyReissued ? (
+              <Button
+                color="inherit"
+                size="small"
+                component={RouterLink}
+                to={billingRunPath}
+              >
+                Go there
+              </Button>
+            ) : undefined
+          }
+        >
           <AlertTitle>This bill was withdrawn</AlertTitle>
+          {/*
+            The reason, where there is one. Null means the bill was voided
+            before reasons were recorded — a real state, said as such rather
+            than papered over with a substituted explanation nobody gave.
+          */}
+          {invoice.voidReason ? (
+            <>
+              {invoice.voidReason}
+              <br />
+            </>
+          ) : (
+            <>
+              No reason was recorded — this bill was withdrawn before reasons
+              were kept.
+              <br />
+            </>
+          )}
           Voided on {formatDate(invoice.voidedAt)}. It is kept as a record of what
           was charged, and counts towards nothing.
+          {/*
+            Withdrawing is almost never the goal — the owner is correcting a
+            bill, and stopping at "withdrawn" leaves them mid-task with no sign
+            of where the other half happens.
+          */}
+          {billingRunPath && !alreadyReissued && (
+            <>
+              <br />
+              This tenancy is back on {period}&apos;s billing list, where it can be
+              reissued.
+            </>
+          )}
+          {billingRunPath && alreadyReissued && (
+            <>
+              <br />
+              A replacement has already been issued for {period}.
+            </>
+          )}
         </Alert>
       )}
 
@@ -368,14 +458,46 @@ export function InvoiceDetailPage() {
         {!isVoided && invoice.paymentStatus === 'pending' && (
           <Box>
             <Divider sx={{ mb: 2 }} />
-            <Button
-              variant="contained"
-              startIcon={<PaymentsIcon />}
-              onClick={() => setPayOpen(true)}
-            >
-              Record payment
-            </Button>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+              <Button
+                variant="contained"
+                startIcon={<PaymentsIcon />}
+                onClick={() => setPayOpen(true)}
+              >
+                Record payment
+              </Button>
+              {/*
+                The correction path for a bill issued in error — most often a
+                mistyped meter reading, which no check on the billing screen can
+                catch once it is above the opening reading.
+              */}
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<BlockIcon />}
+                onClick={() => setVoidOpen(true)}
+              >
+                Withdraw bill
+              </Button>
+            </Stack>
           </Box>
+        )}
+
+        {/*
+          Withheld on a PAID bill, with the step before it named.
+
+          The API refuses this outright — withdrawing a bill while the money
+          paid for it stays put leaves an owner holding cash against nothing.
+          Offering it to report that refusal teaches nothing actionable; the
+          thing the owner needs is the reversal, which is on this same screen.
+        */}
+        {!isVoided && invoice.paymentStatus === 'paid' && (
+          <Alert severity="info">
+            <AlertTitle>To withdraw this bill, reverse its payment first</AlertTitle>
+            A paid bill cannot be withdrawn — the money paid for it would be left
+            against nothing. Reverse the payment above, then withdrawing becomes
+            available.
+          </Alert>
         )}
       </Stack>
 
@@ -383,6 +505,11 @@ export function InvoiceDetailPage() {
         open={payOpen}
         invoice={invoice}
         onClose={() => setPayOpen(false)}
+      />
+      <VoidInvoiceDialog
+        open={voidOpen}
+        invoice={invoice}
+        onClose={() => setVoidOpen(false)}
       />
     </Box>
   )

@@ -6,10 +6,16 @@ import type { ListInvoicesParams, PaymentMethod } from '@/features/invoices/type
 const INVOICES_KEY = ['invoices'] as const
 const LEASES_KEY = ['leases'] as const
 
-export function useInvoices(params: ListInvoicesParams) {
+/**
+ * `enabled` exists for callers that must ask this question conditionally.
+ * Hooks cannot be called conditionally, so the condition has to live in the
+ * query rather than around the call.
+ */
+export function useInvoices(params: ListInvoicesParams, enabled = true) {
   return useQuery({
     queryKey: [...INVOICES_KEY, 'list', params],
     queryFn: () => invoicesApi.listInvoices(params),
+    enabled,
   })
 }
 
@@ -56,6 +62,21 @@ export function useGenerateInvoice() {
   const invalidate = useInvalidateInvoices()
   return useMutation({
     mutationFn: invoicesApi.generateInvoice,
+    onSuccess: invalidate,
+  })
+}
+
+/**
+ * Withdrawing a bill puts its tenancy back on that month's billing list, so
+ * this has to refresh invoices — the `due` queries live under the same key, and
+ * a stale one would leave the room missing from the list the owner is about to
+ * be sent to.
+ */
+export function useVoidInvoice() {
+  const invalidate = useInvalidateInvoices()
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      invoicesApi.voidInvoice(id, reason),
     onSuccess: invalidate,
   })
 }

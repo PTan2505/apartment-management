@@ -69,6 +69,18 @@ export async function generateInvoice(input: {
   return data
 }
 
+/**
+ * Withdraws a bill issued in error, keeping it as a record.
+ *
+ * The reason is required by the API, not merely encouraged: answers 400 for an
+ * empty one. Answers 409 on a bill already withdrawn, and on a PAID one — the
+ * payment is reversed first, which the invoice screen can already do.
+ */
+export async function voidInvoice(id: number, reason: string): Promise<Invoice> {
+  const { data } = await apiClient.post<Invoice>(`/invoices/${id}/void`, { reason })
+  return data
+}
+
 /** Answers 400 when settling from a deposit larger than the holding covers. */
 export async function markPaid(
   id: number,

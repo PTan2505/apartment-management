@@ -72,6 +72,15 @@ export interface Invoice {
   paymentStatus: PaymentStatus
   /** Set once withdrawn. A voided bill is history, never money owed. */
   voidedAt: string | null
+  /**
+   * Why it was withdrawn.
+   *
+   * Null on a bill voided before reasons were recorded — which is a real state
+   * and NOT a missing value to paper over: nobody knows why those were
+   * withdrawn, and showing a substituted explanation would put a false
+   * statement in front of a reader.
+   */
+  voidReason: string | null
   lineItems: InvoiceLineItem[]
   payments: Payment[]
 }
