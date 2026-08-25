@@ -32,6 +32,19 @@ export const recordVacancySchema = z.object({
   currentReading: z.coerce.number().int().nonnegative("must not be negative"),
 });
 
+/**
+ * Which empty rooms still need their electricity recorded for a month.
+ *
+ * Not paginated, for the same reason the billing worklist is not: this is work
+ * an owner walks down, and a second page of outstanding rooms is a set of rooms
+ * that gets forgotten.
+ */
+export const listVacancyDueQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2200),
+  month: z.coerce.number().int().min(1).max(12),
+  buildingId: z.coerce.number().int().positive().optional(),
+});
+
 export const listExpensesQuerySchema = z.object({
   ...paginationQueryFields,
   buildingId: z.coerce.number().int().positive().optional(),
@@ -45,3 +58,4 @@ export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;
 export type RecordVacancyInput = z.infer<typeof recordVacancySchema>;
 export type ListExpensesQuery = z.infer<typeof listExpensesQuerySchema>;
+export type ListVacancyDueQuery = z.infer<typeof listVacancyDueQuerySchema>;
