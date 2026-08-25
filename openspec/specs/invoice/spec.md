@@ -187,9 +187,37 @@ Voiding an invoice that has been paid SHALL be refused. Voiding removes a bill f
 
 The owner SHALL reverse the payment first, which returns the invoice to pending and hands the money back. The invoice can then be voided and reissued.
 
+**Voiding SHALL record why the bill was withdrawn, and SHALL require a reason.** A wrong meter reading, a bill issued against the wrong tenancy, and a charge the owner chose to waive are different events with different consequences, and a withdrawn bill carrying only a date cannot be explained afterwards — least of all to the tenant who asks about it. The reason is required rather than optional because an optional field on an action performed occasionally is a field that is always left empty, which is the same as not having it.
+
+Where the system itself withdraws a bill — cancelling a tenancy voids its unpaid move-in invoice — it SHALL record its own reason in the same place. A withdrawal the system performed and one the owner performed are equally in need of explanation, and a second place to record the same fact would only compete with the first.
+
+A reason recorded at a void SHALL NOT be alterable afterwards, for the same reason the figures on an invoice are not: it is a dated record of what happened.
+
+Invoices voided before reasons were recorded SHALL report no reason, rather than a substituted one. Nobody knows why they were withdrawn, and inventing a uniform explanation would put a false statement in the record.
+
 #### Scenario: Voiding an invoice
-- **WHEN** an authenticated owner voids an unpaid invoice
-- **THEN** the invoice is reported as voided, its record is retained, and it no longer counts toward amounts owed or settled
+- **WHEN** an authenticated owner voids an unpaid invoice, giving a reason
+- **THEN** the invoice is reported as voided with that reason, its record is retained, and it no longer counts toward amounts owed or settled
+
+#### Scenario: Voiding without a reason
+
+- **WHEN** an authenticated owner voids an invoice without giving a reason, or gives an empty one
+- **THEN** the system responds with HTTP 400 and the invoice is unchanged
+
+#### Scenario: The reason is reported with the invoice
+
+- **WHEN** an authenticated owner retrieves a voided invoice
+- **THEN** the response carries the reason it was withdrawn alongside the date
+
+#### Scenario: A system-performed void records its own reason
+
+- **WHEN** cancelling a tenancy voids its unpaid move-in invoice
+- **THEN** that invoice reports a reason naming the cancellation
+
+#### Scenario: An invoice voided before reasons were recorded
+
+- **WHEN** an authenticated owner retrieves an invoice voided before this was introduced
+- **THEN** it reports no reason, rather than a substituted one
 
 #### Scenario: Voiding a paid invoice
 - **WHEN** an authenticated owner voids an invoice that has been paid
