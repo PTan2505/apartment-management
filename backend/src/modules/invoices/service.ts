@@ -23,6 +23,7 @@ import type {
   IssueAdhocInvoiceInput,
   ListDueQuery,
   ListInvoicesQuery,
+  VoidInvoiceInput,
   MarkPaidInput,
 } from "./schema.js";
 
@@ -456,7 +457,7 @@ export async function markPaid(id: number, input: MarkPaidInput) {
  * Unwinding the deposit holdings an invoice moved is no longer done here — it
  * belongs to the reversal, and doing both would restore a holding twice.
  */
-export async function voidInvoice(id: number) {
+export async function voidInvoice(id: number, input: VoidInvoiceInput) {
   const invoice = await findInvoiceOrThrow(id);
 
   if (invoice.voidedAt !== null) {
@@ -470,7 +471,9 @@ export async function voidInvoice(id: number) {
 
   return prisma.invoice.update({
     where: { id },
-    data: { voidedAt: new Date() },
+    // Why, alongside when. A withdrawn bill carrying only a date cannot be
+    // explained months later — least of all to the tenant asking about it.
+    data: { voidedAt: new Date(), voidReason: input.reason },
     include: invoiceInclude,
   });
 }

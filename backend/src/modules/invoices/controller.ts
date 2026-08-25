@@ -7,6 +7,7 @@ import {
   markPaidSchema,
   listInvoicesQuerySchema,
   listDueQuerySchema,
+  voidInvoiceSchema,
 } from "./schema.js";
 import * as invoiceService from "./service.js";
 
@@ -61,7 +62,15 @@ export async function markPaidHandler(req: Request, res: Response) {
 }
 
 export async function voidInvoiceHandler(req: Request, res: Response) {
-  const invoice = await invoiceService.voidInvoice(parseIdParam(req.params.id, "Invoice"));
+  const parsed = voidInvoiceSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    throw new ValidationError("Invalid void payload", parsed.error.flatten());
+  }
+
+  const invoice = await invoiceService.voidInvoice(
+    parseIdParam(req.params.id, "Invoice"),
+    parsed.data,
+  );
   res.status(200).json(invoice);
 }
 

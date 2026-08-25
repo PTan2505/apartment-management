@@ -728,9 +728,17 @@ export async function cancelLease(id: number, input: CancelLeaseInput) {
     //
     // No holding is released alongside: a holding only ever comes from an
     // invoice that was PAID, and those are not touched here.
+    //
+    // Recorded with its own reason, in the same column an owner's void writes
+    // to. A withdrawal nobody performed deliberately needs explaining MORE than
+    // one that was, not less — and a second place to record the same fact would
+    // only compete with the first.
     await tx.invoice.updateMany({
       where: { leaseId: id, voidedAt: null, paymentStatus: "pending" },
-      data: { voidedAt: cancelledAt },
+      data: {
+        voidedAt: cancelledAt,
+        voidReason: "The tenancy was cancelled — it never took place",
+      },
     });
 
     // What the owner keeps is recorded through the machinery that already
