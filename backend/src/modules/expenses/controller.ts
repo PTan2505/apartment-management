@@ -6,6 +6,7 @@ import {
   updateExpenseSchema,
   recordVacancySchema,
   listExpensesQuerySchema,
+  listVacancyDueQuerySchema,
 } from "./schema.js";
 import * as expenseService from "./service.js";
 
@@ -50,6 +51,17 @@ export async function updateExpenseHandler(req: Request, res: Response) {
 export async function deleteExpenseHandler(req: Request, res: Response) {
   await expenseService.deleteExpense(parseIdParam(req.params.id, "Expense"));
   res.status(204).send();
+}
+
+export async function listVacancyDueHandler(req: Request, res: Response) {
+  const parsed = listVacancyDueQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    throw new ValidationError("Invalid query parameters", parsed.error.flatten());
+  }
+
+  const due = await expenseService.listVacancyDue(parsed.data);
+  // A bare array: this is a worklist rather than a page of records.
+  res.status(200).json({ data: due });
 }
 
 export async function recordVacancyHandler(req: Request, res: Response) {
