@@ -82,7 +82,15 @@ export function RoomFormDialog({
     reset(
       room
         ? { buildingId: room.buildingId, roomCode: room.roomCode, baseRent: room.baseRent }
-        : { buildingId: buildingId ?? 0, roomCode: '', baseRent: 0 },
+        : {
+            buildingId: buildingId ?? 0,
+            roomCode: '',
+            baseRent: 0,
+            // Left EMPTY rather than defaulted to 0: an empty field means
+            // nobody has said, and zero would be a statement the owner never
+            // made about a meter they may not have looked at.
+            initialMeterReading: undefined,
+          },
     )
   }, [open, room, buildingId, reset])
 
@@ -207,6 +215,33 @@ export function RoomFormDialog({
             helperText={errors.baseRent?.message ?? 'Đồng per month'}
             {...register('baseRent', { valueAsNumber: true })}
           />
+
+          {/*
+            Only when creating. The reading describes the moment the room was
+            added; once any tenancy or vacancy record exists the room's position
+            comes from those, so an editable field here would look like a way to
+            correct history that it is not.
+
+            Optional and non-blocking, but explained — an unexplained number
+            field on a form gets skipped, and what it buys is not obvious. What
+            it buys: without it, every month the room stands empty before its
+            first tenancy is electricity the owner pays for and cannot record
+            anywhere.
+          */}
+          {!isEdit && (
+            <TextField
+              label="Electricity meter now (optional)"
+              type="number"
+              fullWidth
+              slotProps={{ htmlInput: { step: 1, min: 0 } }}
+              error={Boolean(errors.initialMeterReading)}
+              helperText={
+                errors.initialMeterReading?.message ??
+                'A starting point, never charged. Without it, months this room stands empty before its first tenancy cannot be costed.'
+              }
+              {...register('initialMeterReading', { valueAsNumber: true })}
+            />
+          )}
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
