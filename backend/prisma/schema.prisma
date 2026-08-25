@@ -445,6 +445,23 @@ model Invoice {
   // Voided invoices are retained as an audit trail, excluded from totals, and
   // excluded from the uniqueness predicate so a replacement can be issued.
   voidedAt      DateTime?
+  // Why the bill was withdrawn. Free text, because the mistakes are genuinely
+  // varied — a misread meter, a bill against the wrong tenancy, a charge waived
+  // after a conversation — and a list short enough to read would push most of
+  // them into "other". Deliberately unlike the ad-hoc charge categories, which
+  // are fixed because they are totalled across tenancies; this is read once, by
+  // a person, about one bill.
+  //
+  // NULLABLE with no backfill, though the service requires one on the way in.
+  // The invoices already voided were withdrawn for reasons nobody recorded and
+  // nobody now knows: a NOT NULL column would force writing something like
+  // "Reason not recorded" into them, stating as fact a sentence nobody said.
+  // Null reads as "voided before reasons were recorded", which is true.
+  //
+  // Written by whoever withdrew the bill, including the system — cancelling a
+  // tenancy voids its unpaid move-in invoice and records its own reason here,
+  // so a reader never has to check a second place to learn why.
+  voidReason    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
