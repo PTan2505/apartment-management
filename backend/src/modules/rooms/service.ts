@@ -24,6 +24,10 @@ const roomSelect = {
   buildingId: true,
   roomCode: true,
   baseRent: true,
+  // Where the meter stood when the room was added. Reported so a caller can
+  // show it; used by the meter-position resolution as one dated candidate
+  // among four.
+  initialMeterReading: true,
   isActive: true,
   createdAt: true,
   updatedAt: true,

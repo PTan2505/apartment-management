@@ -19,6 +19,14 @@ export interface Room {
   roomCode: string
   /** Recorded to two decimal places, so it can be fractional. */
   baseRent: number
+  /**
+   * Where the meter stood when the room was added, or null where nobody said.
+   *
+   * Null and 0 are different facts — the second is a statement that the meter
+   * reads zero — and the distinction is what keeps a room brought in from an
+   * existing building from being charged its meter's whole history.
+   */
+  initialMeterReading: number | null
   isActive: boolean
   /**
    * Whether a tenancy is currently running here.

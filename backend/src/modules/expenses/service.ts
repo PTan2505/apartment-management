@@ -150,8 +150,18 @@ export interface VacancyResult {
  *
  * A room with no known reading at all is excluded rather than reported with a
  * null: consumption is a difference, there is nothing to subtract from, and
- * `recordVacancyElectricity` below refuses it outright. Its first reading is
- * taken when it is first let.
+ * `recordVacancyElectricity` below refuses it outright.
+ *
+ * That exclusion is now NARROW rather than ordinary. A room records the meter
+ * reading it was created at, so a never-let room normally has a position and
+ * appears here — which is the case this round most needs to cover, since
+ * nothing else will produce a reading for such a room before its first
+ * tenancy. What remains excluded is a room added before opening readings were
+ * recorded, or one created without stating a figure.
+ *
+ * The filter below did not have to change for that: it was written against the
+ * general rule — no known reading — rather than against "never let", so it
+ * narrowed on its own when the rule stopped applying to new rooms.
  */
 export async function listVacancyDue(query: ListVacancyDueQuery) {
   const monthEnd = new Date(Date.UTC(query.year, query.month, 0));
