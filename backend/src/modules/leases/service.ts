@@ -892,17 +892,21 @@ export async function confirmContractUpload(id: number, key: string) {
     );
   }
 
-  const previous = lease.contractKey;
   await prisma.lease.update({ where: { id }, data: { contractKey: key } });
 
-  // Deleted AFTER the new one is recorded, so a failure here leaves the tenancy
-  // with the old contract rather than with none.
-  if (previous !== null && previous !== key) {
-    await storage.deleteObject(previous).catch(() => {
-      // A leftover object costs storage; a thrown error here would report a
-      // successful replacement as a failure and invite the owner to repeat it.
-    });
-  }
+  // Everything else under this tenancy's prefix goes: the contract being
+  // replaced, and any upload that reached storage and was never confirmed.
+  //
+  // This used to delete only the PREVIOUS contract, which caught a replacement
+  // and never an abandoned upload — and abandoned uploads accumulate, since
+  // nothing else ever removes them. Found by running the feature against a real
+  // bucket, not while designing it.
+  //
+  // After the record is written, so a failure leaves the tenancy with a
+  // contract rather than none. And swallowed: the record is what the
+  // application reads, and reporting a successful confirmation as a failure
+  // would invite the owner to repeat an upload that already worked.
+  await storage.clearPrefixExcept(storage.contractPrefix(id), key).catch(() => {});
 
   return findLeaseOrThrow(id);
 }
@@ -924,10 +928,8 @@ export async function removeContract(id: number) {
   }
 
   await prisma.lease.update({ where: { id }, data: { contractKey: null } });
-  await storage.deleteObject(lease.contractKey).catch(() => {
-    // As above: the record is what the application reads, and reporting a
-    // failure after clearing it would be reporting a state that is not true.
-  });
+  // Keeping nothing: the contract itself and any abandoned upload beside it.
+  await storage.clearPrefixExcept(storage.contractPrefix(id), null).catch(() => {});
 
   return findLeaseOrThrow(id);
 }

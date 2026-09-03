@@ -3,6 +3,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -219,4 +220,39 @@ export async function describeObject(
 
 export async function deleteObject(key: string): Promise<void> {
   await s3().send(new DeleteObjectCommand({ Bucket: env.R2_BUCKET!, Key: key }));
+}
+
+/**
+ * Removes everything under a tenancy's prefix except one named object.
+ *
+ * An upload that is never confirmed leaves an object behind — the browser sends
+ * the file and the confirmation then fails, so nothing is recorded and the
+ * object remains, unreachable through the application and invisible in it.
+ *
+ * The prefix holds at most one object the application references, so everything
+ * else is litter by construction. That is why the rule is "not the current key"
+ * rather than an age: it needs no clock and no guess about how long an upload
+ * might take.
+ *
+ * Pass `null` to keep nothing, which is what removing a contract wants.
+ */
+export async function clearPrefixExcept(prefix: string, keep: string | null): Promise<void> {
+  let token: string | undefined;
+  do {
+    const page = await s3().send(
+      new ListObjectsV2Command({
+        Bucket: env.R2_BUCKET!,
+        Prefix: prefix,
+        ContinuationToken: token,
+      }),
+    );
+
+    for (const object of page.Contents ?? []) {
+      if (object.Key && object.Key !== keep) {
+        await deleteObject(object.Key);
+      }
+    }
+
+    token = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (token !== undefined);
 }
