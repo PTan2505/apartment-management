@@ -31,6 +31,7 @@ import { useInvoice, useInvoices, useReversePayment } from '@/features/invoices/
 import {
   invoiceTypeExplanation,
   invoiceTypeLabel,
+  lineLabel,
   monthLabel,
   paymentMethodLabel,
 } from '@/features/invoices/labels'
@@ -86,7 +87,7 @@ function ChargesCard({ invoice }: { invoice: Invoice }) {
               {invoice.lineItems.map((line) => (
                 <TableRow key={line.id}>
                   <TableCell>
-                    <Typography variant="body2">{line.description}</Typography>
+                    <Typography variant="body2">{lineLabel(line)}</Typography>
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" color="text.secondary">
