@@ -94,3 +94,66 @@ export async function transferPrimary(leaseId: number, customerId: number): Prom
   )
   return data
 }
+
+/** The kinds of file an owner would plausibly scan a contract as. */
+export const CONTRACT_ACCEPT = 'application/pdf,image/jpeg,image/png,image/heic'
+
+export interface SignedUpload {
+  url: string
+  key: string
+  expiresAt: string
+  maxBytes: number
+}
+
+/**
+ * Asks for a URL to upload a contract with.
+ *
+ * Answers 503 where storage is not configured on the server — a state, not a
+ * fault, and one the screen says out loud rather than offering an action that
+ * cannot work.
+ */
+export async function signContractUpload(
+  leaseId: number,
+  contentType: string,
+): Promise<SignedUpload> {
+  const { data } = await apiClient.post<SignedUpload>(
+    `/leases/${leaseId}/contract-upload-url`,
+    { contentType },
+  )
+  return data
+}
+
+/**
+ * Sends the file to storage, NOT through the API.
+ *
+ * A plain `fetch` rather than the API client: this request carries no session,
+ * goes to another host entirely, and must send exactly the Content-Type that
+ * was bound into the signature — anything else and storage refuses it.
+ */
+export async function uploadToStorage(signed: SignedUpload, file: File): Promise<void> {
+  const response = await fetch(signed.url, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type },
+    body: file,
+  })
+  if (!response.ok) {
+    throw new Error(`Kho lưu trữ từ chối tệp này (${response.status})`)
+  }
+}
+
+/** Records the contract, once the API has confirmed the file really arrived. */
+export async function confirmContract(leaseId: number, key: string): Promise<Lease> {
+  const { data } = await apiClient.post<Lease>(`/leases/${leaseId}/contract`, { key })
+  return data
+}
+
+/** A short-lived link for reading. Answers 404 where there is no contract. */
+export async function getContractUrl(leaseId: number): Promise<{ url: string }> {
+  const { data } = await apiClient.get<{ url: string }>(`/leases/${leaseId}/contract`)
+  return data
+}
+
+export async function removeContract(leaseId: number): Promise<Lease> {
+  const { data } = await apiClient.delete<Lease>(`/leases/${leaseId}/contract`)
+  return data
+}

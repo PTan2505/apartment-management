@@ -78,6 +78,21 @@ export interface Lease {
   cancellable: boolean
   /** Why cancellation is withheld on a running tenancy: it has been billed. */
   hasBilledMonth: boolean
+  /**
+   * Whether the signed contract is on file — never WHERE it is.
+   *
+   * The storage key does not reach here: every link to the file is signed at
+   * the moment it is asked for, so a key on screen would be an address with no
+   * way to open it and one more thing to leak.
+   */
+  hasContract: boolean
+  /**
+   * Whether this deployment can keep contracts at all.
+   *
+   * Known before anything is attempted, so the screen says storage is
+   * unconfigured rather than offering an upload that will fail.
+   */
+  contractStorageAvailable: boolean
   tenant: LeaseTenant | null
   createdAt: string
   updatedAt: string
