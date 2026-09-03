@@ -10,6 +10,7 @@ import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 
 import { formatMoney } from '@/lib/format'
+import { lineLabel } from '@/lib/invoice-lines'
 import type { PortalInvoice } from '@/portal/api'
 
 /** What a tenant calls each kind of bill. The API's own names are for the owner. */
@@ -21,14 +22,6 @@ const KIND_LABEL: Record<string, string> = {
   adhoc: 'Khoản phát sinh',
 }
 
-const CHARGE_LABEL: Record<string, string> = {
-  rent: 'Tiền nhà',
-  electricity: 'Điện',
-  water: 'Nước',
-  serviceFee: 'Dịch vụ',
-  deposit: 'Tiền cọc',
-  charge: 'Khoản phát sinh',
-}
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—'
@@ -108,17 +101,29 @@ export function InvoiceCard({ invoice, expanded, onToggle, children }: Props) {
                 <Stack key={index} spacing={0.25}>
                   <Stack direction="row" spacing={1} sx={{ justifyContent: 'space-between' }}>
                     <Typography variant="body2">
-                      {CHARGE_LABEL[charge.kind] ?? charge.kind}
+                      {/*
+                        The same labelling the owner's screens use, so a tenant
+                        querying a bill and the owner looking at it read the
+                        same words. For a charge the owner wrote themselves,
+                        this IS their sentence — which is the informative part,
+                        and used to be demoted to the caption below.
+                      */}
+                      {lineLabel(charge)}
                     </Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {formatMoney(charge.amount)}
                     </Typography>
                   </Stack>
-                  <Typography variant="caption" color="text.secondary">
-                    {charge.description}
-                    {basis ? ` · ${basis}` : ''}
-                    {period ? ` · ${period}` : ''}
-                  </Typography>
+                  {/*
+                    The stored description is gone from here: it was the English
+                    the system wrote, and the heading above now says the same
+                    thing in Vietnamese. What remains is numbers and dates.
+                  */}
+                  {(basis || period) && (
+                    <Typography variant="caption" color="text.secondary">
+                      {[basis, period].filter(Boolean).join(' · ')}
+                    </Typography>
+                  )}
                 </Stack>
               )
             })}
