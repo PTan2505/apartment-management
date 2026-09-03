@@ -22,7 +22,30 @@ import { paymentGatewayRouter } from "@/modules/payment-gateway/router.js";
 
 const app = express();
 
-app.use(cors());
+/**
+ * Which browser origins may call this API.
+ *
+ * A wildcard origin lets any page on the internet call this API from a
+ * visitor's browser. Nothing leaks through it today — the access token travels
+ * in a header a hostile page cannot make a browser attach — but it is a
+ * permission granted for no reason, and browsers refuse to send CREDENTIALS to
+ * a wildcard origin at all, which is why fixing the cookie's SameSite alone
+ * would leave a cross-site sign-in broken.
+ *
+ * No origins configured means any origin, which is what local development
+ * depends on and what runs today.
+ */
+app.use(
+  cors(
+    env.WEB_ORIGINS.length === 0
+      ? // Wildcard and NO credentials. A browser ignores `Allow-Credentials`
+        // beside a wildcard origin, so claiming it would be an incoherent
+        // answer — and asserting a permission that is not granted is worse
+        // than not asserting it. This is exactly today's behaviour.
+        {}
+      : { origin: env.WEB_ORIGINS, credentials: true },
+  ),
+);
 
 // Before the body parser, deliberately. The parser rejects a malformed body by
 // throwing, and an error handler can only log through `req.log` — which the
