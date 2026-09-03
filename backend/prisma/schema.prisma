@@ -228,6 +228,21 @@ model Lease {
   depositRefunded   Decimal?  @db.Decimal(14, 0)
   depositRefundedAt DateTime?
 
+  // Where the signed contract for this tenancy is kept, as a storage key.
+  //
+  // Evidence attached to the record, not part of it: no rule reads it and no
+  // reported value derives from it. A tenancy with none behaves in every other
+  // way like one that has it.
+  //
+  // The key rather than a URL, because a URL to this file is short-lived by
+  // design — the file is not public, and every link to it is signed at the
+  // moment it is asked for. Storing one would be storing something already
+  // expired.
+  //
+  // Nullable with no backfill: tenancies predating this have no contract, and
+  // an empty column says exactly that.
+  contractKey       String?
+
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

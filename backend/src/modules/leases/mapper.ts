@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client.js";
+import { isConfigured as contractStorageConfigured } from "@/lib/storage.js";
 
 /**
  * Adds whole months to a date, clamping to the last valid day of the target
@@ -90,6 +91,7 @@ interface LeaseRow {
   depositCarriedOut: Prisma.Decimal;
   depositRefunded: Prisma.Decimal | null;
   depositRefundedAt: Date | null;
+  contractKey: string | null;
   createdAt: Date;
   updatedAt: Date;
   occupants?: OccupantRow[];
@@ -207,6 +209,26 @@ export function toLeaseResponse(lease: LeaseRow) {
      */
     cancellable:
       status === "active" && (lease.invoices?.length ?? 0) === 0,
+    /**
+     * Whether the signed contract is on file — not WHERE it is.
+     *
+     * The key is an address in the owner's storage and reaches no caller: every
+     * link to the file is signed at the moment it is asked for, and a key on a
+     * screen would be an address with no way to open it and one more thing to
+     * leak.
+     */
+    hasContract: lease.contractKey !== null,
+    /**
+     * Whether this deployment can keep contracts at all.
+     *
+     * Reported so a screen can say storage is unconfigured INSTEAD of offering
+     * an upload that will fail — finding out by having an action refused is
+     * finding out at the worst moment, and the server knows before it is asked.
+     *
+     * A pure read of configuration, so it costs no query and every lease can
+     * carry it.
+     */
+    contractStorageAvailable: contractStorageConfigured(),
     tenant: primary
       ? {
           id: primary.userId,

@@ -14,6 +14,10 @@ import {
   updateLeaseHandler,
   moveOutHandler,
   cancelLeaseHandler,
+  contractUploadUrlHandler,
+  contractConfirmHandler,
+  contractDownloadHandler,
+  contractRemoveHandler,
   extendLeaseHandler,
   listOccupantsHandler,
   addOccupantHandler,
@@ -43,6 +47,14 @@ leasesRouter.post("/:id/extend", extendLeaseHandler);
 leasesRouter.get("/:id/deposit-settlement", getSettlementHandler);
 leasesRouter.post("/:id/deposit-refund", refundDepositHandler);
 leasesRouter.post("/:id/deposit-adjustment", adjustDepositHandler);
+
+// The signed contract. Three steps deliberately: the API signs a URL, the
+// BROWSER uploads to storage, and only then does the API record it — a scan is
+// megabytes and this process has nothing to do with the bytes.
+leasesRouter.post("/:id/contract-upload-url", contractUploadUrlHandler);
+leasesRouter.post("/:id/contract", contractConfirmHandler);
+leasesRouter.get("/:id/contract", contractDownloadHandler);
+leasesRouter.delete("/:id/contract", contractRemoveHandler);
 
 leasesRouter.get("/:id/occupants", listOccupantsHandler);
 leasesRouter.post("/:id/occupants", addOccupantHandler);

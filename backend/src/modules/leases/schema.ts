@@ -87,6 +87,25 @@ export const cancelLeaseSchema = z.object({
   depositKept: z.coerce.number().nonnegative("must not be negative").optional(),
 });
 
+/**
+ * Asking for a URL to upload a contract with.
+ *
+ * The caller names a CONTENT TYPE, never a destination. The key is derived by
+ * the service from the tenancy and a random component, so a URL obtained for
+ * one tenancy cannot be turned into a write anywhere else.
+ *
+ * The set is closed rather than free text: it is bound into the signature, so a
+ * value nobody vetted would let a URL issued for a document store anything.
+ */
+export const contractUploadSchema = z.object({
+  contentType: z.enum(["application/pdf", "image/jpeg", "image/png", "image/heic"]),
+});
+
+/** Confirming that an upload reached storage. */
+export const contractConfirmSchema = z.object({
+  key: z.string().min(1, "key is required"),
+});
+
 export const listLeasesQuerySchema = z.object({
   ...paginationQueryFields,
   roomId: z.coerce.number().int().positive().optional(),
@@ -130,3 +149,5 @@ export type ListLeasesQuery = z.infer<typeof listLeasesQuerySchema>;
 export type AddOccupantInput = z.infer<typeof addOccupantSchema>;
 export type ExtendLeaseInput = z.infer<typeof extendLeaseSchema>;
 export type CancelLeaseInput = z.infer<typeof cancelLeaseSchema>;
+export type ContractUploadInput = z.infer<typeof contractUploadSchema>;
+export type ContractConfirmInput = z.infer<typeof contractConfirmSchema>;
