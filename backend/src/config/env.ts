@@ -54,7 +54,63 @@ const envSchema = z.object({
   PAYOS_CLIENT_ID: blankAsAbsent,
   PAYOS_API_KEY: blankAsAbsent,
   PAYOS_CHECKSUM_KEY: blankAsAbsent,
+
+  /**
+   * The browser origins allowed to call this API, comma-separated.
+   *
+   * Both surfaces need naming: the owner's application and the tenant portal
+   * are deployed separately and both call here.
+   *
+   * EMPTY MEANS ANY ORIGIN, which is what runs today and what local
+   * development depends on. Requiring this before the API will talk to a
+   * browser at all would be a cost paid every day for a protection that only
+   * matters once deployed — and the trade is the right way round: an
+   * over-permissive API is recoverable, while a deployment that refuses its own
+   * frontend is an outage.
+   */
+  WEB_ORIGINS: z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim() !== ""
+        ? value.split(",").map((origin) => origin.trim()).filter(Boolean)
+        : [],
+    z.array(z.string().url("each origin must be a URL, e.g. https://app.example.com")),
+  ),
+
+  /**
+   * Whether the refresh cookie must survive a cross-SITE request.
+   *
+   * True when the application and this API are on different sites — a frontend
+   * on Vercel and this on Render, say. A browser will not attach a
+   * `SameSite=Strict` cookie to such a request, so `POST /auth/refresh` arrives
+   * without it and the session cannot be renewed.
+   *
+   * Stated rather than inferred. The API could compare WEB_ORIGINS against its
+   * own origin, except that behind a proxy it does not reliably know its own —
+   * and a wrong guess produces a login that works once and then silently stops.
+   *
+   * Defaults to false, which keeps `SameSite=Strict`: the safer value, and the
+   * correct one when everything is served from one host.
+   */
+  CROSS_SITE_COOKIES: z.preprocess(
+    (value) => value === "true" || value === true,
+    z.boolean(),
+  ),
 })
+  .superRefine((value, ctx) => {
+    // A `SameSite=None` cookie that is not `Secure` is DISCARDED by browsers,
+    // silently. Tolerating the combination would mean the API believes it
+    // issued a session while the browser kept nothing — appearing as a login
+    // that succeeds once and cannot be renewed, with no error anywhere.
+    if (value.CROSS_SITE_COOKIES && value.NODE_ENV !== "production") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["CROSS_SITE_COOKIES"],
+        message:
+          "CROSS_SITE_COOKIES requires NODE_ENV=production, because the cookie is only " +
+          "marked Secure there and browsers discard a SameSite=None cookie that is not Secure",
+      });
+    }
+  })
   .superRefine((value, ctx) => {
     const keys = ["PAYOS_CLIENT_ID", "PAYOS_API_KEY", "PAYOS_CHECKSUM_KEY"] as const;
     const missing = keys.filter((key) => value[key] === undefined);
