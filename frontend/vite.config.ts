@@ -13,7 +13,7 @@ const API_PREFIX = '/api'
 const BACKEND_COOKIE_PATH = '/auth'
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   // Third argument '' loads every var, not just those prefixed VITE_ — the
   // proxy runs in Node, so it is not restricted to the client-exposed subset.
   const env = loadEnv(mode, process.cwd(), '')
@@ -22,8 +22,32 @@ export default defineConfig(({ mode }) => {
   // rather than hardcoded.
   const apiTarget = env.VITE_API_TARGET ?? 'http://localhost:5000'
 
+  /**
+   * The address the BROWSER calls, which is a different thing from the proxy's
+   * forwarding target above — they coincide in value and not in meaning, and
+   * expecting the one named for the proxy to do this job is what shipped an
+   * application that asked its own origin for the API.
+   *
+   * Empty leaves the relative `/api`, which the dev server proxies.
+   */
+  const apiUrl = env.VITE_API_URL ?? ''
+
+  // A built bundle has no proxy behind it, so an empty address means shipping
+  // an application that cannot reach its API — a failure that appears only when
+  // somebody tries to sign in, and reads as broken rather than unconfigured.
+  if (command === 'build' && apiUrl === '') {
+    throw new Error(
+      'VITE_API_URL is required for a production build — without it the bundle ' +
+        'calls its own origin for the API, which only fails at the first sign-in.',
+    )
+  }
+
   return {
     plugins: [react()],
+
+    define: {
+      __API_URL__: JSON.stringify(apiUrl),
+    },
 
     resolve: {
       alias: {
