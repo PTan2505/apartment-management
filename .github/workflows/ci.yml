@@ -74,6 +74,48 @@ jobs:
           kill $pid || true
           exit 1
 
+  frontend:
+    name: Frontend — build both bundles
+    runs-on: ubuntu-latest
+    # Not filtered by changed paths, for the same reason the backend job is not:
+    # a rule about what counts as "documentation only" is one that will
+    # eventually be wrong, and its failure mode is a green tick on something
+    # nobody checked.
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # `npm run build` typechecks first, so this covers both.
+      #
+      # The address is a placeholder. Nothing here calls the API, and both
+      # configs refuse to build without one — deliberately, so a bundle that
+      # cannot reach its API is never produced. This job proves the build
+      # WORKS; it does not test that refusal, which is a property of the config
+      # and belongs where the config is verified.
+      - name: Build the owner's application
+        env:
+          VITE_API_URL: https://ci.invalid
+        run: npm run build
+
+      # The portal has its own config, its own entry and its own required
+      # address. Nothing but a person has ever built it.
+      - name: Build the tenant portal
+        env:
+          VITE_PORTAL_API_URL: https://ci.invalid
+        run: npm run build:portal
+
   specs:
     name: OpenSpec — validate
     runs-on: ubuntu-latest
