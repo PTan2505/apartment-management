@@ -14,11 +14,32 @@ import {
  * view, so the refresh cookie is first-party and no cross-origin credential
  * negotiation is involved.
  *
- * `withCredentials` is on so cookies ride along. It is harmless while requests
- * are same-origin, and it is what `web-auth` depends on.
+ * `withCredentials` is on so cookies ride along. Harmless while requests are
+ * same-origin, and REQUIRED once they are not — a deployed frontend calling an
+ * API on another site sends no cookie without it.
  */
+
+/**
+ * Where the API is.
+ *
+ * `__API_URL__` is replaced at build time. Empty means the relative path the
+ * dev server proxies; anything else is an absolute address the browser calls
+ * directly.
+ *
+ * A relative address works only where something forwards it. In development
+ * the dev server does; in a built bundle nothing does — so a deployed
+ * application asks its OWN origin for `/api/auth/login` and gets its own 404.
+ * That was the bug this replaced, and it surfaced only at the first sign-in.
+ *
+ * The two forms also differ in where the refresh cookie must live, and both
+ * happen to be right. Relative: the app calls `/api/auth/refresh` and the dev
+ * proxy rewrites the cookie's path to match. Absolute: the app calls
+ * `<api>/auth/refresh` and the cookie's own `Path=/auth` already matches.
+ */
+declare const __API_URL__: string
+
 export const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: __API_URL__ === '' ? '/api' : __API_URL__,
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
   timeout: 15_000,
