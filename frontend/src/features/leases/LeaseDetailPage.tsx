@@ -23,6 +23,7 @@ import { EmptyState } from '@/components/EmptyState'
 import { formatCoveredThrough, formatDate, isTermRunOut } from '@/features/leases/dates'
 import { useLease } from '@/features/leases/hooks'
 import { CancelLeaseDialog } from '@/features/leases/CancelLeaseDialog'
+import { ContractCard } from '@/features/leases/ContractCard'
 import { EditTermsDialog } from '@/features/leases/EditTermsDialog'
 import { OccupantsCard } from '@/features/leases/OccupantsCard'
 import type { Lease } from '@/features/leases/types'
@@ -305,6 +306,7 @@ export function LeaseDetailPage() {
       <Stack spacing={2}>
         <TermsCard lease={lease} onEdit={() => setEditOpen(true)} />
         <OccupantsCard lease={lease} />
+        <ContractCard lease={lease} />
 
         {/*
           Offered only where the API permits it, on the API's own say-so —

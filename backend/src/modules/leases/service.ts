@@ -2,7 +2,14 @@ import { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
 import { paginate, toSkipTake } from "@/lib/pagination.js";
 import { findLatestKnownReading } from "@/lib/meter-history.js";
-import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
+import {
+  ConflictError,
+  NotConfiguredError,
+  NotFoundError,
+  ValidationError,
+} from "@/lib/errors.js";
+import * as storage from "@/lib/storage.js";
+import type { ContractContentType } from "@/lib/storage.js";
 import {
   issueFinalInvoice,
   issueMoveInInvoice,
@@ -812,6 +819,114 @@ export async function cancelLease(id: number, input: CancelLeaseInput) {
           : { depositHeld: new Decimal(0), depositRefunded: returned, depositRefundedAt: cancelledAt }),
       },
     });
+  });
+
+  return findLeaseOrThrow(id);
+}
+
+/**
+ * The signed contract for a tenancy.
+ *
+ * Evidence attached to the record, not part of it: nothing here is read by any
+ * rule and no reported value derives from it. A tenancy with no contract
+ * behaves in every other way like one that has it.
+ */
+
+function assertStorage() {
+  if (!storage.isConfigured()) {
+    throw new NotConfiguredError(
+      "Contract storage is not configured on this server, so contracts cannot be kept here",
+    );
+  }
+}
+
+/**
+ * A URL that uploads one contract, straight to storage.
+ *
+ * The caller names a content type, never a destination. The key is derived from
+ * the tenancy and a random component, so a URL obtained for one tenancy cannot
+ * be turned into a write anywhere else — and a replacement never reuses a key,
+ * which would let a browser or a CDN serve the previous contract for the new
+ * one.
+ */
+export async function signContractUpload(id: number, contentType: ContractContentType) {
+  await findLeaseOrThrow(id);
+  assertStorage();
+  return storage.signContractUpload(id, contentType);
+}
+
+/**
+ * Records the contract, once storage confirms it is really there.
+ *
+ * A signed URL is handed out BEFORE anything is uploaded, and the upload can
+ * fail after it: a closed tab, a dropped connection, a file storage rejected.
+ * Recording at signing time would leave tenancies claiming a contract that does
+ * not exist, and nothing would ever notice.
+ */
+export async function confirmContractUpload(id: number, key: string) {
+  const lease = await findLeaseOrThrow(id);
+  assertStorage();
+
+  // The key is checked against this tenancy's own prefix rather than trusted.
+  // Without this, a confirmation could attach another tenancy's contract — or
+  // any object in the bucket — to this one.
+  if (!key.startsWith(storage.contractPrefix(id))) {
+    throw new ValidationError("That file does not belong to this tenancy");
+  }
+
+  const object = await storage.describeObject(key);
+  if (object === null) {
+    throw new ValidationError(
+      "That file is not in storage. The upload may not have finished — try again",
+    );
+  }
+
+  // A size cannot be bound into a presigned PUT the way a content type can, so
+  // it is enforced here, before anything is recorded. The oversized object is
+  // DELETED: one nobody can reach through the application is one nobody will
+  // ever clear.
+  if (object.size > storage.MAX_CONTRACT_BYTES) {
+    await storage.deleteObject(key);
+    throw new ValidationError(
+      `That file is larger than the ${Math.round(storage.MAX_CONTRACT_BYTES / 1024 / 1024)} MB limit`,
+    );
+  }
+
+  const previous = lease.contractKey;
+  await prisma.lease.update({ where: { id }, data: { contractKey: key } });
+
+  // Deleted AFTER the new one is recorded, so a failure here leaves the tenancy
+  // with the old contract rather than with none.
+  if (previous !== null && previous !== key) {
+    await storage.deleteObject(previous).catch(() => {
+      // A leftover object costs storage; a thrown error here would report a
+      // successful replacement as a failure and invite the owner to repeat it.
+    });
+  }
+
+  return findLeaseOrThrow(id);
+}
+
+export async function getContractDownload(id: number) {
+  const lease = await findLeaseOrThrow(id);
+  assertStorage();
+  if (lease.contractKey === null) {
+    throw new NotFoundError("This tenancy has no contract on file");
+  }
+  return storage.signContractDownload(lease.contractKey);
+}
+
+export async function removeContract(id: number) {
+  const lease = await findLeaseOrThrow(id);
+  assertStorage();
+  if (lease.contractKey === null) {
+    throw new NotFoundError("This tenancy has no contract on file");
+  }
+
+  await prisma.lease.update({ where: { id }, data: { contractKey: null } });
+  await storage.deleteObject(lease.contractKey).catch(() => {
+    // As above: the record is what the application reads, and reporting a
+    // failure after clearing it would be reporting a state that is not true.
   });
 
   return findLeaseOrThrow(id);

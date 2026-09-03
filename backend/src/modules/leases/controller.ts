@@ -7,6 +7,8 @@ import {
   updateLeaseSchema,
   moveOutSchema,
   cancelLeaseSchema,
+  contractUploadSchema,
+  contractConfirmSchema,
   extendLeaseSchema,
   listLeasesQuerySchema,
   listOccupantsQuerySchema,
@@ -77,6 +79,42 @@ export async function cancelLeaseHandler(req: Request, res: Response) {
     parseIdParam(req.params.id, "Lease"),
     parsed.data,
   );
+  res.status(200).json(toLeaseResponse(lease));
+}
+
+export async function contractUploadUrlHandler(req: Request, res: Response) {
+  const parsed = contractUploadSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    throw new ValidationError("Invalid contract upload request", parsed.error.flatten());
+  }
+
+  const signed = await leaseService.signContractUpload(
+    parseIdParam(req.params.id, "Lease"),
+    parsed.data.contentType,
+  );
+  res.status(200).json(signed);
+}
+
+export async function contractConfirmHandler(req: Request, res: Response) {
+  const parsed = contractConfirmSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    throw new ValidationError("Invalid confirmation", parsed.error.flatten());
+  }
+
+  const lease = await leaseService.confirmContractUpload(
+    parseIdParam(req.params.id, "Lease"),
+    parsed.data.key,
+  );
+  res.status(200).json(toLeaseResponse(lease));
+}
+
+export async function contractDownloadHandler(req: Request, res: Response) {
+  const signed = await leaseService.getContractDownload(parseIdParam(req.params.id, "Lease"));
+  res.status(200).json(signed);
+}
+
+export async function contractRemoveHandler(req: Request, res: Response) {
+  const lease = await leaseService.removeContract(parseIdParam(req.params.id, "Lease"));
   res.status(200).json(toLeaseResponse(lease));
 }
 

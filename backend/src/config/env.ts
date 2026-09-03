@@ -95,7 +95,42 @@ const envSchema = z.object({
     (value) => value === "true" || value === true,
     z.boolean(),
   ),
+
+  /**
+   * Cloudflare R2, for keeping signed contracts.
+   *
+   * Optional as a GROUP, on the same reasoning as the payment gateway: an owner
+   * who does not want to keep scans must still be able to start the system. A
+   * partially configured group is refused below — a bucket with no credentials
+   * fails at the moment somebody tries to use it, which is the worst time.
+   *
+   * R2 rather than AWS S3, chosen for v1 and deliberately the ONLY option: it
+   * charges nothing for egress, which for scanned contracts is the whole of the
+   * recurring cost, and supporting both would mean two configurations to
+   * explain and two to get wrong.
+   *
+   * There is no region setting and no endpoint URL to assemble — R2 signs
+   * against `auto`, and its address follows from the account id.
+   */
+  R2_ACCOUNT_ID: blankAsAbsent,
+  R2_BUCKET: blankAsAbsent,
+  R2_ACCESS_KEY_ID: blankAsAbsent,
+  R2_SECRET_ACCESS_KEY: blankAsAbsent,
 })
+  .superRefine((value, ctx) => {
+    const keys = ["R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"] as const;
+    const missing = keys.filter((key) => value[key] === undefined);
+
+    if (missing.length !== 0 && missing.length !== keys.length) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["R2"],
+        message:
+          `Contract storage is partially configured. Set all of ${keys.join(", ")} or none of them — ` +
+          `missing: ${missing.join(", ")}`,
+      });
+    }
+  })
   .superRefine((value, ctx) => {
     // A `SameSite=None` cookie that is not `Secure` is DISCARDED by browsers,
     // silently. Tolerating the combination would mean the API believes it
