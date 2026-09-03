@@ -31,10 +31,10 @@ import { useInvoice, useInvoices, useReversePayment } from '@/features/invoices/
 import {
   invoiceTypeExplanation,
   invoiceTypeLabel,
-  lineLabel,
   monthLabel,
   paymentMethodLabel,
 } from '@/features/invoices/labels'
+import { lineLabel } from '@/lib/invoice-lines'
 import { RecordPaymentDialog } from '@/features/invoices/RecordPaymentDialog'
 import { VoidInvoiceDialog } from '@/features/invoices/VoidInvoiceDialog'
 import type { Invoice, InvoiceLineItem, Payment } from '@/features/invoices/types'
