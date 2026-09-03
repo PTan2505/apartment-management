@@ -8,10 +8,7 @@
     "build": "npm run typecheck && vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "dev:portal": "vite --config vite.portal.config.ts",
-    "build:portal": "npm run typecheck && vite build --config vite.portal.config.ts",
-    "preview:portal": "vite preview --config vite.portal.config.ts"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

@@ -17,9 +17,16 @@ import { forgetToken } from '@/portal/token'
  * front of this application, and none is needed: no cookie is sent, so nothing
  * depends on sharing an origin with the API.
  */
-declare const __PORTAL_API_URL__: string
+declare const __API_URL__: string
 
-const API_URL = __PORTAL_API_URL__.replace(/\/$/, '')
+/**
+ * The same address the rest of the application uses.
+ *
+ * There were two settings naming one API, which had to agree and offered
+ * nothing to notice when they did not. The build refuses without an address,
+ * so this cannot be left pointing nowhere.
+ */
+const API_URL = __API_URL__.replace(/\/$/, '')
 
 /**
  * Distinguishes "the link is no longer valid" from everything else.

@@ -75,7 +75,7 @@ jobs:
           exit 1
 
   frontend:
-    name: Frontend — build both bundles
+    name: Frontend — typecheck and build
     runs-on: ubuntu-latest
     # Not filtered by changed paths, for the same reason the backend job is not:
     # a rule about what counts as "documentation only" is one that will
@@ -104,17 +104,12 @@ jobs:
       # cannot reach its API is never produced. This job proves the build
       # WORKS; it does not test that refusal, which is a property of the config
       # and belongs where the config is verified.
-      - name: Build the owner's application
+      # One build now: the tenant portal is a route in this application rather
+      # than a second bundle.
+      - name: Build
         env:
           VITE_API_URL: https://ci.invalid
         run: npm run build
-
-      # The portal has its own config, its own entry and its own required
-      # address. Nothing but a person has ever built it.
-      - name: Build the tenant portal
-        env:
-          VITE_PORTAL_API_URL: https://ci.invalid
-        run: npm run build:portal
 
   specs:
     name: OpenSpec — validate

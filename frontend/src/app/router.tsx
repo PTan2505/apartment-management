@@ -18,6 +18,7 @@ import { BillingRunPage } from '@/features/invoices/BillingRunPage'
 import { ExpensesPage } from '@/features/expenses/ExpensesPage'
 import { VacancyRunPage } from '@/features/expenses/VacancyRunPage'
 import { RevenueReportPage } from '@/features/reports/RevenueReportPage'
+import { PortalApp } from '@/portal/PortalApp'
 
 /**
  * Three layers, and the order matters:
@@ -33,6 +34,20 @@ import { RevenueReportPage } from '@/features/reports/RevenueReportPage'
  * shell never paints for a visitor who is about to be redirected.
  */
 export const router = createBrowserRouter([
+  /*
+    The tenant portal — one screen, reached by a link with the token in the
+    fragment.
+
+    Outside AuthProvider entirely, not merely outside the sign-in guard.
+    AuthProvider asks the API who is signed in the moment it mounts; a tenant is
+    nobody, so that request 401s and the client then attempts a renewal that
+    also 401s — two pointless round trips on a phone before a bill appears.
+
+    It keeps its own API module for the same reason: the owner's client renews
+    a session when a request is refused, and a tenant has none to renew.
+  */
+  { path: '/portal', element: <PortalApp /> },
+
   {
     element: <AuthProvider />,
     children: [
