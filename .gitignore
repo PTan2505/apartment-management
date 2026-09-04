@@ -17,3 +17,9 @@ build/
 
 # Local-only docs (feature overview, OpenAPI spec for Postman)
 docs/
+
+# Vercel CLI linking state — machine-local, and `vercel pull` writes
+# fetched environment variables next to it.
+.vercel/
+.vercel
+.env*
