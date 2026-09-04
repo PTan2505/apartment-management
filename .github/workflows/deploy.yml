@@ -31,27 +31,28 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.head_branch == 'main'
 
-    defaults:
-      run:
-        working-directory: frontend
-
+    # No `working-directory` here, deliberately. The Vercel project sets its
+    # Root Directory to `frontend`, and Vercel resolves that against wherever
+    # the CLI is invoked — so running the CLI inside `frontend` would send it
+    # looking for `frontend/frontend`. The repository root is the only place
+    # that setting means what it says.
     steps:
       # The commit CI actually tested, not whatever `main` points at now. They
       # differ whenever something lands while a run is in flight, and deploying
       # the newer one would ship code no run has passed.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install
-        run: npm ci
-
+      # No `npm ci` step: `vercel build` runs the project's own install command
+      # inside the root directory. Installing here as well would do the same
+      # work twice, and the second copy is the one that counts.
       - name: Install the Vercel CLI
         run: npm install --global vercel@latest
 
