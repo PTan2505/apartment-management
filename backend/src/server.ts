@@ -91,7 +91,7 @@ app.use("/webhooks", paymentGatewayRouter);
  * it would answer everything, and after the error handler it would never run.
  */
 app.use((_req, _res, next) => {
-  next(new NotFoundError("No route matches this address"));
+  next(new NotFoundError("ROUTE_NOT_FOUND", "No route matches this address"));
 });
 
 app.use(errorHandler);

@@ -70,7 +70,7 @@ function toPaymentOffer(paymentId: number, link: CreatedPaymentLink) {
 export async function createGatewayPayment(invoiceId: number, urls: { returnUrl: string; cancelUrl: string }) {
   const config = gatewayConfig();
   if (!config) {
-    throw new ValidationError("Online payment is not configured");
+    throw new ValidationError("GATEWAY_NOT_CONFIGURED", "Online payment is not configured");
   }
 
   const invoice = await prisma.invoice.findUnique({
@@ -85,10 +85,10 @@ export async function createGatewayPayment(invoiceId: number, urls: { returnUrl:
     },
   });
   if (!invoice || invoice.voidedAt !== null) {
-    throw new NotFoundError("Invoice not found");
+    throw new NotFoundError("INVOICE_NOT_FOUND", "Invoice not found");
   }
   if (invoice.paymentStatus === "paid") {
-    throw new ConflictError("That invoice has already been paid");
+    throw new ConflictError("INVOICE_ALREADY_PAID", "That invoice has already been paid");
   }
 
   // A bill already has a live link? Hand back the same one.
@@ -190,7 +190,7 @@ interface WebhookBody {
 export async function applyWebhook(body: WebhookBody) {
   const config = gatewayConfig();
   if (!config) {
-    throw new ValidationError("Online payment is not configured");
+    throw new ValidationError("GATEWAY_NOT_CONFIGURED", "Online payment is not configured");
   }
 
   const raw = body as Prisma.InputJsonValue;
@@ -311,15 +311,15 @@ function parseDate(value: unknown): Date | null {
 export async function reconcilePayment(paymentId: number) {
   const config = gatewayConfig();
   if (!config) {
-    throw new ValidationError("Online payment is not configured");
+    throw new ValidationError("GATEWAY_NOT_CONFIGURED", "Online payment is not configured");
   }
 
   const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
   if (!payment) {
-    throw new NotFoundError("Payment not found");
+    throw new NotFoundError("PAYMENT_NOT_FOUND", "Payment not found");
   }
   if (payment.gatewayOrderCode === null) {
-    throw new ValidationError("That payment was not made through the gateway");
+    throw new ValidationError("PAYMENT_NOT_FROM_GATEWAY", "That payment was not made through the gateway");
   }
 
   const remote = await fetchPaymentLink(config, payment.gatewayOrderCode);
@@ -418,7 +418,7 @@ async function reuseOrRetire(existing: PendingPayment, invoice: InvoiceForPaymen
       include: { lineItems: { select: { kind: true, amount: true } } },
     });
     await settle(existing.id, invoice.id, invoice.leaseId, full.lineItems, new Date(), undefined);
-    throw new ConflictError("That invoice has already been paid");
+    throw new ConflictError("INVOICE_ALREADY_PAID", "That invoice has already been paid");
   }
 
   // Anything else — cancelled, expired, or a link the gateway no longer knows

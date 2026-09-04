@@ -16,7 +16,7 @@ const Decimal = Prisma.Decimal;
 async function findExpenseOrThrow(id: number) {
   const expense = await prisma.expense.findUnique({ where: { id } });
   if (!expense) {
-    throw new NotFoundError("Expense not found");
+    throw new NotFoundError("EXPENSE_NOT_FOUND", "Expense not found");
   }
   return expense;
 }
@@ -25,7 +25,7 @@ async function findExpenseOrThrow(id: number) {
 async function assertRoomBelongsToBuilding(buildingId: number, roomId?: number) {
   const building = await prisma.building.findUnique({ where: { id: buildingId } });
   if (!building) {
-    throw new NotFoundError("Building not found");
+    throw new NotFoundError("BUILDING_NOT_FOUND", "Building not found");
   }
   if (roomId === undefined) {
     return;
@@ -33,10 +33,10 @@ async function assertRoomBelongsToBuilding(buildingId: number, roomId?: number) 
 
   const room = await prisma.room.findUnique({ where: { id: roomId } });
   if (!room) {
-    throw new NotFoundError("Room not found");
+    throw new NotFoundError("ROOM_NOT_FOUND", "Room not found");
   }
   if (room.buildingId !== buildingId) {
-    throw new ValidationError("That room does not belong to the named building");
+    throw new ValidationError("ROOM_BUILDING_MISMATCH", "That room does not belong to the named building");
   }
 }
 
@@ -55,11 +55,12 @@ export async function createExpense(input: CreateExpenseInput) {
 
   if (amount === null) {
     throw new ValidationError(
+      "EXPENSE_AMOUNT_REQUIRED",
       "amount is required unless both quantity and unitRate are supplied",
     );
   }
   if (amount.lessThanOrEqualTo(0)) {
-    throw new ValidationError("amount must be greater than zero");
+    throw new ValidationError("EXPENSE_AMOUNT_NOT_POSITIVE", "amount must be greater than zero");
   }
 
   return prisma.expense.create({
@@ -227,7 +228,7 @@ export async function recordVacancyElectricity(
     include: { building: true },
   });
   if (!room) {
-    throw new NotFoundError("Room not found");
+    throw new NotFoundError("ROOM_NOT_FOUND", "Room not found");
   }
 
   const monthEnd = new Date(Date.UTC(input.year, input.month, 0));
@@ -255,6 +256,7 @@ export async function recordVacancyElectricity(
   });
   if (occupying) {
     throw new ValidationError(
+      "VACANCY_ROOM_WAS_LET",
       "That room had an active lease at the end of that month, so its consumption belongs on the tenant's invoice",
     );
   }
@@ -269,17 +271,19 @@ export async function recordVacancyElectricity(
     },
   });
   if (existing) {
-    throw new ConflictError("That room already has a vacancy record for that month");
+    throw new ConflictError("VACANCY_ALREADY_RECORDED", "That room already has a vacancy record for that month");
   }
 
   const latest = await findLatestKnownReading(input.roomId);
   if (latest === null) {
     throw new ValidationError(
+      "VACANCY_NO_BASELINE_READING",
       "That room has no known meter reading to measure vacancy consumption against",
     );
   }
   if (input.currentReading < latest.reading) {
     throw new ValidationError(
+      "VACANCY_READING_BELOW_LAST",
       "Reading cannot be below the room's last known meter reading",
     );
   }

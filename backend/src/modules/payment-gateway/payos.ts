@@ -171,7 +171,7 @@ export async function createPaymentLink(
   } catch {
     // The message deliberately carries nothing from the request. Credentials
     // travel in its headers and an error is the likeliest thing to be logged.
-    throw new ValidationError("The payment gateway could not be reached");
+    throw new ValidationError("GATEWAY_UNREACHABLE", "The payment gateway could not be reached");
   }
 
   const payload = (await response.json().catch(() => null)) as
@@ -180,6 +180,7 @@ export async function createPaymentLink(
 
   if (!response.ok || payload?.code !== "00" || !payload.data) {
     throw new ValidationError(
+      "GATEWAY_REFUSED",
       `The payment gateway refused the request${payload?.desc ? `: ${payload.desc}` : ""}`,
     );
   }
@@ -198,7 +199,7 @@ export async function fetchPaymentLink(config: GatewayConfig, orderCode: number)
       headers: { "x-client-id": config.clientId, "x-api-key": config.apiKey },
     });
   } catch {
-    throw new ValidationError("The payment gateway could not be reached");
+    throw new ValidationError("GATEWAY_UNREACHABLE", "The payment gateway could not be reached");
   }
 
   const payload = (await response.json().catch(() => null)) as

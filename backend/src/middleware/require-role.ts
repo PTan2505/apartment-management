@@ -8,11 +8,11 @@ import { ForbiddenError, UnauthorizedError } from "@/lib/errors.js";
 export function requireRole(...allowedRoles: string[]) {
   return function roleGuard(req: Request, _res: Response, next: NextFunction) {
     if (!req.user) {
-      throw new UnauthorizedError("Authentication required");
+      throw new UnauthorizedError("AUTHENTICATION_REQUIRED", "Authentication required");
     }
 
     if (!allowedRoles.includes(req.user.role)) {
-      throw new ForbiddenError("Insufficient permissions for this resource");
+      throw new ForbiddenError("ROLE_NOT_PERMITTED", "Insufficient permissions for this resource");
     }
 
     next();

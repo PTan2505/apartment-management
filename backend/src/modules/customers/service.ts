@@ -32,7 +32,7 @@ export async function registerCustomer(input: RegisterCustomerInput) {
 
     if (existing) {
       if (existing.role !== "customer") {
-        throw new ConflictError("That phone number belongs to another account");
+        throw new ConflictError("PHONE_BELONGS_TO_ANOTHER", "That phone number belongs to another account");
       }
       const customer = await prisma.user.findUnique({
         where: { id: existing.id },
@@ -94,7 +94,7 @@ export async function getCustomerById(id: number) {
   });
 
   if (!customer) {
-    throw new NotFoundError("Customer not found");
+    throw new NotFoundError("CUSTOMER_NOT_FOUND", "Customer not found");
   }
   return customer;
 }
@@ -107,7 +107,7 @@ export async function updateCustomer(id: number, input: UpdateCustomerInput) {
       where: { phone: input.phone, id: { not: id } },
     });
     if (clash) {
-      throw new ConflictError("That phone number is already in use");
+      throw new ConflictError("PHONE_ALREADY_IN_USE", "That phone number is already in use");
     }
   }
 

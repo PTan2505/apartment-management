@@ -44,7 +44,7 @@ const invoiceInclude = {
 async function findInvoiceOrThrow(id: number) {
   const invoice = await prisma.invoice.findUnique({ where: { id }, include: invoiceInclude });
   if (!invoice) {
-    throw new NotFoundError("Invoice not found");
+    throw new NotFoundError("INVOICE_NOT_FOUND", "Invoice not found");
   }
   return invoice;
 }
@@ -75,7 +75,7 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
     include: { room: { include: { building: true } } },
   });
   if (!lease) {
-    throw new NotFoundError("Lease not found");
+    throw new NotFoundError("LEASE_NOT_FOUND", "Lease not found");
   }
 
   // A finalized lease is still billable for the months it covered — a tenancy
@@ -94,15 +94,18 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
   if (!billability.billable) {
     if (billability.reason === "cancelled") {
       throw new ValidationError(
+        "INVOICE_LEASE_CANCELLED",
         "That tenancy was cancelled, so it occupied no month and there is nothing to bill",
       );
     }
     if (billability.reason === "not_occupied") {
       throw new ValidationError(
+        "INVOICE_MONTH_OUTSIDE_TENANCY",
         "That month falls outside the period this lease occupied the room",
       );
     }
     throw new ValidationError(
+      "INVOICE_NO_RENT_LEFT",
       "The month after this one falls outside the lease's term, so there is no rent to charge — its utilities belong on the final invoice",
     );
   }
@@ -112,7 +115,7 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
     where: { leaseId: input.leaseId, year: input.year, month: input.month, voidedAt: null },
   });
   if (existing) {
-    throw new ConflictError("That lease already has an invoice for that month");
+    throw new ConflictError("INVOICE_MONTH_ALREADY_BILLED", "That lease already has an invoice for that month");
   }
 
   const previousElectricityUse = await resolveOpeningReading(
@@ -121,6 +124,7 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
   );
   if (input.currentElectricityUse < previousElectricityUse) {
     throw new ValidationError(
+      "METER_BELOW_PERIOD_OPENING",
       "Closing meter reading cannot be below the opening reading for this period",
     );
   }
@@ -366,7 +370,7 @@ export async function getInvoiceById(id: number) {
 export async function issueAdhocInvoice(input: IssueAdhocInvoiceInput) {
   const lease = await prisma.lease.findUnique({ where: { id: input.leaseId } });
   if (!lease) {
-    throw new NotFoundError("Lease not found");
+    throw new NotFoundError("LEASE_NOT_FOUND", "Lease not found");
   }
 
   const lines = input.charges.map((charge, index) => ({
@@ -401,10 +405,10 @@ export async function markPaid(id: number, input: MarkPaidInput) {
   const invoice = await findInvoiceOrThrow(id);
 
   if (invoice.voidedAt !== null) {
-    throw new ConflictError("Cannot record payment against a voided invoice");
+    throw new ConflictError("PAYMENT_ON_VOIDED_INVOICE", "Cannot record payment against a voided invoice");
   }
   if (invoice.paymentStatus === "paid") {
-    throw new ConflictError("That invoice has already been paid");
+    throw new ConflictError("INVOICE_ALREADY_PAID", "That invoice has already been paid");
   }
 
   // The payment, the invoice's status and any holding it moves are written
@@ -461,10 +465,11 @@ export async function voidInvoice(id: number, input: VoidInvoiceInput) {
   const invoice = await findInvoiceOrThrow(id);
 
   if (invoice.voidedAt !== null) {
-    throw new ConflictError("That invoice has already been voided");
+    throw new ConflictError("INVOICE_ALREADY_VOIDED", "That invoice has already been voided");
   }
   if (invoice.paymentStatus === "paid") {
     throw new ConflictError(
+      "INVOICE_VOID_AFTER_PAYMENT",
       "That invoice has been paid, so it cannot be voided. Reverse the payment first — voiding it now would leave the money paid for it unaccounted for",
     );
   }

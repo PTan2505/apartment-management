@@ -6,7 +6,7 @@ import { buildRevenueReport } from "./service.js";
 export async function revenueReportHandler(req: Request, res: Response) {
   const parsed = revenueReportQuerySchema.safeParse(req.query);
   if (!parsed.success) {
-    throw new ValidationError("Invalid report parameters", parsed.error.flatten());
+    throw new ValidationError("REPORT_PARAMS_INVALID", "Invalid report parameters", parsed.error.flatten());
   }
 
   // Deliberately not the shared paginated envelope: a report is one computed

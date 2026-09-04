@@ -21,7 +21,7 @@ async function findLeaseOrThrow(id: number) {
     },
   });
   if (!lease) {
-    throw new NotFoundError("Lease not found");
+    throw new NotFoundError("LEASE_NOT_FOUND", "Lease not found");
   }
   return lease;
 }
@@ -93,16 +93,18 @@ export async function refundDeposit(leaseId: number, input: RefundDepositInput) 
   // an owner their cancelled tenancy is running.
   if (lease.cancelledAt !== null) {
     throw new ConflictError(
+      "DEPOSIT_SETTLED_ON_CANCEL",
       "That tenancy was cancelled, and its deposit was settled at the same time",
     );
   }
   if (lease.moveOutDate === null) {
     throw new ConflictError(
+      "DEPOSIT_LEASE_STILL_RUNNING",
       "This tenancy is still running, so its deposit cannot be returned yet",
     );
   }
   if (lease.depositRefundedAt !== null) {
-    throw new ConflictError("This lease's deposit has already been returned");
+    throw new ConflictError("DEPOSIT_ALREADY_RETURNED", "This lease's deposit has already been returned");
   }
 
   // The whole holding goes back. A holding of zero is a real case rather than
@@ -132,11 +134,13 @@ export async function adjustDeposit(leaseId: number, input: AdjustDepositInput) 
 
   if (lease.cancelledAt !== null) {
     throw new ConflictError(
+      "DEPOSIT_ADJUST_AFTER_CANCEL",
       "That tenancy was cancelled, so there is no holding left to adjust",
     );
   }
   if (lease.depositRefundedAt !== null) {
     throw new ConflictError(
+      "DEPOSIT_ADJUST_AFTER_RETURN",
       "This lease's deposit has already been returned, so there is no holding to adjust",
     );
   }

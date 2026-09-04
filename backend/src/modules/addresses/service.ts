@@ -29,7 +29,7 @@ export async function resolveAddress(
   const place = await fetchPlace(placeId, sessionToken);
 
   if (!place) {
-    throw new NotFoundError("Address not found");
+    throw new NotFoundError("ADDRESS_NOT_FOUND", "Address not found");
   }
 
   return normalizePlace(placeId, place);

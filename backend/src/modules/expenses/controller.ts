@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { ValidationError } from "@/lib/errors.js";
-import { parseIdParam } from "@/lib/parse-id.js";
+import { parseIdParam, RESOURCE } from "@/lib/parse-id.js";
 import {
   createExpenseSchema,
   updateExpenseSchema,
@@ -13,7 +13,7 @@ import * as expenseService from "./service.js";
 export async function createExpenseHandler(req: Request, res: Response) {
   const parsed = createExpenseSchema.safeParse(req.body);
   if (!parsed.success) {
-    throw new ValidationError("Invalid expense payload", parsed.error.flatten());
+    throw new ValidationError("EXPENSE_PAYLOAD_INVALID", "Invalid expense payload", parsed.error.flatten());
   }
 
   const expense = await expenseService.createExpense(parsed.data);
@@ -23,7 +23,7 @@ export async function createExpenseHandler(req: Request, res: Response) {
 export async function listExpensesHandler(req: Request, res: Response) {
   const parsed = listExpensesQuerySchema.safeParse(req.query);
   if (!parsed.success) {
-    throw new ValidationError("Invalid query parameters", parsed.error.flatten());
+    throw new ValidationError("QUERY_INVALID", "Invalid query parameters", parsed.error.flatten());
   }
 
   const expenses = await expenseService.listExpenses(parsed.data);
@@ -31,32 +31,32 @@ export async function listExpensesHandler(req: Request, res: Response) {
 }
 
 export async function getExpenseHandler(req: Request, res: Response) {
-  const expense = await expenseService.getExpenseById(parseIdParam(req.params.id, "Expense"));
+  const expense = await expenseService.getExpenseById(parseIdParam(req.params.id, RESOURCE.expense));
   res.status(200).json(expense);
 }
 
 export async function updateExpenseHandler(req: Request, res: Response) {
   const parsed = updateExpenseSchema.safeParse(req.body);
   if (!parsed.success) {
-    throw new ValidationError("Invalid expense payload", parsed.error.flatten());
+    throw new ValidationError("EXPENSE_PAYLOAD_INVALID", "Invalid expense payload", parsed.error.flatten());
   }
 
   const expense = await expenseService.updateExpense(
-    parseIdParam(req.params.id, "Expense"),
+    parseIdParam(req.params.id, RESOURCE.expense),
     parsed.data,
   );
   res.status(200).json(expense);
 }
 
 export async function deleteExpenseHandler(req: Request, res: Response) {
-  await expenseService.deleteExpense(parseIdParam(req.params.id, "Expense"));
+  await expenseService.deleteExpense(parseIdParam(req.params.id, RESOURCE.expense));
   res.status(204).send();
 }
 
 export async function listVacancyDueHandler(req: Request, res: Response) {
   const parsed = listVacancyDueQuerySchema.safeParse(req.query);
   if (!parsed.success) {
-    throw new ValidationError("Invalid query parameters", parsed.error.flatten());
+    throw new ValidationError("QUERY_INVALID", "Invalid query parameters", parsed.error.flatten());
   }
 
   const due = await expenseService.listVacancyDue(parsed.data);
@@ -67,7 +67,7 @@ export async function listVacancyDueHandler(req: Request, res: Response) {
 export async function recordVacancyHandler(req: Request, res: Response) {
   const parsed = recordVacancySchema.safeParse(req.body);
   if (!parsed.success) {
-    throw new ValidationError("Invalid vacancy payload", parsed.error.flatten());
+    throw new ValidationError("VACANCY_PAYLOAD_INVALID", "Invalid vacancy payload", parsed.error.flatten());
   }
 
   const { expense, consumedUnits } = await expenseService.recordVacancyElectricity(parsed.data);

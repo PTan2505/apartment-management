@@ -20,7 +20,7 @@ const paymentInclude = {
 async function findPaymentOrThrow(id: number) {
   const payment = await prisma.payment.findUnique({ where: { id }, include: paymentInclude });
   if (!payment) {
-    throw new NotFoundError("Payment not found");
+    throw new NotFoundError("PAYMENT_NOT_FOUND", "Payment not found");
   }
   return payment;
 }
@@ -32,7 +32,7 @@ export async function getPaymentById(id: number) {
 export async function listPaymentsForInvoice(invoiceId: number) {
   const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId }, select: { id: true } });
   if (!invoice) {
-    throw new NotFoundError("Invoice not found");
+    throw new NotFoundError("INVOICE_NOT_FOUND", "Invoice not found");
   }
 
   return prisma.payment.findMany({ where: { invoiceId }, orderBy: { id: "asc" } });
@@ -59,7 +59,7 @@ export async function reversePayment(id: number, input: ReversePaymentInput) {
   const payment = await findPaymentOrThrow(id);
 
   if (payment.state === "reversed") {
-    throw new ConflictError("That payment has already been reversed");
+    throw new ConflictError("PAYMENT_ALREADY_REVERSED", "That payment has already been reversed");
   }
 
   const invoice = await prisma.invoice.findUniqueOrThrow({

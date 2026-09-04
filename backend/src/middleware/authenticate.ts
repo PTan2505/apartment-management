@@ -7,7 +7,7 @@ import type { AccessTokenPayload } from "@/modules/auth/service.js";
 export function authenticate(req: Request, _res: Response, next: NextFunction) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith("Bearer ")) {
-    throw new UnauthorizedError("Missing or malformed Authorization header");
+    throw new UnauthorizedError("AUTH_HEADER_MISSING", "Missing or malformed Authorization header");
   }
 
   const token = header.slice("Bearer ".length);
@@ -17,11 +17,11 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
     // `sub` is a string per the JWT spec; ids are integers in this system.
     const userId = Number(payload.sub);
     if (!Number.isInteger(userId)) {
-      throw new UnauthorizedError("Invalid access token subject");
+      throw new UnauthorizedError("ACCESS_TOKEN_SUBJECT_INVALID", "Invalid access token subject");
     }
     req.user = { userId, role: payload.role };
     next();
   } catch {
-    throw new UnauthorizedError("Invalid or expired access token");
+    throw new UnauthorizedError("ACCESS_TOKEN_INVALID", "Invalid or expired access token");
   }
 }

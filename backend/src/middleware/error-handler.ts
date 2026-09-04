@@ -26,15 +26,15 @@ function fromBodyParser(err: unknown): AppError | null {
 
   switch (err.type) {
     case "entity.parse.failed":
-      return new MalformedBodyError("Request body is not valid JSON");
+      return new MalformedBodyError("BODY_NOT_JSON", "Request body is not valid JSON");
     case "entity.too.large":
-      return new PayloadTooLargeError("Request body is too large");
+      return new PayloadTooLargeError("BODY_TOO_LARGE", "Request body is too large");
     case "encoding.unsupported":
-      return new UnsupportedMediaTypeError("Request body uses an unsupported encoding");
+      return new UnsupportedMediaTypeError("BODY_ENCODING_UNSUPPORTED", "Request body uses an unsupported encoding");
     // The client stopped sending. It is very likely gone and will never read
     // this, but the alternative is recording a 500 against ourselves for it.
     case "request.aborted":
-      return new MalformedBodyError("Request body was not fully received");
+      return new MalformedBodyError("BODY_INCOMPLETE", "Request body was not fully received");
     default:
       return null;
   }

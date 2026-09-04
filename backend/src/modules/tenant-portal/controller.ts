@@ -1,23 +1,23 @@
 import type { Request, Response } from "express";
 import { UnauthorizedError, ValidationError } from "@/lib/errors.js";
 import { startPaymentSchema } from "@/modules/payment-gateway/schema.js";
-import { parseIdParam } from "@/lib/parse-id.js";
+import { parseIdParam, RESOURCE } from "@/lib/parse-id.js";
 import * as portalService from "./service.js";
 
 /* --- the owner's half --- */
 
 export async function issuePortalLinkHandler(req: Request, res: Response) {
-  const customerId = parseIdParam(req.params.id, "Customer");
+  const customerId = parseIdParam(req.params.id, RESOURCE.customer);
   res.status(201).json(await portalService.issuePortalLink(customerId));
 }
 
 export async function revokePortalLinkHandler(req: Request, res: Response) {
-  const customerId = parseIdParam(req.params.id, "Customer");
+  const customerId = parseIdParam(req.params.id, RESOURCE.customer);
   res.status(200).json(await portalService.revokePortalLink(customerId));
 }
 
 export async function getPortalLinkStatusHandler(req: Request, res: Response) {
-  const customerId = parseIdParam(req.params.id, "Customer");
+  const customerId = parseIdParam(req.params.id, RESOURCE.customer);
   res.status(200).json(await portalService.getPortalLinkStatus(customerId));
 }
 
@@ -35,7 +35,7 @@ export async function getPortalLinkStatusHandler(req: Request, res: Response) {
 function readPortalToken(req: Request): string {
   const header = req.headers.authorization;
   if (!header || !header.startsWith("Bearer ")) {
-    throw new UnauthorizedError("Missing or malformed Authorization header");
+    throw new UnauthorizedError("AUTH_HEADER_MISSING", "Missing or malformed Authorization header");
   }
   return header.slice("Bearer ".length);
 }
@@ -47,10 +47,10 @@ export async function getPortalOverviewHandler(req: Request, res: Response) {
 export async function startPortalPaymentHandler(req: Request, res: Response) {
   const parsed = startPaymentSchema.safeParse(req.body);
   if (!parsed.success) {
-    throw new ValidationError("Invalid payment payload", parsed.error.flatten());
+    throw new ValidationError("PAYMENT_PAYLOAD_INVALID", "Invalid payment payload", parsed.error.flatten());
   }
 
-  const invoiceId = parseIdParam(req.params.id, "Invoice");
+  const invoiceId = parseIdParam(req.params.id, RESOURCE.invoice);
   res.status(201).json(
     await portalService.startPortalPayment(readPortalToken(req), invoiceId, parsed.data),
   );

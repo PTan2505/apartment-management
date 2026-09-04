@@ -78,7 +78,7 @@ export async function listBuildingLocations(
 export async function getBuildingById(id: number) {
   const building = await prisma.building.findUnique({ where: { id } });
   if (!building) {
-    throw new NotFoundError("Building not found");
+    throw new NotFoundError("BUILDING_NOT_FOUND", "Building not found");
   }
   return building;
 }
@@ -94,6 +94,7 @@ export async function retireBuilding(id: number) {
   // A building with tenants still in place cannot be taken out of service.
   if (await buildingHasActiveLease(id)) {
     throw new ConflictError(
+      "BUILDING_RETIRE_HAS_ACTIVE_LEASE",
       "Cannot retire a building while one of its rooms has an active lease",
     );
   }

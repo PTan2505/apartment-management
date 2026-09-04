@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { ValidationError } from "@/lib/errors.js";
-import { parseIdParam } from "@/lib/parse-id.js";
+import { parseIdParam, RESOURCE } from "@/lib/parse-id.js";
 import {
   createServiceFeeSchema,
   updateServiceFeeSchema,
@@ -17,11 +17,11 @@ import * as serviceFeeService from "./service.js";
 export async function createServiceFeeHandler(req: Request, res: Response) {
   const parsed = createServiceFeeSchema.safeParse(req.body);
   if (!parsed.success) {
-    throw new ValidationError("Invalid service fee payload", parsed.error.flatten());
+    throw new ValidationError("SERVICE_FEE_PAYLOAD_INVALID", "Invalid service fee payload", parsed.error.flatten());
   }
 
   const fee = await serviceFeeService.createServiceFee(
-    parseIdParam(req.params.buildingId, "Building"),
+    parseIdParam(req.params.buildingId, RESOURCE.building),
     parsed.data,
   );
   res.status(201).json(fee);
@@ -30,11 +30,11 @@ export async function createServiceFeeHandler(req: Request, res: Response) {
 export async function listServiceFeesHandler(req: Request, res: Response) {
   const parsed = listServiceFeesQuerySchema.safeParse(req.query);
   if (!parsed.success) {
-    throw new ValidationError("Invalid query parameters", parsed.error.flatten());
+    throw new ValidationError("QUERY_INVALID", "Invalid query parameters", parsed.error.flatten());
   }
 
   const fees = await serviceFeeService.listServiceFees(
-    parseIdParam(req.params.buildingId, "Building"),
+    parseIdParam(req.params.buildingId, RESOURCE.building),
     parsed.data,
   );
   res.status(200).json(fees);
@@ -43,11 +43,11 @@ export async function listServiceFeesHandler(req: Request, res: Response) {
 export async function updateServiceFeeHandler(req: Request, res: Response) {
   const parsed = updateServiceFeeSchema.safeParse(req.body);
   if (!parsed.success) {
-    throw new ValidationError("Invalid service fee payload", parsed.error.flatten());
+    throw new ValidationError("SERVICE_FEE_PAYLOAD_INVALID", "Invalid service fee payload", parsed.error.flatten());
   }
 
   const fee = await serviceFeeService.updateServiceFee(
-    parseIdParam(req.params.feeId, "Service fee"),
+    parseIdParam(req.params.feeId, RESOURCE.serviceFee),
     parsed.data,
   );
   res.status(200).json(fee);
@@ -55,14 +55,14 @@ export async function updateServiceFeeHandler(req: Request, res: Response) {
 
 export async function retireServiceFeeHandler(req: Request, res: Response) {
   const fee = await serviceFeeService.retireServiceFee(
-    parseIdParam(req.params.feeId, "Service fee"),
+    parseIdParam(req.params.feeId, RESOURCE.serviceFee),
   );
   res.status(200).json(fee);
 }
 
 export async function restoreServiceFeeHandler(req: Request, res: Response) {
   const fee = await serviceFeeService.restoreServiceFee(
-    parseIdParam(req.params.feeId, "Service fee"),
+    parseIdParam(req.params.feeId, RESOURCE.serviceFee),
   );
   res.status(200).json(fee);
 }
@@ -71,7 +71,7 @@ export async function restoreServiceFeeHandler(req: Request, res: Response) {
 
 export async function listLeaseServiceFeesHandler(req: Request, res: Response) {
   const rows = await serviceFeeService.listLeaseServiceFees(
-    parseIdParam(req.params.id, "Lease"),
+    parseIdParam(req.params.id, RESOURCE.lease),
   );
   res.status(200).json({ serviceFees: rows.map(toLeaseServiceFeeResponse) });
 }
@@ -79,11 +79,11 @@ export async function listLeaseServiceFeesHandler(req: Request, res: Response) {
 export async function selectServiceFeeHandler(req: Request, res: Response) {
   const parsed = selectServiceFeeSchema.safeParse(req.body);
   if (!parsed.success) {
-    throw new ValidationError("Invalid service fee selection", parsed.error.flatten());
+    throw new ValidationError("SERVICE_FEE_SELECTION_INVALID", "Invalid service fee selection", parsed.error.flatten());
   }
 
   const row = await serviceFeeService.selectServiceFee(
-    parseIdParam(req.params.id, "Lease"),
+    parseIdParam(req.params.id, RESOURCE.lease),
     parsed.data,
   );
   res.status(201).json(toLeaseServiceFeeResponse(row));
@@ -92,12 +92,12 @@ export async function selectServiceFeeHandler(req: Request, res: Response) {
 export async function updateLeaseServiceFeeHandler(req: Request, res: Response) {
   const parsed = updateSelectionSchema.safeParse(req.body);
   if (!parsed.success) {
-    throw new ValidationError("Invalid service fee selection", parsed.error.flatten());
+    throw new ValidationError("SERVICE_FEE_SELECTION_INVALID", "Invalid service fee selection", parsed.error.flatten());
   }
 
   const row = await serviceFeeService.updateLeaseServiceFee(
-    parseIdParam(req.params.id, "Lease"),
-    parseIdParam(req.params.selectionId, "Lease service fee"),
+    parseIdParam(req.params.id, RESOURCE.lease),
+    parseIdParam(req.params.selectionId, RESOURCE.leaseServiceFee),
     parsed.data,
   );
   res.status(200).json(toLeaseServiceFeeResponse(row));
@@ -111,12 +111,12 @@ export async function updateLeaseServiceFeeHandler(req: Request, res: Response) 
 export async function endLeaseServiceFeeHandler(req: Request, res: Response) {
   const parsed = endServiceFeeSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
-    throw new ValidationError("Invalid service fee payload", parsed.error.flatten());
+    throw new ValidationError("SERVICE_FEE_PAYLOAD_INVALID", "Invalid service fee payload", parsed.error.flatten());
   }
 
   const row = await serviceFeeService.endLeaseServiceFee(
-    parseIdParam(req.params.id, "Lease"),
-    parseIdParam(req.params.selectionId, "Lease service fee"),
+    parseIdParam(req.params.id, RESOURCE.lease),
+    parseIdParam(req.params.selectionId, RESOURCE.leaseServiceFee),
     parsed.data,
   );
   res.status(200).json(toLeaseServiceFeeResponse(row));

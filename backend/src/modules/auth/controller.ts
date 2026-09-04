@@ -30,7 +30,7 @@ function refreshCookieOptions(maxAgeMs: number) {
 export async function loginHandler(req: Request, res: Response) {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
-    throw new ValidationError("Invalid login request", parsed.error.flatten());
+    throw new ValidationError("LOGIN_REQUEST_INVALID", "Invalid login request", parsed.error.flatten());
   }
 
   const { phone, password } = parsed.data;
@@ -47,7 +47,7 @@ export async function loginHandler(req: Request, res: Response) {
 export async function refreshHandler(req: Request, res: Response) {
   const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
   if (!refreshToken) {
-    throw new UnauthorizedError("Missing refresh token");
+    throw new UnauthorizedError("REFRESH_TOKEN_MISSING", "Missing refresh token");
   }
 
   const result = await authService.refresh(refreshToken);
@@ -60,7 +60,7 @@ export async function meHandler(req: Request, res: Response) {
   // user's account.
   const userId = req.user?.userId;
   if (userId === undefined) {
-    throw new UnauthorizedError("Not authenticated");
+    throw new UnauthorizedError("NOT_AUTHENTICATED", "Not authenticated");
   }
 
   const user = await authService.getCurrentUser(userId);

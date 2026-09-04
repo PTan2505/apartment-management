@@ -91,6 +91,7 @@ async function assertRoomCodeAvailable(
 
   if (clash) {
     throw new ConflictError(
+      "ROOM_CODE_TAKEN",
       `Room code "${roomCode}" is already used by an active room in this building`,
     );
   }
@@ -102,11 +103,11 @@ export async function createRoom(input: CreateRoomInput) {
   });
 
   if (!building) {
-    throw new NotFoundError("Building not found");
+    throw new NotFoundError("BUILDING_NOT_FOUND", "Building not found");
   }
 
   if (!building.isActive) {
-    throw new ValidationError("Cannot add a room to a retired building");
+    throw new ValidationError("ROOM_BUILDING_RETIRED", "Cannot add a room to a retired building");
   }
 
   await assertRoomCodeAvailable(input.buildingId, input.roomCode);
@@ -148,7 +149,7 @@ export async function listRooms(query: ListRoomsQuery) {
 export async function getRoomById(id: number) {
   const room = await prisma.room.findUnique({ where: { id }, select: roomSelect });
   if (!room) {
-    throw new NotFoundError("Room not found");
+    throw new NotFoundError("ROOM_NOT_FOUND", "Room not found");
   }
   return toRoom(room);
 }
@@ -170,7 +171,7 @@ export async function retireRoom(id: number) {
   // Read from what the room already reports, rather than asking again — the
   // fetch above answered this question on the way past.
   if (room.isLet) {
-    throw new ConflictError("Cannot retire a room that has an active lease");
+    throw new ConflictError("ROOM_RETIRE_HAS_ACTIVE_LEASE", "Cannot retire a room that has an active lease");
   }
 
   return toRoom(

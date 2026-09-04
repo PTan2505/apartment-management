@@ -22,13 +22,13 @@ const feeSelect = {
 
 async function getBuildingOrThrow(buildingId: number) {
   const building = await prisma.building.findUnique({ where: { id: buildingId } });
-  if (!building) throw new NotFoundError("Building not found");
+  if (!building) throw new NotFoundError("BUILDING_NOT_FOUND", "Building not found");
   return building;
 }
 
 export async function getServiceFeeById(id: number) {
   const fee = await prisma.buildingServiceFee.findUnique({ where: { id }, select: feeSelect });
-  if (!fee) throw new NotFoundError("Service fee not found");
+  if (!fee) throw new NotFoundError("SERVICE_FEE_NOT_FOUND", "Service fee not found");
   return fee;
 }
 
@@ -47,7 +47,10 @@ async function assertNameAvailable(buildingId: number, name: string, exceptId?: 
     },
   });
   if (clash) {
-    throw new ConflictError(`This building already has a fee named "${name}"`);
+    throw new ConflictError(
+      "SERVICE_FEE_NAME_TAKEN",
+      `This building already has a fee named "${name}"`,
+    );
   }
 }
 
@@ -139,7 +142,7 @@ async function getLeaseOrThrow(leaseId: number) {
     where: { id: leaseId },
     include: { room: { select: { buildingId: true } } },
   });
-  if (!lease) throw new NotFoundError("Lease not found");
+  if (!lease) throw new NotFoundError("LEASE_NOT_FOUND", "Lease not found");
   return lease;
 }
 
@@ -165,10 +168,10 @@ export async function selectServiceFee(leaseId: number, input: SelectServiceFeeI
   const fee = await getServiceFeeById(input.buildingServiceFeeId);
 
   if (fee.buildingId !== lease.room.buildingId) {
-    throw new ValidationError("That fee belongs to a different building");
+    throw new ValidationError("SERVICE_FEE_WRONG_BUILDING", "That fee belongs to a different building");
   }
   if (!fee.isActive) {
-    throw new ValidationError("That fee is no longer offered");
+    throw new ValidationError("SERVICE_FEE_WITHDRAWN", "That fee is no longer offered");
   }
 
   // Only the fees still running block a new one. A fee given up may be taken
@@ -178,6 +181,7 @@ export async function selectServiceFee(leaseId: number, input: SelectServiceFeeI
   });
   if (existing) {
     throw new ConflictError(
+      "SERVICE_FEE_ALREADY_ON_LEASE",
       "This lease already has that fee — change its quantity rather than adding it again",
     );
   }
@@ -187,7 +191,7 @@ export async function selectServiceFee(leaseId: number, input: SelectServiceFeeI
   // would silently under-charge every fee entered late.
   const effectiveFrom = input.effectiveFrom ?? lease.startDate;
   if (effectiveFrom < lease.startDate) {
-    throw new ValidationError("A fee cannot begin applying before its lease starts");
+    throw new ValidationError("SERVICE_FEE_STARTS_BEFORE_LEASE", "A fee cannot begin applying before its lease starts");
   }
 
   return prisma.leaseServiceFee.create({
@@ -207,7 +211,7 @@ async function getSelectionOrThrow(leaseId: number, selectionId: number) {
     where: { id: selectionId, leaseId },
     select: selectionSelect,
   });
-  if (!selection) throw new NotFoundError("Lease service fee not found");
+  if (!selection) throw new NotFoundError("LEASE_SERVICE_FEE_NOT_FOUND", "Lease service fee not found");
   return selection;
 }
 
@@ -250,12 +254,12 @@ export async function endLeaseServiceFee(
   const selection = await getSelectionOrThrow(leaseId, selectionId);
 
   if (selection.effectiveTo !== null) {
-    throw new ConflictError("That fee has already been given up");
+    throw new ConflictError("LEASE_SERVICE_FEE_ALREADY_ENDED", "That fee has already been given up");
   }
 
   const effectiveTo = input.effectiveTo ?? new Date();
   if (effectiveTo < selection.effectiveFrom) {
-    throw new ValidationError("A fee cannot stop applying before it started");
+    throw new ValidationError("SERVICE_FEE_ENDS_BEFORE_START", "A fee cannot stop applying before it started");
   }
 
   return prisma.leaseServiceFee.update({

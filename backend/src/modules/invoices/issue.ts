@@ -71,7 +71,7 @@ export async function issueMoveInInvoice(
   const expectedEndDate = addMonths(lease.startDate, lease.durationMonths);
   const rentPeriod = resolveFirstRentPeriod(lease.startDate, null, expectedEndDate);
   if (rentPeriod === null) {
-    throw new ValidationError("This lease covers no days, so there is nothing to charge");
+    throw new ValidationError("INVOICE_PERIOD_EMPTY", "This lease covers no days, so there is nothing to charge");
   }
 
   const rentAmount = (
@@ -163,12 +163,13 @@ export async function issueFinalInvoice(
     expectedEndDate,
   );
   if (period === null) {
-    throw new ValidationError("This tenancy covered no days in the month it ended");
+    throw new ValidationError("INVOICE_FINAL_MONTH_EMPTY", "This tenancy covered no days in the month it ended");
   }
 
   const previous = await resolveOpeningReading(tx, lease.id, lease.startMeterReading);
   if (endMeterReading < previous) {
     throw new ValidationError(
+      "METER_BELOW_INVOICED",
       "Closing meter reading cannot be below the reading already invoiced for this lease",
     );
   }
@@ -250,10 +251,12 @@ export async function issueOverdueInvoice(
       select: { id: true, name: true, buildingId: true },
     });
     if (!fee) {
-      throw new ValidationError("That service fee does not exist");
+      throw new ValidationError(
+        "INVOICE_SERVICE_FEE_UNKNOWN",
+        "That service fee does not exist");
     }
     if (fee.buildingId !== lease.room.buildingId) {
-      throw new ValidationError("That service fee belongs to a different building");
+      throw new ValidationError("SERVICE_FEE_WRONG_BUILDING", "That service fee belongs to a different building");
     }
 
     lines.push({

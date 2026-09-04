@@ -109,7 +109,10 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
     const found = new Set(buildings.map((b) => b.id));
     const missing = q.buildingIds.filter((id) => !found.has(id));
     if (missing.length > 0) {
-      throw new NotFoundError(`Building not found: ${missing.join(", ")}`);
+      throw new NotFoundError(
+        "BUILDING_NOT_FOUND",
+        `Building not found: ${missing.join(", ")}`,
+      );
     }
   }
 

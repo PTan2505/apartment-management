@@ -82,7 +82,8 @@ const leaseInclude = {
  */
 function assertNotCancelled(lease: { cancelledAt: Date | null }, what: string) {
   if (lease.cancelledAt !== null) {
-    throw new ConflictError(`That tenancy was cancelled, so ${what}`);
+    throw new ConflictError("LEASE_CANCELLED",
+      `That tenancy was cancelled, so ${what}`);
   }
 }
 
@@ -92,7 +93,7 @@ async function findLeaseOrThrow(id: number) {
     include: leaseInclude,
   });
   if (!lease) {
-    throw new NotFoundError("Lease not found");
+    throw new NotFoundError("LEASE_NOT_FOUND", "Lease not found");
   }
   return lease;
 }
@@ -112,6 +113,7 @@ async function resolveStartMeterReading(roomId: number, supplied?: number) {
   if (supplied === undefined) {
     if (latest === null) {
       throw new ValidationError(
+        "LEASE_START_METER_REQUIRED",
         "startMeterReading is required: this room has no previous reading to fall back on",
       );
     }
@@ -127,21 +129,21 @@ export async function createLease(input: CreateLeaseInput) {
     include: { building: true },
   });
   if (!room) {
-    throw new NotFoundError("Room not found");
+    throw new NotFoundError("ROOM_NOT_FOUND", "Room not found");
   }
   if (!room.isActive) {
-    throw new ValidationError("Cannot create a lease for a retired room");
+    throw new ValidationError("LEASE_ROOM_RETIRED", "Cannot create a lease for a retired room");
   }
 
   const signatory = await prisma.user.findFirst({
     where: { id: input.signatoryId, role: "customer" },
   });
   if (!signatory) {
-    throw new NotFoundError("Signatory not found");
+    throw new NotFoundError("SIGNATORY_NOT_FOUND", "Signatory not found");
   }
   // A lease is a contract, so the person responsible for it must be contactable.
   if (!signatory.phone) {
-    throw new ValidationError("The lease signatory must have a phone number");
+    throw new ValidationError("SIGNATORY_PHONE_REQUIRED", "The lease signatory must have a phone number");
   }
 
   // First: is the room still let? This guard runs before the overlap check
@@ -152,7 +154,7 @@ export async function createLease(input: CreateLeaseInput) {
     where: { roomId: input.roomId, ...HOLDS_ITS_ROOM },
   });
   if (activeLease) {
-    throw new ConflictError("That room already has an active lease");
+    throw new ConflictError("ROOM_ALREADY_LET", "That room already has an active lease");
   }
 
   // Then: does this tenancy begin before the last one finished?
@@ -182,6 +184,7 @@ export async function createLease(input: CreateLeaseInput) {
   if (lastEnded?.moveOutDate && input.startDate < lastEnded.moveOutDate) {
     const earliest = lastEnded.moveOutDate.toISOString().slice(0, 10);
     throw new ConflictError(
+      "LEASE_STARTS_BEFORE_PREVIOUS_END",
       `That room's previous tenancy ran until ${earliest}. A new lease cannot start before then — the earliest available date is ${earliest}.`,
     );
   }
@@ -353,7 +356,7 @@ export async function updateLease(id: number, input: UpdateLeaseInput) {
 
   assertNotCancelled(lease, "its terms can no longer be changed");
   if (lease.moveOutDate !== null) {
-    throw new ConflictError("Cannot update a finalized lease");
+    throw new ConflictError("LEASE_FINALIZED_NOT_EDITABLE", "Cannot update a finalized lease");
   }
 
   await prisma.lease.update({ where: { id }, data: input });
@@ -391,11 +394,13 @@ export async function extendLease(id: number, input: ExtendLeaseInput) {
   assertNotCancelled(lease, "there is no tenancy to renew");
   if (lease.moveOutDate !== null) {
     throw new ConflictError(
+      "LEASE_EXTEND_AFTER_MOVE_OUT",
       "That lease has already recorded a move-out, so it cannot be extended",
     );
   }
   if (input.endMeterReading < lease.startMeterReading) {
     throw new ValidationError(
+      "METER_BELOW_LEASE_START",
       "Closing meter reading cannot be below the reading this lease started from",
     );
   }
@@ -410,6 +415,7 @@ export async function extendLease(id: number, input: ExtendLeaseInput) {
     input.endMeterReading < lastInvoice.currentElectricityUse
   ) {
     throw new ValidationError(
+      "METER_BELOW_INVOICED",
       "Closing meter reading cannot be below the reading already invoiced for this lease",
     );
   }
@@ -576,13 +582,14 @@ export async function recordMoveOut(
 
   assertNotCancelled(lease, "nobody ever moved in to move out of");
   if (lease.moveOutDate !== null) {
-    throw new ConflictError("That lease has already recorded a move-out");
+    throw new ConflictError("LEASE_ALREADY_MOVED_OUT", "That lease has already recorded a move-out");
   }
   if (moveOutDate < lease.startDate) {
-    throw new ValidationError("Move-out date cannot precede the lease start date");
+    throw new ValidationError("MOVE_OUT_BEFORE_START", "Move-out date cannot precede the lease start date");
   }
   if (endMeterReading < lease.startMeterReading) {
     throw new ValidationError(
+      "METER_BELOW_LEASE_START",
       "Closing meter reading cannot be below the reading this lease started from",
     );
   }
@@ -598,6 +605,7 @@ export async function recordMoveOut(
   });
   if (lastInvoice?.currentElectricityUse != null && endMeterReading < lastInvoice.currentElectricityUse) {
     throw new ValidationError(
+      "METER_BELOW_INVOICED",
       "Closing meter reading cannot be below the reading already invoiced for this lease",
     );
   }
@@ -663,10 +671,11 @@ export async function cancelLease(id: number, input: CancelLeaseInput) {
   const lease = await findLeaseOrThrow(id);
 
   if (lease.cancelledAt !== null) {
-    throw new ConflictError("That lease has already been cancelled");
+    throw new ConflictError("LEASE_ALREADY_CANCELLED", "That lease has already been cancelled");
   }
   if (lease.moveOutDate !== null) {
     throw new ConflictError(
+      "LEASE_CANCEL_AFTER_MOVE_OUT",
       "That tenancy has recorded a move-out, so it cannot be recorded as never having taken place",
     );
   }
@@ -687,6 +696,7 @@ export async function cancelLease(id: number, input: CancelLeaseInput) {
   });
   if (billedMonth) {
     throw new ConflictError(
+      "LEASE_CANCEL_AFTER_BILLING",
       "That tenancy has been billed for a month, so it cannot be recorded as never having taken place. Record a move-out instead",
     );
   }
@@ -701,12 +711,14 @@ export async function cancelLease(id: number, input: CancelLeaseInput) {
     // handing back money should not be told the cancellation succeeded.
     if (!returned.isZero() || !kept.isZero()) {
       throw new ValidationError(
+        "DEPOSIT_NONE_HELD",
         "This tenancy is holding no deposit, so there is nothing to return or keep",
       );
     }
   } else {
     if (input.depositReturned === undefined || input.depositKept === undefined) {
       throw new ValidationError(
+        "DEPOSIT_SPLIT_REQUIRED",
         "State how much of the deposit is returned and how much is kept",
       );
     }
@@ -716,7 +728,8 @@ export async function cancelLease(id: number, input: CancelLeaseInput) {
     // reconstruct a distinction they never made.
     if (!returned.add(kept).equals(held)) {
       throw new ValidationError(
-        `Returned and kept must account for the whole deposit of ${held.toFixed(0)} held against this tenancy — they come to ${returned.add(kept).toFixed(0)}`,
+        "DEPOSIT_SPLIT_MISMATCH",
+      `Returned and kept must account for the whole deposit of ${held.toFixed(0)} held against this tenancy — they come to ${returned.add(kept).toFixed(0)}`,
       );
     }
   }
@@ -835,6 +848,7 @@ export async function cancelLease(id: number, input: CancelLeaseInput) {
 function assertStorage() {
   if (!storage.isConfigured()) {
     throw new NotConfiguredError(
+      "CONTRACT_STORAGE_NOT_CONFIGURED",
       "Contract storage is not configured on this server, so contracts cannot be kept here",
     );
   }
@@ -871,12 +885,13 @@ export async function confirmContractUpload(id: number, key: string) {
   // Without this, a confirmation could attach another tenancy's contract — or
   // any object in the bucket — to this one.
   if (!key.startsWith(storage.contractPrefix(id))) {
-    throw new ValidationError("That file does not belong to this tenancy");
+    throw new ValidationError("CONTRACT_KEY_FOREIGN", "That file does not belong to this tenancy");
   }
 
   const object = await storage.describeObject(key);
   if (object === null) {
     throw new ValidationError(
+      "CONTRACT_OBJECT_MISSING",
       "That file is not in storage. The upload may not have finished — try again",
     );
   }
@@ -888,6 +903,7 @@ export async function confirmContractUpload(id: number, key: string) {
   if (object.size > storage.MAX_CONTRACT_BYTES) {
     await storage.deleteObject(key);
     throw new ValidationError(
+      "CONTRACT_FILE_TOO_LARGE",
       `That file is larger than the ${Math.round(storage.MAX_CONTRACT_BYTES / 1024 / 1024)} MB limit`,
     );
   }
@@ -915,7 +931,7 @@ export async function getContractDownload(id: number) {
   const lease = await findLeaseOrThrow(id);
   assertStorage();
   if (lease.contractKey === null) {
-    throw new NotFoundError("This tenancy has no contract on file");
+    throw new NotFoundError("CONTRACT_NONE_ON_FILE", "This tenancy has no contract on file");
   }
   return storage.signContractDownload(lease.contractKey);
 }
@@ -924,7 +940,7 @@ export async function removeContract(id: number) {
   const lease = await findLeaseOrThrow(id);
   assertStorage();
   if (lease.contractKey === null) {
-    throw new NotFoundError("This tenancy has no contract on file");
+    throw new NotFoundError("CONTRACT_NONE_ON_FILE", "This tenancy has no contract on file");
   }
 
   await prisma.lease.update({ where: { id }, data: { contractKey: null } });
@@ -955,21 +971,21 @@ export async function addOccupant(leaseId: number, input: AddOccupantInput) {
 
   assertNotCancelled(lease, "nobody can be recorded as living there");
   if (lease.moveOutDate !== null) {
-    throw new ConflictError("Cannot add an occupant to a finalized lease");
+    throw new ConflictError("OCCUPANT_ADD_TO_FINALIZED", "Cannot add an occupant to a finalized lease");
   }
 
   const customer = await prisma.user.findFirst({
     where: { id: input.customerId, role: "customer" },
   });
   if (!customer) {
-    throw new NotFoundError("Customer not found");
+    throw new NotFoundError("CUSTOMER_NOT_FOUND", "Customer not found");
   }
 
   const alreadyCurrent = lease.occupants.find(
     (o) => o.userId === input.customerId && o.leftAt === null,
   );
   if (alreadyCurrent) {
-    throw new ConflictError("That person is already a current occupant of this lease");
+    throw new ConflictError("OCCUPANT_ALREADY_PRESENT", "That person is already a current occupant of this lease");
   }
 
   // A person who previously departed gets a fresh record; the earlier one is
@@ -996,13 +1012,13 @@ export async function departOccupant(
   const occupant = lease.occupants.find((o) => o.id === occupantId);
 
   if (!occupant) {
-    throw new NotFoundError("Occupant not found on this lease");
+    throw new NotFoundError("OCCUPANT_NOT_ON_LEASE", "Occupant not found on this lease");
   }
   if (occupant.leftAt !== null) {
-    throw new ConflictError("That occupant has already departed");
+    throw new ConflictError("OCCUPANT_ALREADY_DEPARTED", "That occupant has already departed");
   }
   if (leftAt < occupant.joinedAt) {
-    throw new ValidationError("Departure date cannot precede the date they joined");
+    throw new ValidationError("DEPARTURE_BEFORE_JOIN", "Departure date cannot precede the date they joined");
   }
 
   const otherCurrent = lease.occupants.filter(
@@ -1013,6 +1029,7 @@ export async function departOccupant(
   // is nobody to transfer to, so the departure is allowed.
   if (occupant.isPrimary && otherCurrent.length > 0) {
     throw new ConflictError(
+      "PRIMARY_OCCUPANT_MUST_TRANSFER",
       "Transfer primary responsibility to another occupant before recording this departure",
     );
   }
@@ -1029,19 +1046,19 @@ export async function transferPrimary(leaseId: number, customerId: number) {
 
   assertNotCancelled(lease, "there is no responsibility left to transfer");
   if (lease.moveOutDate !== null) {
-    throw new ConflictError("Cannot transfer responsibility on a finalized lease");
+    throw new ConflictError("TRANSFER_ON_FINALIZED_LEASE", "Cannot transfer responsibility on a finalized lease");
   }
 
   const incoming = lease.occupants.find(
     (o) => o.userId === customerId && o.leftAt === null,
   );
   if (!incoming) {
-    throw new ValidationError("That person is not a current occupant of this lease");
+    throw new ValidationError("TRANSFER_TARGET_NOT_OCCUPANT", "That person is not a current occupant of this lease");
   }
 
   const current = lease.occupants.find((o) => o.isPrimary && o.leftAt === null);
   if (current && current.id === incoming.id) {
-    throw new ConflictError("That person is already the primary occupant");
+    throw new ConflictError("TRANSFER_TARGET_ALREADY_PRIMARY", "That person is already the primary occupant");
   }
 
   // Clear the existing primary before setting the new one: the partial unique

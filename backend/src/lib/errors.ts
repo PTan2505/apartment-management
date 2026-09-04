@@ -1,38 +1,61 @@
+/**
+ * ── Why the code is an argument and the status is not ──────────────────────
+ *
+ * The status IS a property of the kind of error: everything not found is a 404,
+ * and no caller of `NotFoundError` gets to disagree. The code is not. It names
+ * WHICH failure happened, and only the throw site knows that.
+ *
+ * Before this, the class supplied both — so 95 unrelated rejections all
+ * announced themselves as `VALIDATION_ERROR`, and nothing downstream could tell
+ * "this room's building has been retired" from "this fee starts before its
+ * lease". A code shared by unrelated failures is not a machine-readable code,
+ * it is the status spelled out in letters.
+ *
+ * Codes are FROZEN once shipped. Another system stores them, branches on them
+ * and translates them, so renaming one to read better breaks every caller. The
+ * wording that should improve is the sentence each surface writes for its own
+ * reader — which is exactly what having a stable code makes possible.
+ */
 export abstract class AppError extends Error {
   abstract readonly status: number;
-  abstract readonly code: string;
+  readonly code: string;
   details?: unknown;
 
-  constructor(message: string, details?: unknown) {
+  constructor(code: string, message: string, details?: unknown) {
     super(message);
     this.name = new.target.name;
     this.details = details;
+
+    // Checked here rather than trusted, because a malformed code is invisible
+    // until something downstream fails to match it — by which time it is in a
+    // response somebody has already handled.
+    if (!/^[A-Z][A-Z0-9_]*$/.test(code)) {
+      throw new Error(
+        `Error code must be SCREAMING_SNAKE_CASE, received: ${JSON.stringify(code)}`,
+      );
+    }
+    this.code = code;
   }
 }
 
 export class NotFoundError extends AppError {
   readonly status = 404;
-  readonly code = "NOT_FOUND";
 }
 
 export class ValidationError extends AppError {
   readonly status = 400;
-  readonly code = "VALIDATION_ERROR";
 }
 
 export class UnauthorizedError extends AppError {
   readonly status = 401;
-  readonly code = "UNAUTHORIZED";
 }
 
 export class ForbiddenError extends AppError {
   readonly status = 403;
-  readonly code = "FORBIDDEN";
 }
 
 export class ConflictError extends AppError {
   readonly status = 409;
-  readonly code = "CONFLICT";
 }
 
 /**
@@ -45,17 +68,14 @@ export class ConflictError extends AppError {
  */
 export class MalformedBodyError extends AppError {
   readonly status = 400;
-  readonly code = "MALFORMED_BODY";
 }
 
 export class PayloadTooLargeError extends AppError {
   readonly status = 413;
-  readonly code = "PAYLOAD_TOO_LARGE";
 }
 
 export class UnsupportedMediaTypeError extends AppError {
   readonly status = 415;
-  readonly code = "UNSUPPORTED_MEDIA_TYPE";
 }
 
 /**
@@ -67,7 +87,6 @@ export class UnsupportedMediaTypeError extends AppError {
  */
 export class NotConfiguredError extends AppError {
   readonly status = 503;
-  readonly code = "NOT_CONFIGURED";
 }
 
 /**
@@ -80,5 +99,4 @@ export class NotConfiguredError extends AppError {
  */
 export class UpstreamUnavailableError extends AppError {
   readonly status = 502;
-  readonly code = "UPSTREAM_UNAVAILABLE";
 }

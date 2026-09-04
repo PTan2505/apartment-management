@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { ValidationError } from "@/lib/errors.js";
-import { parseIdParam } from "@/lib/parse-id.js";
+import { parseIdParam, RESOURCE } from "@/lib/parse-id.js";
 import * as gatewayService from "./service.js";
 
 /**
@@ -18,7 +18,7 @@ export async function webhookHandler(req: Request, res: Response) {
 }
 
 export async function reconcilePaymentHandler(req: Request, res: Response) {
-  const paymentId = parseIdParam(req.params.id, "Payment");
+  const paymentId = parseIdParam(req.params.id, RESOURCE.payment);
   res.status(200).json(await gatewayService.reconcilePayment(paymentId));
 }
 

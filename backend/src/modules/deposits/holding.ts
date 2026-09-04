@@ -61,6 +61,7 @@ async function shift(tx: Tx, leaseId: number, delta: Prisma.Decimal, whenNegativ
 export async function holdFromInvoice(tx: Tx, leaseId: number, lines: DepositLine[]) {
   await shift(tx, leaseId, depositCharged(lines), () => {
     throw new ConflictError(
+      "DEPOSIT_WOULD_GO_NEGATIVE",
       "Paying this invoice would take the deposit held below zero — the surplus it returns is larger than the deposit on hand",
     );
   });
@@ -73,6 +74,7 @@ export async function holdFromInvoice(tx: Tx, leaseId: number, lines: DepositLin
 export async function releaseFromInvoice(tx: Tx, leaseId: number, lines: DepositLine[]) {
   await shift(tx, leaseId, depositCharged(lines).negated(), () => {
     throw new ConflictError(
+      "DEPOSIT_VOID_ALREADY_SPENT",
       "The deposit this invoice established has already been partly spent, so voiding it would leave a negative holding. Reverse those deductions first",
     );
   });
@@ -86,6 +88,7 @@ export async function releaseFromInvoice(tx: Tx, leaseId: number, lines: Deposit
 export async function deductFromDeposit(tx: Tx, leaseId: number, amount: Prisma.Decimal) {
   await shift(tx, leaseId, amount.negated(), () => {
     throw new ValidationError(
+      "DEPOSIT_TOO_SMALL_TO_SETTLE",
       "This invoice is larger than the deposit held for its lease, so it cannot be settled from the deposit",
     );
   });
@@ -96,7 +99,7 @@ export async function deductFromDeposit(tx: Tx, leaseId: number, amount: Prisma.
  */
 export async function restoreDeduction(tx: Tx, leaseId: number, amount: Prisma.Decimal) {
   await shift(tx, leaseId, amount, () => {
-    throw new ConflictError("Restoring this deduction would leave a negative holding");
+    throw new ConflictError("DEPOSIT_RESTORE_WOULD_GO_NEGATIVE", "Restoring this deduction would leave a negative holding");
   });
 }
 
@@ -107,6 +110,7 @@ export async function restoreDeduction(tx: Tx, leaseId: number, amount: Prisma.D
 export async function adjustHolding(tx: Tx, leaseId: number, amount: Prisma.Decimal) {
   await shift(tx, leaseId, amount, () => {
     throw new ValidationError(
+      "DEPOSIT_RETURN_EXCEEDS_HELD",
       "That would take the deposit held below zero — an owner cannot return money they are not holding",
     );
   });

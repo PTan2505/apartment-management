@@ -27,12 +27,12 @@ export async function login(phone: string, password: string): Promise<LoginResul
   const user = await prisma.user.findUnique({ where: { phone } });
 
   if (!user || !user.passwordHash) {
-    throw new UnauthorizedError(INVALID_CREDENTIALS_MESSAGE);
+    throw new UnauthorizedError("INVALID_CREDENTIALS", INVALID_CREDENTIALS_MESSAGE);
   }
 
   const passwordMatches = await bcrypt.compare(password, user.passwordHash);
   if (!passwordMatches) {
-    throw new UnauthorizedError(INVALID_CREDENTIALS_MESSAGE);
+    throw new UnauthorizedError("INVALID_CREDENTIALS", INVALID_CREDENTIALS_MESSAGE);
   }
 
   const accessToken = signAccessToken({ sub: String(user.id), role: user.role });
@@ -65,7 +65,7 @@ export async function refresh(rawRefreshToken: string): Promise<RefreshResult> {
   });
 
   if (!record || record.revokedAt || record.expiresAt < new Date()) {
-    throw new UnauthorizedError("Invalid or expired refresh token");
+    throw new UnauthorizedError("REFRESH_TOKEN_INVALID", "Invalid or expired refresh token");
   }
 
   const accessToken = signAccessToken({ sub: String(record.user.id), role: record.user.role });
@@ -96,7 +96,7 @@ export async function getCurrentUser(userId: number) {
   // a missing resource: the caller is nobody, so 401 rather than 404 or a 500
   // from returning null.
   if (!user) {
-    throw new UnauthorizedError("Account no longer exists");
+    throw new UnauthorizedError("ACCOUNT_GONE", "Account no longer exists");
   }
 
   return user;

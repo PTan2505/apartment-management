@@ -22,13 +22,13 @@ export async function issuePortalLink(customerId: number) {
     select: { id: true, role: true, fullName: true },
   });
   if (!user) {
-    throw new NotFoundError("Customer not found");
+    throw new NotFoundError("CUSTOMER_NOT_FOUND", "Customer not found");
   }
   // An owner signs in with a password. A portal link is for somebody who
   // cannot, and handing one to an owner account would be a second, weaker way
   // into an account that already has a real one.
   if (user.role !== "customer") {
-    throw new ValidationError("A portal link can only be issued to a customer");
+    throw new ValidationError("PORTAL_LINK_ONLY_FOR_CUSTOMER", "A portal link can only be issued to a customer");
   }
 
   const token = generateOpaqueToken();
@@ -59,7 +59,7 @@ export async function revokePortalLink(customerId: number) {
     where: { userId: customerId, revokedAt: null },
   });
   if (!active) {
-    throw new NotFoundError("That customer has no portal link");
+    throw new NotFoundError("PORTAL_LINK_NONE", "That customer has no portal link");
   }
 
   await prisma.tenantAccessToken.update({
@@ -111,7 +111,7 @@ async function resolveToken(token: string) {
   });
 
   if (!row || row.revokedAt !== null) {
-    throw new NotFoundError("Portal not found");
+    throw new NotFoundError("PORTAL_NOT_FOUND", "Portal not found");
   }
 
   await prisma.tenantAccessToken.update({
@@ -231,7 +231,7 @@ export async function startPortalPayment(
   // Indistinguishable from an invoice that does not exist. A tenant learning
   // which invoice ids are real is a tenant learning about other tenancies.
   if (!visible) {
-    throw new NotFoundError("Invoice not found");
+    throw new NotFoundError("INVOICE_NOT_FOUND", "Invoice not found");
   }
 
   return createGatewayPayment(invoiceId, urls);

@@ -8,7 +8,7 @@ export async function searchAddressesHandler(req: Request, res: Response) {
   if (!parsed.success) {
     // Rejected before the provider is called: empty input would be a wasted
     // request and a wasted billable session.
-    throw new ValidationError("Invalid address search", parsed.error.flatten());
+    throw new ValidationError("ADDRESS_SEARCH_INVALID", "Invalid address search", parsed.error.flatten());
   }
 
   const candidates = await addressService.searchAddresses(
@@ -26,12 +26,12 @@ export async function resolveAddressHandler(req: Request, res: Response) {
   const raw = req.params.placeId;
   const placeId = Array.isArray(raw) ? raw[0] : raw;
   if (!placeId) {
-    throw new ValidationError("A place id is required");
+    throw new ValidationError("ADDRESS_PLACE_ID_REQUIRED", "A place id is required");
   }
 
   const parsed = resolveAddressQuerySchema.safeParse(req.query);
   if (!parsed.success) {
-    throw new ValidationError("Invalid address request", parsed.error.flatten());
+    throw new ValidationError("ADDRESS_REQUEST_INVALID", "Invalid address request", parsed.error.flatten());
   }
 
   const address = await addressService.resolveAddress(placeId, parsed.data.sessionToken);

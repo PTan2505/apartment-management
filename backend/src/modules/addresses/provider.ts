@@ -49,6 +49,7 @@ function requireApiKey(): string {
   const key = env.OPENMAP_API_KEY;
   if (!key) {
     throw new NotConfiguredError(
+      "ADDRESS_LOOKUP_NOT_CONFIGURED",
       "Address lookup is not configured on this server",
     );
   }
@@ -77,7 +78,7 @@ async function request(path: string, params: Record<string, string>): Promise<Re
   } catch {
     // Unreachable, DNS failure, or timed out. Deliberately not re-thrown: the
     // cause could carry the URL, and the URL carries the key.
-    throw new UpstreamUnavailableError("Address lookup is currently unavailable");
+    throw new UpstreamUnavailableError("ADDRESS_LOOKUP_UNAVAILABLE", "Address lookup is currently unavailable");
   }
 }
 
@@ -89,12 +90,12 @@ async function request(path: string, params: Record<string, string>): Promise<Re
  */
 async function parse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    throw new UpstreamUnavailableError("Address lookup is currently unavailable");
+    throw new UpstreamUnavailableError("ADDRESS_LOOKUP_UNAVAILABLE", "Address lookup is currently unavailable");
   }
   try {
     return (await response.json()) as T;
   } catch {
-    throw new UpstreamUnavailableError("Address lookup returned an unreadable response");
+    throw new UpstreamUnavailableError("ADDRESS_LOOKUP_UNREADABLE", "Address lookup returned an unreadable response");
   }
 }
 

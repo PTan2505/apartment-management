@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { ValidationError } from "@/lib/errors.js";
-import { parseIdParam } from "@/lib/parse-id.js";
+import { parseIdParam, RESOURCE } from "@/lib/parse-id.js";
 import {
   registerCustomerSchema,
   updateCustomerSchema,
@@ -11,7 +11,7 @@ import * as customerService from "./service.js";
 export async function registerCustomerHandler(req: Request, res: Response) {
   const parsed = registerCustomerSchema.safeParse(req.body);
   if (!parsed.success) {
-    throw new ValidationError("Invalid customer payload", parsed.error.flatten());
+    throw new ValidationError("CUSTOMER_PAYLOAD_INVALID", "Invalid customer payload", parsed.error.flatten());
   }
 
   const { customer, created } = await customerService.registerCustomer(parsed.data);
@@ -23,7 +23,7 @@ export async function registerCustomerHandler(req: Request, res: Response) {
 export async function listCustomersHandler(req: Request, res: Response) {
   const parsed = listCustomersQuerySchema.safeParse(req.query);
   if (!parsed.success) {
-    throw new ValidationError("Invalid query parameters", parsed.error.flatten());
+    throw new ValidationError("QUERY_INVALID", "Invalid query parameters", parsed.error.flatten());
   }
 
   const customers = await customerService.listCustomers(parsed.data);
@@ -31,18 +31,18 @@ export async function listCustomersHandler(req: Request, res: Response) {
 }
 
 export async function getCustomerHandler(req: Request, res: Response) {
-  const customer = await customerService.getCustomerById(parseIdParam(req.params.id, "Customer"));
+  const customer = await customerService.getCustomerById(parseIdParam(req.params.id, RESOURCE.customer));
   res.status(200).json(customer);
 }
 
 export async function updateCustomerHandler(req: Request, res: Response) {
   const parsed = updateCustomerSchema.safeParse(req.body);
   if (!parsed.success) {
-    throw new ValidationError("Invalid customer payload", parsed.error.flatten());
+    throw new ValidationError("CUSTOMER_PAYLOAD_INVALID", "Invalid customer payload", parsed.error.flatten());
   }
 
   const customer = await customerService.updateCustomer(
-    parseIdParam(req.params.id, "Customer"),
+    parseIdParam(req.params.id, RESOURCE.customer),
     parsed.data,
   );
   res.status(200).json(customer);
