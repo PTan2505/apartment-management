@@ -24,6 +24,7 @@ import PaymentsIcon from '@mui/icons-material/Payments'
 import UndoIcon from '@mui/icons-material/Undo'
 
 import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { EmptyState } from '@/components/EmptyState'
 import { formatDate } from '@/features/leases/dates'
@@ -264,9 +265,7 @@ export function InvoiceDetailPage() {
         }
       >
         <AlertTitle>Không tải được hoá đơn này</AlertTitle>
-        {isApiError(invoiceQuery.error)
-          ? invoiceQuery.error.message
-          : 'An unexpected error occurred.'}
+        {errorMessage(invoiceQuery.error)}
       </Alert>
     )
   }
@@ -304,7 +303,7 @@ export function InvoiceDetailPage() {
         reversedAt: new Date().toISOString().slice(0, 10),
       })
     } catch (cause) {
-      setActionError(isApiError(cause) ? cause.message : 'Không đảo được giao dịch đó.')
+      setActionError(errorMessage(cause))
     } finally {
       setReversing(null)
     }

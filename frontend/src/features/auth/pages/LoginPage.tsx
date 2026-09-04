@@ -18,6 +18,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility'
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
 
 import { isApiError, type ApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { useAuth } from '@/features/auth/useAuth'
 import { loginFormSchema, type LoginFormValues } from '@/features/auth/schema'
 import type { SignInLocationState } from '@/features/auth/AuthProvider'
@@ -162,9 +163,7 @@ export function LoginPage() {
               severity={submitError.isTransport ? 'warning' : 'error'}
               sx={{ mb: 2 }}
             >
-              {submitError.isTransport
-                ? `Không đăng nhập được: ${submitError.message}`
-                : submitError.message}
+              {errorMessage(submitError)}
             </Alert>
           )}
 

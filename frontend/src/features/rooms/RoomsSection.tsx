@@ -8,6 +8,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import AddIcon from '@mui/icons-material/Add'
 
 import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { EmptyState } from '@/components/EmptyState'
 import { Pagination, type PageMeta } from '@/components/Pagination'
 import { RoomList } from '@/features/rooms/RoomList'
@@ -74,7 +75,7 @@ export function RoomsSection({
       // since it was retired. The owner did nothing wrong and the reason is not
       // obvious, so the API's own message is shown rather than a generic one.
       setRestoreError(
-        isApiError(err) ? err.message : 'Không dùng lại được phòng đó.',
+        errorMessage(err),
       )
     }
   }
@@ -99,7 +100,7 @@ export function RoomsSection({
           }
         >
           <AlertTitle>Không tải được danh sách phòng</AlertTitle>
-          {isApiError(error) ? error.message : 'An unexpected error occurred.'}
+          {errorMessage(error)}
         </Alert>
       )
     }

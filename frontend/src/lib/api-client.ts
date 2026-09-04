@@ -61,22 +61,21 @@ function isBackendErrorBody(body: unknown): body is BackendErrorBody {
   )
 }
 
-/** Falls back to a code derived from the status when the body did not supply one. */
-function codeForStatus(status: number): ApiErrorCode {
-  switch (status) {
-    case 400:
-      return 'VALIDATION_ERROR'
-    case 401:
-      return 'UNAUTHORIZED'
-    case 403:
-      return 'FORBIDDEN'
-    case 404:
-      return 'NOT_FOUND'
-    case 409:
-      return 'CONFLICT'
-    default:
-      return status >= 500 ? 'INTERNAL_SERVER_ERROR' : 'UNEXPECTED_RESPONSE'
-  }
+/**
+ * The code for a response that carried no code of its own.
+ *
+ * It used to invent one from the status — a 404 became `NOT_FOUND`, a 409
+ * `CONFLICT`. That was reasonable while codes named categories and the status
+ * already told you the category anyway. It stopped being reasonable when codes
+ * began naming situations: a manufactured `NOT_FOUND` would be a code no part
+ * of the API can actually emit, indistinguishable from a real one.
+ *
+ * What is true about these is that the response did not look like the API's, and
+ * that is what this says. Nothing is lost: the status still travels on the
+ * error, and the phrase shown to a reader is chosen from it.
+ */
+function codeForStatus(_status: number): ApiErrorCode {
+  return 'UNEXPECTED_RESPONSE'
 }
 
 /**

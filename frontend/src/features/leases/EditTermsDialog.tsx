@@ -11,7 +11,7 @@ import DialogTitle from '@mui/material/DialogTitle'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 
-import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { useUpdateLease } from '@/features/leases/hooks'
 import { updateLeaseFormSchema, type UpdateLeaseFormOutput } from '@/features/leases/schema'
 import type { Lease } from '@/features/leases/types'
@@ -61,7 +61,7 @@ export function EditTermsDialog({ open, lease, onClose }: EditTermsDialogProps) 
       await updateMutation.mutateAsync({ id: lease.id, input: values })
       onClose()
     } catch (error) {
-      setFormError(isApiError(error) ? error.message : 'Không lưu được thay đổi.')
+      setFormError(errorMessage(error))
     }
   }
 

@@ -11,7 +11,7 @@ import DialogTitle from '@mui/material/DialogTitle'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 
-import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { useVoidInvoice } from '@/features/invoices/hooks'
 import { monthLabel } from '@/features/invoices/labels'
@@ -62,7 +62,7 @@ export function VoidInvoiceDialog({ open, invoice, onClose }: VoidInvoiceDialogP
       await voidInvoice.mutateAsync({ id: invoice.id, reason: reason.trim() })
       onClose()
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : 'Không rút được hoá đơn này.')
+      setError(errorMessage(cause))
     }
   }
 

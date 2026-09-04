@@ -24,6 +24,7 @@ import { useRoomMeterReading, useRooms } from '@/features/rooms/hooks'
 import { useCreateLease } from '@/features/leases/hooks'
 import { createLeaseFormSchema, type CreateLeaseFormValues } from '@/features/leases/schema'
 import type { Lease } from '@/features/leases/types'
+import { errorMessage } from '@/lib/error-messages'
 
 interface LeaseFormDialogProps {
   open: boolean
@@ -171,7 +172,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
        * change one field.
        */
       if (error.isConflict) {
-        setError('roomId', { type: 'server', message: error.message })
+        setError('roomId', { type: 'server', message: errorMessage(error) })
         return
       }
 
@@ -183,7 +184,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
           attributed = true
         }
       }
-      if (!attributed) setFormError(error.message)
+      if (!attributed) setFormError(errorMessage(error))
     }
   }
 

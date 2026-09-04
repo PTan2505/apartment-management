@@ -20,6 +20,7 @@ import Typography from '@mui/material/Typography'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 
 import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
 import { useBuildings } from '@/features/buildings/hooks'
@@ -146,7 +147,7 @@ export function BillingRunPage() {
     } catch (cause) {
       setRow(row.leaseId, {
         status: 'failed',
-        error: isApiError(cause) ? cause.message : 'Không xuất được hoá đơn này.',
+        error: errorMessage(cause),
       })
     }
   }
@@ -180,7 +181,7 @@ export function BillingRunPage() {
           }
         >
           <AlertTitle>Không tải được danh sách cần xuất</AlertTitle>
-          {isApiError(dueQuery.error) ? dueQuery.error.message : 'An unexpected error occurred.'}
+          {errorMessage(dueQuery.error)}
         </Alert>
       )
     }

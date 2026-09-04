@@ -12,7 +12,7 @@ import MenuItem from '@mui/material/MenuItem'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 
-import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { useLease } from '@/features/leases/hooks'
 import { useMarkPaid } from '@/features/invoices/hooks'
@@ -68,7 +68,7 @@ export function RecordPaymentDialog({ open, invoice, onClose }: RecordPaymentDia
       await markPaid.mutateAsync({ id: invoice.id, paymentMethod: method, paidAt })
       onClose()
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : 'Không ghi nhận được thanh toán.')
+      setError(errorMessage(cause))
     }
   }
 

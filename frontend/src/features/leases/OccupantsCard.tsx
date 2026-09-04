@@ -11,7 +11,7 @@ import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import PersonAddIcon from '@mui/icons-material/PersonAdd'
 
-import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { formatDate } from '@/features/leases/dates'
 import { useOccupants } from '@/features/leases/hooks'
 import { AddOccupantDialog } from '@/features/leases/AddOccupantDialog'
@@ -123,9 +123,7 @@ export function OccupantsCard({ lease }: OccupantsCardProps) {
                   </Button>
                 }
               >
-                {isApiError(occupantsQuery.error)
-                  ? occupantsQuery.error.message
-                  : 'Không tải được danh sách người ở của hợp đồng này.'}
+                {errorMessage(occupantsQuery.error)}
               </Alert>
             )}
 

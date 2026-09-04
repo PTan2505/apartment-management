@@ -14,6 +14,7 @@ import EventAvailableIcon from '@mui/icons-material/EventAvailable'
 
 import { MOBILE_BREAKPOINT } from '@/app/theme'
 import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { useListParams } from '@/lib/useListParams'
 import { EmptyState } from '@/components/EmptyState'
 import { Pagination } from '@/components/Pagination'
@@ -91,9 +92,7 @@ export function InvoicesPage() {
           }
         >
           <AlertTitle>Không tải được danh sách hoá đơn</AlertTitle>
-          {isApiError(invoicesQuery.error)
-            ? invoicesQuery.error.message
-            : 'An unexpected error occurred.'}
+          {errorMessage(invoicesQuery.error)}
         </Alert>
       )
     }

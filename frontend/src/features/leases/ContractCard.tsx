@@ -18,6 +18,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 
 import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { useQueryClient } from '@tanstack/react-query'
 import * as leasesApi from '@/features/leases/api'
 import { CONTRACT_ACCEPT } from '@/features/leases/api'
@@ -74,8 +75,7 @@ export function ContractCard({ lease }: { lease: Lease }) {
       refresh()
     } catch (cause) {
       setError(
-        isApiError(cause)
-          ? cause.message
+        isApiError(cause) ? errorMessage(cause)
           : cause instanceof Error
             ? cause.message
             : 'Không tải lên được tệp này.',
@@ -96,7 +96,7 @@ export function ContractCard({ lease }: { lease: Lease }) {
       // owner is usually only checking what it says.
       window.open(url, '_blank', 'noopener')
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : 'Không mở được hợp đồng.')
+      setError(errorMessage(cause))
     } finally {
       setBusy(null)
     }
@@ -110,7 +110,7 @@ export function ContractCard({ lease }: { lease: Lease }) {
       setConfirmRemove(false)
       refresh()
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : 'Không xoá được hợp đồng.')
+      setError(errorMessage(cause))
     } finally {
       setBusy(null)
     }

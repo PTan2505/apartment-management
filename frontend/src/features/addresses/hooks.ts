@@ -43,7 +43,7 @@ export function useAddressLookupAvailable() {
   })
 
   const notConfigured =
-    isApiError(query.error) && query.error.code === 'NOT_CONFIGURED'
+    isApiError(query.error) && query.error.code === 'ADDRESS_LOOKUP_NOT_CONFIGURED'
 
   return {
     isPending: query.isPending,

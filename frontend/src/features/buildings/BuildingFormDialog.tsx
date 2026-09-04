@@ -33,6 +33,7 @@ import {
 import type { Building } from "@/features/buildings/types";
 import { isApiError } from "@/lib/api-error";
 import { InputAdornment } from "@mui/material";
+import { errorMessage } from '@/lib/error-messages'
 
 interface BuildingFormDialogProps {
   open: boolean;
@@ -156,7 +157,7 @@ export function BuildingFormDialog({
       // through, so say so rather than leaving a search that led nowhere.
       setResolveError(
         isApiError(error)
-          ? `${error.message} You can enter the address manually.`
+          ? `${errorMessage(error)} Bạn có thể tự nhập địa chỉ.`
           : "Could not load that address. You can enter it manually.",
       );
     } finally {
@@ -204,7 +205,7 @@ export function BuildingFormDialog({
       onClose();
     } catch (error) {
       if (!isApiError(error)) {
-        setFormError("Something went wrong. Please try again.");
+        setFormError("Đã xảy ra lỗi. Vui lòng thử lại.");
         return;
       }
       // The API names the fields it rejected; attribute them rather than
@@ -220,7 +221,7 @@ export function BuildingFormDialog({
           attributed = true;
         }
       }
-      if (!attributed) setFormError(error.message);
+      if (!attributed) setFormError(errorMessage(error));
     }
   }
 

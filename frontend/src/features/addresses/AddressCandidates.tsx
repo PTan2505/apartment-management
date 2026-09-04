@@ -7,6 +7,7 @@ import Paper from '@mui/material/Paper'
 import { isApiError } from '@/lib/api-error'
 import { useAddressCandidates } from '@/features/addresses/hooks'
 import type { AddressCandidate } from '@/features/addresses/types'
+import { errorMessage } from '@/lib/error-messages'
 
 interface AddressCandidatesProps {
   /** Already debounced by the caller — every value here is worth a request. */
@@ -31,7 +32,7 @@ export function AddressCandidates({ term, sessionToken, onChoose }: AddressCandi
     // editable, so this is information rather than an obstacle.
     return (
       <Alert severity="warning" sx={{ mt: 1 }}>
-        {query.error.message} You can type the address yourself.
+        {errorMessage(query.error)} Bạn có thể tự nhập địa chỉ.
       </Alert>
     )
   }

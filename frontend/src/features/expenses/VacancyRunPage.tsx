@@ -19,6 +19,7 @@ import Typography from '@mui/material/Typography'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 
 import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
 import { useBuildings } from '@/features/buildings/hooks'
@@ -121,7 +122,7 @@ export function VacancyRunPage() {
     } catch (cause) {
       setRow(row.roomId, {
         status: 'failed',
-        error: isApiError(cause) ? cause.message : 'Không ghi được số điện này.',
+        error: errorMessage(cause),
       })
     }
   }
@@ -163,7 +164,7 @@ export function VacancyRunPage() {
           }
         >
           <AlertTitle>Không tải được danh sách còn thiếu</AlertTitle>
-          {isApiError(dueQuery.error) ? dueQuery.error.message : 'An unexpected error occurred.'}
+          {errorMessage(dueQuery.error)}
         </Alert>
       )
     }

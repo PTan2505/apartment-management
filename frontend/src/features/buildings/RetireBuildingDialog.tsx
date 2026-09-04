@@ -10,6 +10,7 @@ import DialogContentText from '@mui/material/DialogContentText'
 import DialogTitle from '@mui/material/DialogTitle'
 
 import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { useRetireBuilding } from '@/features/buildings/hooks'
 import type { Building } from '@/features/buildings/types'
 
@@ -48,10 +49,10 @@ export function RetireBuildingDialog({ building, onClose }: RetireBuildingDialog
       // reasonable action, not a fault — and the API's message names the reason
       // better than anything this screen could invent.
       if (isApiError(error) && error.isConflict) {
-        setConflict(error.message)
+        setConflict(errorMessage(error))
         return
       }
-      setOtherError(isApiError(error) ? error.message : 'Có lỗi xảy ra.')
+      setOtherError(errorMessage(error))
     }
   }
 

@@ -1,3 +1,5 @@
+import type { BackendErrorCode } from '@/lib/error-codes.generated'
+
 /**
  * The single error representation every failed API request produces.
  *
@@ -8,18 +10,16 @@
  * here as the same shape.
  */
 
-/** Error codes the backend's AppError subclasses emit. */
+/**
+ * Every code an error reaching application code can carry.
+ *
+ * The backend's half is GENERATED from its source — see
+ * backend/scripts/generate-error-codes.ts — so this cannot fall behind the API
+ * without CI noticing. The two below are assigned by the client, for failures
+ * the backend never got to see.
+ */
 export type ApiErrorCode =
-  | 'VALIDATION_ERROR'
-  | 'UNAUTHORIZED'
-  | 'FORBIDDEN'
-  | 'NOT_FOUND'
-  | 'CONFLICT'
-  | 'INTERNAL_SERVER_ERROR'
-  /** An optional feature is not set up on this deployment. */
-  | 'NOT_CONFIGURED'
-  /** A service the API depends on did not answer usefully. */
-  | 'UPSTREAM_UNAVAILABLE'
+  | BackendErrorCode
   /** Assigned by the client when the request never got an answer. */
   | 'NETWORK_ERROR'
   /** Assigned by the client when a response did not match the backend shape. */

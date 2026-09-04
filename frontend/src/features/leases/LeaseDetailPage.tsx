@@ -18,6 +18,7 @@ import EventBusyIcon from '@mui/icons-material/EventBusy'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 
 import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { EmptyState } from '@/components/EmptyState'
 import { formatCoveredThrough, formatDate, isTermRunOut } from '@/features/leases/dates'
@@ -203,7 +204,7 @@ export function LeaseDetailPage() {
         }
       >
         <AlertTitle>Không tải được hợp đồng này</AlertTitle>
-        {isApiError(leaseQuery.error) ? leaseQuery.error.message : 'An unexpected error occurred.'}
+        {errorMessage(leaseQuery.error)}
       </Alert>
     )
   }

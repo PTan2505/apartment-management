@@ -30,6 +30,7 @@ import EditIcon from '@mui/icons-material/Edit'
 import PowerOffIcon from '@mui/icons-material/PowerOff'
 
 import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { useListParams } from '@/lib/useListParams'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
@@ -105,7 +106,7 @@ export function ExpensesPage() {
       await remove.mutateAsync(removing.id)
       setRemoving(null)
     } catch (cause) {
-      setRemoveError(isApiError(cause) ? cause.message : 'Không xoá được chi phí đó.')
+      setRemoveError(errorMessage(cause))
     }
   }
 
@@ -152,9 +153,7 @@ export function ExpensesPage() {
           }
         >
           <AlertTitle>Không tải được danh sách chi phí</AlertTitle>
-          {isApiError(expensesQuery.error)
-            ? expensesQuery.error.message
-            : 'An unexpected error occurred.'}
+          {errorMessage(expensesQuery.error)}
         </Alert>
       )
     }

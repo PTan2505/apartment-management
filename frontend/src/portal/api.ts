@@ -1,4 +1,5 @@
 import { forgetToken } from '@/portal/token'
+import { messageForCode } from '@/lib/error-messages'
 
 /**
  * The portal's own HTTP access, deliberately not the owner application's.
@@ -96,8 +97,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   const body = (await response.json().catch(() => null)) as BackendError | null
+  // Phrased from the code, not taken from the body. The API answers callers; a
+  // tenant is a reader, and this used to put the API's English sentence in front
+  // of one.
   throw new PortalRequestFailed(
-    body?.message ?? 'Không thể kết nối tới máy chủ',
+    messageForCode(body?.code, response.status),
     response.status,
     body?.code,
   )

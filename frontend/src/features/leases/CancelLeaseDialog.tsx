@@ -13,7 +13,7 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 
-import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { useCancelLease } from '@/features/leases/hooks'
 import type { Lease } from '@/features/leases/types'
@@ -101,7 +101,7 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
       })
       onClose()
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : 'Không huỷ được hợp đồng này.')
+      setError(errorMessage(cause))
     }
   }
 

@@ -10,6 +10,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { Link as RouterLink, useParams } from 'react-router'
 
 import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { useListParams } from '@/lib/useListParams'
 import { useBuilding } from '@/features/buildings/hooks'
@@ -49,7 +50,7 @@ export function BuildingDetailPage() {
     return (
       <Alert severity={isApiError(error) && error.isTransport ? 'warning' : 'error'}>
         <AlertTitle>Không tải được toà nhà này</AlertTitle>
-        {isApiError(error) ? error.message : 'An unexpected error occurred.'}
+        {errorMessage(error)}
       </Alert>
     )
   }
@@ -103,7 +104,7 @@ function NotFound() {
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
         Không có toà nhà nào ở địa chỉ này. Có thể nó đã bị xoá, hoặc
-        link may be wrong.
+        địa chỉ sai.
       </Typography>
       <Button variant="contained" component={RouterLink} to="/buildings">
         Tất cả toà nhà

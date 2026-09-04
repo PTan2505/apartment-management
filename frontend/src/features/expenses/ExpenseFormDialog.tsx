@@ -13,7 +13,7 @@ import Switch from '@mui/material/Switch'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 
-import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { useBuildings } from '@/features/buildings/hooks'
 import { useRooms } from '@/features/rooms/hooks'
@@ -139,7 +139,7 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
       }
       onClose()
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : 'Không lưu được chi phí này.')
+      setError(errorMessage(cause))
     }
   }
 

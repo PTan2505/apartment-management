@@ -24,6 +24,7 @@ import {
   type CreateRoomFormValues,
 } from '@/features/rooms/schema'
 import type { Room } from '@/features/rooms/types'
+import { errorMessage } from '@/lib/error-messages'
 
 interface RoomFormDialogProps {
   open: boolean
@@ -122,7 +123,7 @@ export function RoomFormDialog({
           attributed = true
         }
       }
-      if (!attributed) setFormError(error.message)
+      if (!attributed) setFormError(errorMessage(error))
     }
   }
 

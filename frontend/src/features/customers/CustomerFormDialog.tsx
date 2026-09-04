@@ -19,6 +19,7 @@ import { MOBILE_BREAKPOINT } from '@/app/theme'
 import { useCreateCustomer, useUpdateCustomer } from '@/features/customers/hooks'
 import { customerFormSchema, type CustomerFormValues } from '@/features/customers/schema'
 import type { Customer } from '@/features/customers/types'
+import { errorMessage } from '@/lib/error-messages'
 
 interface CustomerFormDialogProps {
   open: boolean
@@ -119,7 +120,7 @@ export function CustomerFormDialog({
           attributed = true
         }
       }
-      if (!attributed) setFormError(error.message)
+      if (!attributed) setFormError(errorMessage(error))
     }
   }
 

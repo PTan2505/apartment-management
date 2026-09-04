@@ -22,6 +22,7 @@ import Typography from '@mui/material/Typography'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 
 import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
 import { useBuildings } from '@/features/buildings/hooks'
@@ -365,9 +366,7 @@ export function RevenueReportPage() {
           }
         >
           <AlertTitle>Không tải được báo cáo</AlertTitle>
-          {isApiError(reportQuery.error)
-            ? reportQuery.error.message
-            : 'An unexpected error occurred.'}
+          {errorMessage(reportQuery.error)}
         </Alert>
       )
     }

@@ -13,6 +13,7 @@ import Typography from '@mui/material/Typography'
 import AddIcon from '@mui/icons-material/Add'
 
 import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { useListParams } from '@/lib/useListParams'
 import { EmptyState } from '@/components/EmptyState'
 import { Pagination } from '@/components/Pagination'
@@ -89,7 +90,7 @@ export function LeasesPage() {
           }
         >
           <AlertTitle>Không tải được danh sách hợp đồng</AlertTitle>
-          {isApiError(leasesQuery.error) ? leasesQuery.error.message : 'An unexpected error occurred.'}
+          {errorMessage(leasesQuery.error)}
         </Alert>
       )
     }

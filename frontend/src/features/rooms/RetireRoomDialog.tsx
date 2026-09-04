@@ -10,6 +10,7 @@ import DialogContentText from '@mui/material/DialogContentText'
 import DialogTitle from '@mui/material/DialogTitle'
 
 import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { useRetireRoom } from '@/features/rooms/hooks'
 import type { Room } from '@/features/rooms/types'
 
@@ -47,10 +48,10 @@ export function RetireRoomDialog({ room, onClose }: RetireRoomDialogProps) {
       // expected outcome of a reasonable action, and the API's message names
       // the reason better than this screen could.
       if (isApiError(error) && error.isConflict) {
-        setConflict(error.message)
+        setConflict(errorMessage(error))
         return
       }
-      setOtherError(isApiError(error) ? error.message : 'Có lỗi xảy ra.')
+      setOtherError(errorMessage(error))
     }
   }
 

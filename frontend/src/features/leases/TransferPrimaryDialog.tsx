@@ -11,7 +11,7 @@ import MenuItem from '@mui/material/MenuItem'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 
-import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { useTransferPrimary } from '@/features/leases/hooks'
 import type { Occupant } from '@/features/leases/types'
 
@@ -59,7 +59,7 @@ export function TransferPrimaryDialog({
       await transferMutation.mutateAsync({ leaseId, customerId: Number(customerId) })
       onClose()
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : 'Không chuyển được người đứng tên.')
+      setError(errorMessage(cause))
     }
   }
 

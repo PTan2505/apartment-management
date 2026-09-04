@@ -8,6 +8,7 @@ import Typography from '@mui/material/Typography'
 import AddIcon from '@mui/icons-material/Add'
 
 import { isApiError } from '@/lib/api-error'
+import { errorMessage } from '@/lib/error-messages'
 import { useListParams } from '@/lib/useListParams'
 import { EmptyState } from '@/components/EmptyState'
 import { Pagination } from '@/components/Pagination'
@@ -104,7 +105,7 @@ export function BuildingsPage() {
           }
         >
           <AlertTitle>Không tải được danh sách toà nhà</AlertTitle>
-          {isApiError(error) ? error.message : 'An unexpected error occurred.'}
+          {errorMessage(error)}
         </Alert>
       )
     }
