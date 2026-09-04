@@ -11,7 +11,7 @@ import Typography from '@mui/material/Typography'
 
 import { formatMoney } from '@/lib/format'
 import { lineLabel } from '@/lib/invoice-lines'
-import type { PortalInvoice } from '@/portal/api'
+import type { PortalInvoice } from '@/features/portal/api'
 
 /** What a tenant calls each kind of bill. The API's own names are for the owner. */
 const KIND_LABEL: Record<string, string> = {

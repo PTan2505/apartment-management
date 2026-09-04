@@ -7,7 +7,7 @@ import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 
 import { formatMoney } from '@/lib/format'
-import type { PaymentOffer } from '@/portal/api'
+import type { PaymentOffer } from '@/features/portal/api'
 
 /**
  * The VietQR image service.

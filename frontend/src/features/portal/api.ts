@@ -1,4 +1,4 @@
-import { forgetToken } from '@/portal/token'
+import { forgetToken } from '@/features/portal/token'
 import { messageForCode } from '@/lib/error-messages'
 
 /**
@@ -13,21 +13,25 @@ import { messageForCode } from '@/lib/error-messages'
  *
  * Plain `fetch` rather than axios: there are three calls, none of them needs
  * interceptors, and the smaller the bundle the sooner a bill appears on a phone.
- *
- * The address is absolute and supplied at build time — there is no proxy in
- * front of this application, and none is needed: no cookie is sent, so nothing
- * depends on sharing an origin with the API.
  */
 declare const __API_URL__: string
 
 /**
- * The same address the rest of the application uses.
+ * Where to reach the API — by the same rule the owner application uses.
  *
- * There were two settings naming one API, which had to agree and offered
- * nothing to notice when they did not. The build refuses without an address,
- * so this cannot be left pointing nowhere.
+ * This used to be `__API_URL__` unconditionally, with a note saying no proxy
+ * stands in front of this application. That was true while the portal was a
+ * separate bundle with its own entry point. It stopped being true when the
+ * portal became a route in this one, and the note outlived the fact: with
+ * `VITE_API_URL` blank for local development, the portal fetched a relative
+ * `/portal` from the dev server and got `index.html` back — a tenant screen
+ * reporting that HTML is not JSON.
+ *
+ * Blank means "go through the proxy", exactly as in lib/api-client.ts. Nothing
+ * else about the portal changes: it still sends no cookie, so it still does not
+ * depend on sharing an origin.
  */
-const API_URL = __API_URL__.replace(/\/$/, '')
+const API_URL = __API_URL__ === '' ? '/api' : __API_URL__.replace(/\/$/, '')
 
 /**
  * Distinguishes "the link is no longer valid" from everything else.

@@ -18,7 +18,7 @@ import { BillingRunPage } from '@/features/invoices/BillingRunPage'
 import { ExpensesPage } from '@/features/expenses/ExpensesPage'
 import { VacancyRunPage } from '@/features/expenses/VacancyRunPage'
 import { RevenueReportPage } from '@/features/reports/RevenueReportPage'
-import { PortalApp } from '@/portal/PortalApp'
+import { PortalApp } from '@/features/portal/PortalApp'
 
 /**
  * Three layers, and the order matters:

@@ -14,10 +14,10 @@ import {
   startPayment,
   type PaymentOffer,
   type PortalOverview,
-} from '@/portal/api'
-import { InvoiceCard, PayButton } from '@/portal/InvoiceCard'
-import { PaymentPanel } from '@/portal/PaymentPanel'
-import { resolveToken } from '@/portal/token'
+} from '@/features/portal/api'
+import { InvoiceCard, PayButton } from '@/features/portal/InvoiceCard'
+import { PaymentPanel } from '@/features/portal/PaymentPanel'
+import { resolveToken } from '@/features/portal/token'
 
 /**
  * How often to ask whether a bill has been paid, and for how long.
