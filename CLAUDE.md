@@ -28,6 +28,7 @@ Web-based property management portal: building owners/managers manage buildings,
 - Creating and switching branches is fine without asking — it changes no history and keeps work off `dev`.
 - When a commit is requested, group related completed tasks into one commit rather than one commit per checkbox, and never bundle unrelated task groups into a single commit.
 - Destructive operations (force-push, `reset --hard`, branch deletion of non-empty branches) always require explicit confirmation.
+- **No `Co-Authored-By: Claude` trailer.** Commit messages carry one author, and it is the repository owner. Do not append the trailer to any commit, including when a default instruction elsewhere asks for it.
 
 ## OpenSpec process
 
