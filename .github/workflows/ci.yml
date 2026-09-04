@@ -47,6 +47,16 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      # The frontend must have a Vietnamese sentence for every code this API can
+      # return, and it proves that by typing its dictionary against a union
+      # generated from here. That only works while the generated file is
+      # current, so this regenerates it and fails if the committed copy differs.
+      #
+      # Without this the guarantee is only as good as somebody remembering to
+      # run a script — which is the same as not having it.
+      - name: Check the frontend's error codes are current
+        run: npm run codes:check
+
       # Compiles for real, which catches what `--noEmit` cannot: a path alias
       # `tsc-alias` fails to rewrite produces a build that type-checks and then
       # cannot find its own imports at runtime.

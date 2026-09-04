@@ -12,7 +12,9 @@
     "prisma:migrate": "prisma migrate dev",
     "seed:owner": "tsx src/scripts/seed-owner.ts",
     "backfill:deposits": "tsx src/scripts/backfill-deposit-holdings.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "codes:generate": "tsx scripts/generate-error-codes.ts",
+    "codes:check": "tsx scripts/generate-error-codes.ts --check"
   },
   "keywords": [],
   "author": "",
