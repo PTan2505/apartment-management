@@ -11,11 +11,13 @@ import ListItemText from '@mui/material/ListItemText'
 import Toolbar from '@mui/material/Toolbar'
 import Typography from '@mui/material/Typography'
 import Divider from '@mui/material/Divider'
+import ApartmentIcon from '@mui/icons-material/Apartment'
 import MenuIcon from '@mui/icons-material/Menu'
 
 import { DESTINATIONS } from '@/app/navigation'
 import { DRAWER_WIDTH, MOBILE_BREAKPOINT } from '@/app/theme'
 import { AccountMenu } from '@/features/auth/AccountMenu'
+import { SidebarAccount } from '@/features/auth/SidebarAccount'
 
 /**
  * The responsive application shell.
@@ -61,7 +63,7 @@ export function AppShell() {
   }
 
   const navigationList = (
-    <List>
+    <List sx={{ px: 1 }}>
       {DESTINATIONS.map((destination) => {
         const Icon = destination.icon
         const isActive = destination.path === activeDestination?.path
@@ -71,8 +73,14 @@ export function AppShell() {
             selected={isActive}
             onClick={() => handleNavigate(destination.path)}
           >
-            <ListItemIcon>
-              <Icon color={isActive ? 'primary' : undefined} />
+            {/*
+              No `color` prop. The selected row is filled with the accent, and an
+              icon asking for the accent would then be drawing itself on itself.
+              The theme makes the icon inherit the row's foreground instead, so
+              this reads on both the filled row and the plain one.
+            */}
+            <ListItemIcon sx={{ minWidth: 40 }}>
+              <Icon />
             </ListItemIcon>
             <ListItemText primary={destination.label} />
           </ListItemButton>
@@ -81,15 +89,39 @@ export function AppShell() {
     </List>
   )
 
+  /*
+   * Three bands, and the middle one is the only one that scrolls.
+   *
+   * Pinning identity to the bottom rather than letting it follow the list is
+   * what keeps it reachable on a short viewport: with seven destinations at a
+   * phone's height there is not much room to spare, and a sign-out that has
+   * scrolled off the end is a sign-out nobody finds.
+   */
   const drawerContent = (
-    <Box>
-      <Toolbar>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Toolbar sx={{ gap: 1.5 }}>
+        <Box
+          sx={{
+            width: 32,
+            height: 32,
+            borderRadius: 2,
+            bgcolor: 'primary.main',
+            color: 'primary.contrastText',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <ApartmentIcon fontSize="small" />
+        </Box>
         <Typography variant="h6" noWrap>
           Quản lý trọ
         </Typography>
       </Toolbar>
       <Divider />
-      {navigationList}
+      <Box sx={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>{navigationList}</Box>
+      <SidebarAccount />
     </Box>
   )
 
@@ -122,7 +154,19 @@ export function AppShell() {
           <Typography variant="h6" noWrap component="h1" sx={{ flexGrow: 1 }}>
             {activeDestination?.label ?? 'Quản lý trọ'}
           </Typography>
-          <AccountMenu />
+          {/*
+            Narrow viewports only. Above the breakpoint the sidebar is
+            permanently visible and already names the signed-in person, so a
+            second control for the same thing is the duplication this change
+            removed.
+
+            It stays BELOW the breakpoint on purpose, against what the design
+            draws: there the navigation is closed by default, and signing out
+            should not require opening a navigation panel first.
+          */}
+          <Box sx={{ display: { xs: 'flex', [MOBILE_BREAKPOINT]: 'none' } }}>
+            <AccountMenu />
+          </Box>
         </Toolbar>
       </AppBar>
 

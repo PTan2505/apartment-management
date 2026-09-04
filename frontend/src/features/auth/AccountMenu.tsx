@@ -12,6 +12,7 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle'
 import LogoutIcon from '@mui/icons-material/Logout'
 
 import { useAuth } from '@/features/auth/useAuth'
+import { phoneLabel, roleLabel } from '@/features/auth/labels'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
 
 /**
@@ -73,10 +74,15 @@ export function AccountMenu() {
         <Box sx={{ px: 2, py: 1, minWidth: 200 }}>
           <Typography variant="subtitle2">{user.fullName}</Typography>
           <Typography variant="body2" color="text.secondary">
-            {user.phone ?? 'No phone recorded'}
+            {phoneLabel(user)}
           </Typography>
+          {/*
+            Through the same helpers the sidebar uses. Two places naming the
+            same role are two places that can name it differently, and the
+            reader has no way to tell which one is right.
+          */}
           <Typography variant="caption" color="text.secondary">
-            {user.role}
+            {roleLabel(user.role)}
           </Typography>
         </Box>
         <Divider />

@@ -56,6 +56,33 @@ const slate = {
 } as const
 
 /**
+ * The accent at two strengths too faint to be palette entries, used to mark
+ * what a reader is pointing at or has selected.
+ *
+ * Named here rather than written where they are used, so the two places that
+ * mark a row — the navigation and every table — cannot drift into marking it
+ * two different shades of the same idea.
+ */
+const accentTint = {
+  hover: '#F1F8F6',
+  selected: '#E6F2F0',
+  selectedHover: '#D8EBE8',
+} as const
+
+/**
+ * The accent itself, stated once.
+ *
+ * Named here rather than only inside `palette`, because the component overrides
+ * below need the same values and cannot reach the palette while it is still
+ * being built — and a second copy written out there is a second thing to change.
+ */
+const accent = {
+  main: '#0F766E',
+  light: '#0D9488',
+  dark: '#115E59',
+} as const
+
+/**
  * A third accent, named by the design and belonging to no MUI slot.
  *
  * Mapping it onto `warning` would have been cheaper, and wrong: warning means
@@ -81,12 +108,7 @@ export const theme = createTheme({
   palette: {
     mode: 'light',
 
-    primary: {
-      main: '#0F766E',
-      light: '#0D9488',
-      dark: '#115E59',
-      contrastText: '#FFFFFF',
-    },
+    primary: { ...accent, contrastText: '#FFFFFF' },
 
     secondary: {
       main: slate[700],
@@ -238,21 +260,54 @@ export const theme = createTheme({
      * They are stated here because the invoice screen is the densest thing in
      * the product and a default-height MUI table makes it four screens long.
      */
+    /*
+     * A clickable row says so by tinting toward the accent, which is the
+     * treatment the design uses on the row it shows selected. MUI's default is
+     * a neutral grey — correct for a table nobody can click, and here it would
+     * read as a shadow rather than as an answer to "which row am I on".
+     */
+    MuiTableRow: {
+      styleOverrides: {
+        // Written against `root`, not a `hover` slot: MuiTableRow has no such
+        // slot, and naming one is accepted silently — the override simply never
+        // applies and the rows keep MUI's default grey. Caught by reading the
+        // computed background of a hovered row rather than by looking at it.
+        root: {
+          '&.MuiTableRow-hover:hover': { backgroundColor: accentTint.hover },
+        },
+      },
+    },
+
     MuiTableCell: {
       styleOverrides: {
         root: {
-          paddingTop: 10,
-          paddingBottom: 10,
           borderBottomColor: slate[200],
-          // Columns of money only scan when the digits line up.
+          // Columns of money only scan when the digits line up. Set here rather
+          // than on the screens that show money, because every table in the
+          // application has a column of it.
           fontVariantNumeric: 'tabular-nums',
         },
+        /*
+         * Padding is set per size rather than on the root, so that a table
+         * asking for `size="small"` still gets a smaller cell. Setting it on
+         * the root overrode that and made the two sizes identical — which is
+         * not a denser table, it is a table with one size and a prop that
+         * silently does nothing.
+         *
+         * The numbers come from the design's rows: roughly 46px tall with the
+         * body text this theme sets.
+         */
+        sizeMedium: { paddingTop: 14, paddingBottom: 14 },
+        sizeSmall: { paddingTop: 11, paddingBottom: 11 },
         head: {
           fontWeight: 600,
           fontSize: '0.75rem',
           letterSpacing: '0.04em',
           color: slate[500],
           backgroundColor: slate[50],
+          // The header names columns; it is not a row of data, and a wrapped
+          // header makes a dense table look broken.
+          whiteSpace: 'nowrap',
         },
       },
     },
@@ -272,15 +327,31 @@ export const theme = createTheme({
       },
     },
 
-    // The design marks the active navigation item as a tinted row, not a bar
-    // down its left edge.
+    /*
+     * Selection is a FILLED row; hover is a tint.
+     *
+     * These answer different questions — "where am I" and "what is under the
+     * pointer" — and the first version of this separated them by one step of
+     * lightness, which is not a separation a reader can use. Filling the
+     * selected row makes them differ by kind.
+     *
+     * The fill also has to carry its own contents: an icon that took its colour
+     * from the palette would still be drawing accent-on-accent, so both icon
+     * and label inherit the row's foreground.
+     */
     MuiListItemButton: {
       styleOverrides: {
         root: {
           borderRadius: 8,
+          '&:hover': { backgroundColor: accentTint.hover },
           '&.Mui-selected': {
-            backgroundColor: '#E6F2F0',
-            '&:hover': { backgroundColor: '#D8EBE8' },
+            backgroundColor: accent.main,
+            color: '#FFFFFF',
+            '& .MuiListItemIcon-root': { color: 'inherit' },
+            // Named explicitly rather than left to MUI, which lightens a
+            // selected row on hover by compositing a translucent layer — on a
+            // filled row that reads as the selection fading out.
+            '&:hover': { backgroundColor: accent.dark },
           },
         },
       },
