@@ -39,4 +39,5 @@ Web-based property management portal: building owners/managers manage buildings,
 ## Verification expectations
 
 - Before considering a change done: `tsc --noEmit` must pass, and any new endpoint should be manually verified (e.g. via `curl`) against its spec scenarios — including failure paths, not just the happy path.
+- **Any change to a screen must be verified by driving a real browser, and the screenshots shown.** Not "it type-checks", not a description of what it should look like — the actual rendered screen, at both viewport forms, with real data in it. A visual change is the one kind of work whose result cannot be read from the source, so a claim about it that was never looked at is a guess. If the data needed to render the screen does not exist locally, create it before verifying rather than reporting the screen as done.
 - Local dev port 5000 conflicts with macOS AirPlay Receiver (ControlCenter) — use a different `PORT` when testing locally if 5000 returns an unexpected 403.
