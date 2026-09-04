@@ -14,6 +14,10 @@ When credentials are rejected, the application SHALL display the message the API
 
 While a sign-in attempt is in flight the screen SHALL indicate that, and SHALL prevent the same attempt being submitted twice.
 
+**The password SHALL be concealed by default, and the screen SHALL offer a way to reveal it.** A password typed on a phone keyboard, unread, is a password whose failure cannot be told apart from a forgotten one — and the message on rejection deliberately does not distinguish the two, so nothing else on the screen does either. Revealing SHALL be a deliberate act, never the initial state, and SHALL NOT persist across a reload: the reason to reveal a password is to check what was just typed, and it ends there.
+
+The control SHALL say which state it will produce rather than which state the field is in, since the two are opposites and a reader given the wrong one hides a password they meant to check.
+
 #### Scenario: Successful sign-in
 
 - **WHEN** a user submits a correct phone number and password
@@ -48,6 +52,21 @@ While a sign-in attempt is in flight the screen SHALL indicate that, and SHALL p
 
 - **WHEN** a sign-in attempt fails without any response from the server
 - **THEN** the screen reports a connection problem rather than presenting it as rejected credentials
+
+#### Scenario: The password starts concealed
+
+- **WHEN** the sign-in screen is opened
+- **THEN** the password field conceals what is typed into it
+
+#### Scenario: Revealing the password
+
+- **WHEN** the user asks to see the password they have typed
+- **THEN** it becomes readable, and the control then offers to conceal it again
+
+#### Scenario: Revealing does not outlive the screen
+
+- **WHEN** the user reveals the password and then reloads the sign-in screen
+- **THEN** the password is concealed again
 
 ### Requirement: The session is restored when the application loads
 

@@ -120,7 +120,7 @@ The application SHALL present a persistent shell containing navigation and a con
 
 On a wide viewport the navigation SHALL be permanently visible alongside the content. On a narrow viewport it SHALL be hidden by default, opened by an explicit control, presented over the content, and dismissed both by selecting a destination and by dismissing it directly — so that navigating never leaves it obscuring the content it navigated to.
 
-The shell SHALL indicate which destination is currently active in both forms.
+The shell SHALL indicate which destination is currently active in both forms. That indication SHALL NOT rely on colour alone at a strength a reader could mistake for the row merely being under the pointer: the current destination and a hovered one answer different questions, and a treatment that makes them look alike answers neither.
 
 #### Scenario: Wide viewport shows navigation permanently
 
@@ -152,10 +152,47 @@ The shell SHALL indicate which destination is currently active in both forms.
 - **WHEN** the application is showing a destination
 - **THEN** that destination is distinguished from the others in the navigation, in both the wide and narrow forms
 
+#### Scenario: The current destination is not mistakable for a hovered one
+
+- **WHEN** the pointer rests on a destination that is not the current one
+- **THEN** the two are distinguishable from each other at a glance
+
 #### Scenario: Content never scrolls horizontally
 
 - **WHEN** the application is viewed at any viewport width down to a small phone
 - **THEN** the shell itself does not scroll horizontally, and any content too wide to fit scrolls within its own bounds
+
+### Requirement: The navigation says who is signed in, and offers the way out
+
+The shell SHALL show the signed-in person in both forms of the navigation: their name, their role in the reader's language, and the phone number they sign in with. Sign-out SHALL be reachable from there.
+
+Three facts rather than one, because each answers a different question. The name answers "is this my account". The role answers "why can I see this" — the application will eventually let a tenant sign in, and a screen that never says which kind of account is looking is one where the answer has to be guessed from what happens to be on it. The phone answers "which account", and it is the only one of the three that is guaranteed distinct: two owners may share a name, and none share the number they sign in with.
+
+The role SHALL be shown in Vietnamese, not as the value the system stores. `owner` is a token in a database column; `Chủ nhà` is what a person is.
+
+Where a fact is absent, the shell SHALL say so in Vietnamese rather than leaving a gap. A blank where a phone number belongs is indistinguishable from a screen that failed to load one.
+
+Sign-out SHALL NOT be reachable only from a navigation that is hidden by default. On a narrow viewport the navigation lives behind a control, and a person who wants to leave should not have to open the navigation to do it.
+
+#### Scenario: Reading who is signed in, wide viewport
+
+- **WHEN** the owner looks at the navigation on a wide viewport
+- **THEN** their name, their role in Vietnamese, and their phone number are all visible without any action
+
+#### Scenario: Reading who is signed in, narrow viewport
+
+- **WHEN** the owner opens the navigation on a narrow viewport
+- **THEN** the same three facts are shown there
+
+#### Scenario: An account with no phone number recorded
+
+- **WHEN** the signed-in account has no phone number
+- **THEN** the shell says so in Vietnamese, rather than showing an empty space
+
+#### Scenario: Leaving from a narrow viewport
+
+- **WHEN** the owner wants to sign out on a narrow viewport
+- **THEN** they can do so without first opening the navigation
 
 ### Requirement: Destinations are addressable and restorable
 
@@ -274,6 +311,43 @@ The exclusive-ending convention SHALL be unaffected: a date that ends a tenancy 
 
 - **WHEN** a tenancy's ending is shown
 - **THEN** it is still the last day covered, in Vietnamese formatting
+
+### Requirement: The application draws itself from one design system
+
+Colour, typeface, corner radius and table density SHALL be defined once and read by every screen. A screen SHALL NOT choose its own value for any of them.
+
+The reason is not tidiness. These values are the ones that drift: each is a small decision, each is easy to make locally, and none of them looks wrong at the moment it is made. It is only across screens that the drift becomes visible — as an application that looks like several applications, none of which anybody decided on. Changing where the decision lives is what prevents that, and it has to be stated, because the pull is always toward answering the question again on the next screen.
+
+Content SHALL be presented on a surface distinct from the page ground. A table, a form or a set of figures reading directly against the page has no boundary telling a reader where it begins, and a screen where some content has that boundary and some does not reads as unfinished rather than as deliberate.
+
+Monetary amounts SHALL be written with the đồng sign `₫`, not the letter `đ`.
+
+Digits that appear in columns SHALL be set so that they align. A column of money that a reader has to compare digit by digit is not doing the one job a column of money exists to do.
+
+#### Scenario: The same component on two screens
+
+- **WHEN** the owner sees a table on one screen and a table on another
+- **THEN** the two have the same row height, the same header treatment, and the same alignment of numbers
+
+#### Scenario: A screen's content against the page
+
+- **WHEN** the owner opens a screen whose purpose is a list, a form or a set of figures
+- **THEN** that content sits on a surface distinguishable from the page behind it
+
+#### Scenario: An amount of money anywhere in the application
+
+- **WHEN** an amount is shown to the owner
+- **THEN** it carries `₫`
+
+#### Scenario: A column of amounts
+
+- **WHEN** amounts appear one above another in a column
+- **THEN** their digits line up vertically, so two amounts can be compared by length alone
+
+#### Scenario: A new screen is added later
+
+- **WHEN** a screen is written after this requirement is in force
+- **THEN** it takes its colour, typeface, radius and density from the shared definition rather than restating them
 
 ### Requirement: The application addresses its API absolutely when deployed
 
