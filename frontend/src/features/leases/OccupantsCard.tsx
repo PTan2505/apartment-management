@@ -58,14 +58,14 @@ export function OccupantsCard({ lease }: OccupantsCardProps) {
             {/* The billing input, on its own, named for what it does. */}
             <Box>
               <Typography variant="overline" color="text.secondary">
-                Billed for
+                Tính tiền cho
               </Typography>
               <Typography variant="h6">
-                {lease.occupantCount} {lease.occupantCount === 1 ? 'person' : 'people'}
+                {lease.occupantCount} người
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Drives the utility charges. Maintained separately from the people
-                recorded below, and the two may differ.
+                Dùng để tính tiền điện nước. Được ghi riêng, tách khỏi danh sách
+                bên dưới, và hai con số này có thể khác nhau.
               </Typography>
             </Box>
 
@@ -82,10 +82,10 @@ export function OccupantsCard({ lease }: OccupantsCardProps) {
             >
               <Box>
                 <Typography variant="overline" color="text.secondary">
-                  People on file
+                  Người đã ghi nhận
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {current.length} currently recorded
+                  {current.length} người đang ở
                   {departed.length > 0 ? `, ${departed.length} since left` : ''}
                 </Typography>
               </Box>
@@ -93,7 +93,7 @@ export function OccupantsCard({ lease }: OccupantsCardProps) {
                 <Stack direction="row" spacing={1}>
                   {current.length > 1 && (
                     <Button size="small" onClick={() => setTransferOpen(true)}>
-                      Transfer responsibility
+                      Chuyển người đứng tên
                     </Button>
                   )}
                   <Button
@@ -102,7 +102,7 @@ export function OccupantsCard({ lease }: OccupantsCardProps) {
                     startIcon={<PersonAddIcon />}
                     onClick={() => setAddOpen(true)}
                   >
-                    Add person
+                    Thêm người
                   </Button>
                 </Stack>
               )}
@@ -119,19 +119,19 @@ export function OccupantsCard({ lease }: OccupantsCardProps) {
                 severity="error"
                 action={
                   <Button color="inherit" size="small" onClick={() => void occupantsQuery.refetch()}>
-                    Retry
+                    Thử lại
                   </Button>
                 }
               >
                 {isApiError(occupantsQuery.error)
                   ? occupantsQuery.error.message
-                  : 'Could not load the people on this lease.'}
+                  : 'Không tải được danh sách người ở của hợp đồng này.'}
               </Alert>
             )}
 
             {!occupantsQuery.isPending && occupants.length === 0 && (
               <Typography variant="body2" color="text.secondary">
-                Nobody recorded yet.
+                Chưa ghi nhận ai.
               </Typography>
             )}
 
@@ -156,21 +156,21 @@ export function OccupantsCard({ lease }: OccupantsCardProps) {
                         {occupant.fullName ?? `Customer #${occupant.customerId}`}
                       </Typography>
                       {occupant.isPrimary && occupant.status === 'current' && (
-                        <Chip size="small" color="primary" label="Responsible" />
+                        <Chip size="small" color="primary" label="Người đứng tên" />
                       )}
                       {occupant.status === 'departed' && (
-                        <Chip size="small" variant="outlined" label="Left" />
+                        <Chip size="small" variant="outlined" label="Đã rời" />
                       )}
                     </Stack>
                     <Typography variant="caption" color="text.secondary">
                       {occupant.phone ? `${occupant.phone} · ` : ''}
-                      Joined {formatDate(occupant.joinedAt)}
-                      {occupant.leftAt ? ` · Left ${formatDate(occupant.leftAt)}` : ''}
+                      Vào ở {formatDate(occupant.joinedAt)}
+                      {occupant.leftAt ? ` · Rời ngày ${formatDate(occupant.leftAt)}` : ''}
                     </Typography>
                   </Box>
                   {isRunning && occupant.status === 'current' && (
                     <Button size="small" color="inherit" onClick={() => setDeparting(occupant)}>
-                      Record departure
+                      Ghi nhận rời đi
                     </Button>
                   )}
                 </Box>

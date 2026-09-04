@@ -12,7 +12,16 @@ function refreshCookieOptions(maxAgeMs: number) {
     httpOnly: true,
     // Secure cookies are dropped by browsers over plain HTTP, which local dev uses.
     secure: env.NODE_ENV === "production",
-    sameSite: "strict" as const,
+    // `Strict` unless the application is on a different SITE from this API, in
+    // which case a browser would not attach the cookie to a refresh at all.
+    // Configured rather than inferred: behind a proxy this process does not
+    // reliably know its own public origin, and a wrong guess produces a login
+    // that works once and then silently stops being renewable.
+    //
+    // The env schema refuses `none` outside production, because the cookie is
+    // only marked Secure there and browsers discard a SameSite=None cookie
+    // that is not Secure.
+    sameSite: (env.CROSS_SITE_COOKIES ? "none" : "strict") as "none" | "strict",
     path: REFRESH_COOKIE_PATH,
     maxAge: maxAgeMs,
   };

@@ -74,6 +74,43 @@ jobs:
           kill $pid || true
           exit 1
 
+  frontend:
+    name: Frontend — typecheck and build
+    runs-on: ubuntu-latest
+    # Not filtered by changed paths, for the same reason the backend job is not:
+    # a rule about what counts as "documentation only" is one that will
+    # eventually be wrong, and its failure mode is a green tick on something
+    # nobody checked.
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # `npm run build` typechecks first, so this covers both.
+      #
+      # The address is a placeholder. Nothing here calls the API, and both
+      # configs refuse to build without one — deliberately, so a bundle that
+      # cannot reach its API is never produced. This job proves the build
+      # WORKS; it does not test that refusal, which is a property of the config
+      # and belongs where the config is verified.
+      # One build now: the tenant portal is a route in this application rather
+      # than a second bundle.
+      - name: Build
+        env:
+          VITE_API_URL: https://ci.invalid
+        run: npm run build
+
   specs:
     name: OpenSpec — validate
     runs-on: ubuntu-latest

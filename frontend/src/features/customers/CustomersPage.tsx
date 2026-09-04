@@ -71,11 +71,11 @@ export function CustomersPage() {
           severity={isApiError(error) && error.isTransport ? 'warning' : 'error'}
           action={
             <Button color="inherit" size="small" onClick={() => customersQuery.refetch()}>
-              Retry
+              Thử lại
             </Button>
           }
         >
-          <AlertTitle>Could not load customers</AlertTitle>
+          <AlertTitle>Không tải được danh sách khách</AlertTitle>
           {isApiError(error) ? error.message : 'An unexpected error occurred.'}
         </Alert>
       )
@@ -87,21 +87,21 @@ export function CustomersPage() {
       // simply missed would be answering a question they did not ask.
       return hasFilters ? (
         <EmptyState
-          title="No customers match this search"
-          description="Try a different name or phone number, or clear the search."
+          title="Không tìm thấy khách nào"
+          description="Thử tên hoặc số điện thoại khác, hoặc xoá tìm kiếm."
           action={
             <Button variant="outlined" onClick={clearFilters}>
-              Clear search
+              Xoá tìm kiếm
             </Button>
           }
         />
       ) : (
         <EmptyState
-          title="No customers yet"
-          description="Add the first customer to get started."
+          title="Chưa có khách nào"
+          description="Thêm người đầu tiên để bắt đầu."
           action={
             <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-              New customer
+              Thêm khách
             </Button>
           }
         />
@@ -125,29 +125,29 @@ export function CustomersPage() {
   return (
     <Box>
       <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-        Customers
+        Khách
       </Typography>
 
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
         <SearchField
-          label="Search customers"
+          label="Tìm khách"
           size="small"
           value={filters.search ?? ''}
           onDebouncedChange={(value) => setFilter('search', value || undefined)}
-          helperText="Matches a name or a phone number — diacritics optional"
+          helperText="Khớp theo tên hoặc số điện thoại — không cần dấu"
           sx={{ minWidth: 260, flexGrow: { xs: 1, sm: 0 } }}
         />
 
         {hasFilters && (
           <Button onClick={clearFilters} size="small">
-            Clear search
+            Xoá tìm kiếm
           </Button>
         )}
 
         <Box sx={{ flexGrow: 1 }} />
 
         <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-          New customer
+          Thêm khách
         </Button>
       </Box>
 

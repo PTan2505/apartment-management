@@ -6,6 +6,7 @@ import { Prisma } from "@/generated/prisma/client.js";
 import type {
   CreateExpenseInput,
   ListExpensesQuery,
+  ListVacancyDueQuery,
   RecordVacancyInput,
   UpdateExpenseInput,
 } from "./schema.js";
@@ -131,6 +132,93 @@ export interface VacancyResult {
  * reconciliation; the other trigger is lease creation, which catches a skipped
  * month or a vacancy too short to reach one.
  */
+/**
+ * Which rooms stood empty at a month's end without their electricity recorded.
+ *
+ * This is the cost an owner does not know is missing. Rent and utilities
+ * announce themselves — a tenant is billed, or is not — but a room standing
+ * empty runs its meter quietly, nobody is billed, and nothing anywhere asks
+ * about it. So it is never recorded, and every revenue report is too flattering
+ * by an amount nobody can name afterwards.
+ *
+ * Occupancy is judged at the month's END, matching the rule that already
+ * refuses the record: a room let on the 20th was occupied when the month
+ * closed, and its whole month of consumption belongs on the tenant's invoice.
+ * "Empty during March" and "empty at the end of March" are different questions
+ * with the same plausible-sounding name, and using the first would offer rows
+ * that cannot be acted on.
+ *
+ * A room with no known reading at all is excluded rather than reported with a
+ * null: consumption is a difference, there is nothing to subtract from, and
+ * `recordVacancyElectricity` below refuses it outright.
+ *
+ * That exclusion is now NARROW rather than ordinary. A room records the meter
+ * reading it was created at, so a never-let room normally has a position and
+ * appears here — which is the case this round most needs to cover, since
+ * nothing else will produce a reading for such a room before its first
+ * tenancy. What remains excluded is a room added before opening readings were
+ * recorded, or one created without stating a figure.
+ *
+ * The filter below did not have to change for that: it was written against the
+ * general rule — no known reading — rather than against "never let", so it
+ * narrowed on its own when the rule stopped applying to new rooms.
+ */
+export async function listVacancyDue(query: ListVacancyDueQuery) {
+  const monthEnd = new Date(Date.UTC(query.year, query.month, 0));
+
+  const rooms = await prisma.room.findMany({
+    where: {
+      // A retired room is not one the owner is waiting to let, and its meter is
+      // not their running cost.
+      isActive: true,
+      ...(query.buildingId ? { buildingId: query.buildingId } : {}),
+      // No tenancy covering the month's LAST DAY. Expressed as the negation of
+      // the same test the guard uses: started by then, and not ended before it.
+      leases: {
+        none: {
+          cancelledAt: null,
+          startDate: { lte: monthEnd },
+          OR: [{ moveOutDate: null }, { moveOutDate: { gt: monthEnd } }],
+        },
+      },
+      // Not already recorded for that month.
+      expenses: {
+        none: {
+          category: "vacancy_electricity",
+          reconciliation: "month_end",
+          year: query.year,
+          month: query.month,
+        },
+      },
+    },
+    select: {
+      id: true,
+      roomCode: true,
+      building: { select: { id: true, displayName: true, electricityRate: true } },
+    },
+    orderBy: [{ buildingId: "asc" }, { roomCode: "asc" }],
+  });
+
+  const withReadings = await Promise.all(
+    rooms.map(async (room) => ({
+      room,
+      latest: await findLatestKnownReading(room.id),
+    })),
+  );
+
+  return withReadings
+    .filter((entry) => entry.latest !== null)
+    .map(({ room, latest }) => ({
+      roomId: room.id,
+      roomCode: room.roomCode,
+      building: { id: room.building.id, displayName: room.building.displayName },
+      electricityRate: room.building.electricityRate,
+      previousReading: latest!.reading,
+      previousReadingAt: latest!.at,
+      previousReadingSource: latest!.source,
+    }));
+}
+
 export async function recordVacancyElectricity(
   input: RecordVacancyInput,
 ): Promise<VacancyResult> {
@@ -155,6 +243,12 @@ export async function recordVacancyElectricity(
     where: {
       roomId: input.roomId,
       startDate: { lte: monthEnd },
+      // A cancelled tenancy occupied nothing, so it cannot be the reason a
+      // month's consumption belongs to a tenant. Without this, cancelling a
+      // lease would leave the room's vacancy electricity unrecordable for
+      // every month that tenancy nominally spanned — the owner bearing a cost
+      // the system refuses to let them write down.
+      cancelledAt: null,
       OR: [{ moveOutDate: null }, { moveOutDate: { gt: monthEnd } }],
     },
     select: { id: true },

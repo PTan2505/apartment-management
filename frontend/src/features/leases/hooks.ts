@@ -81,6 +81,25 @@ export function useUpdateLease() {
   })
 }
 
+/**
+ * Cancelling frees the room, so this invalidates rooms alongside leases —
+ * without it the room the cancellation just released would still be missing
+ * from the create form's list of rooms that can be let.
+ */
+export function useCancelLease() {
+  const invalidate = useInvalidateLeases()
+  return useMutation({
+    mutationFn: ({
+      id,
+      settlement,
+    }: {
+      id: number
+      settlement: { depositReturned: number; depositKept: number } | null
+    }) => leasesApi.cancelLease(id, settlement),
+    onSuccess: invalidate,
+  })
+}
+
 export function useAddOccupant() {
   const invalidate = useInvalidateLeases()
   return useMutation({

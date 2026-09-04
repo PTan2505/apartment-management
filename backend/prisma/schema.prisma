@@ -121,6 +121,22 @@ model Room {
   building   Building @relation(fields: [buildingId], references: [id])
   roomCode   String
   baseRent   Decimal  @db.Decimal(12, 2)
+  // Where the meter stood when this room was added.
+  //
+  // Every other reading in this system is one half of a difference —
+  // consumption is always a closing figure minus an opening one — and this is
+  // the only figure with nothing before it. So it is stated rather than
+  // derived, at the one moment the owner is looking at the meter.
+  //
+  // NULLABLE, and deliberately not defaulted to zero. A room is often new to
+  // the SYSTEM rather than new in the world: an owner bringing an existing
+  // building into this software creates rooms whose meters have read for
+  // years. Defaulting those to zero would charge the meter's entire history as
+  // one month's vacancy cost, from a figure nobody typed.
+  //
+  // So null means "nobody has said" and 0 means "the meter reads zero". Those
+  // are different facts, and only a nullable column can tell them apart.
+  initialMeterReading Int?
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -156,6 +172,19 @@ model Lease {
   // holding details for only two. See design.md.
   occupantCount     Int
   moveOutDate       DateTime?
+  // When the owner gave up on a tenancy that never took place, as distinct from
+  // one that ran and ended. Recorded as a DATE rather than a flag for two
+  // reasons: a cancelled tenancy would otherwise be unplaceable in time, and
+  // the month it falls in is the month whatever the owner kept is earned in.
+  //
+  // Status stays DERIVED from this and moveOutDate rather than stored as a
+  // third enum value — a stored status could say "cancelled" on a lease that
+  // also holds a move-out date, and derivation is what stops the two
+  // contradicting each other.
+  //
+  // Nullable with no backfill: every lease predating this column is running or
+  // finalized, and an empty column says exactly that.
+  cancelledAt       DateTime?
   // The meter reading this tenancy starts from. Defaulted from the previous
   // lease's endMeterReading but overridable, so electricity used while the room
   // stood empty is not charged to the incoming tenant, and a meter replaced
@@ -199,6 +228,21 @@ model Lease {
   depositRefunded   Decimal?  @db.Decimal(14, 0)
   depositRefundedAt DateTime?
 
+  // Where the signed contract for this tenancy is kept, as a storage key.
+  //
+  // Evidence attached to the record, not part of it: no rule reads it and no
+  // reported value derives from it. A tenancy with none behaves in every other
+  // way like one that has it.
+  //
+  // The key rather than a URL, because a URL to this file is short-lived by
+  // design — the file is not public, and every link to it is signed at the
+  // moment it is asked for. Storing one would be storing something already
+  // expired.
+  //
+  // Nullable with no backfill: tenancies predating this have no contract, and
+  // an empty column says exactly that.
+  contractKey       String?
+
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -206,8 +250,12 @@ model Lease {
   invoices    Invoice[]
   serviceFees LeaseServiceFee[]
 
-  // One ACTIVE lease per room (moveOutDate IS NULL) is enforced by a partial
-  // unique index added manually in the migration.
+  // One ACTIVE lease per room is enforced by a partial unique index added
+  // manually in the migration. Its predicate is "moveOutDate IS NULL AND
+  // cancelledAt IS NULL" — a cancelled tenancy has no move-out date and would
+  // otherwise keep holding the room's single active slot in the DATABASE, so
+  // the service guard could be fixed and re-letting would still fail on a
+  // constraint violation.
   @@index([roomId])
 }
 
@@ -428,6 +476,23 @@ model Invoice {
   // Voided invoices are retained as an audit trail, excluded from totals, and
   // excluded from the uniqueness predicate so a replacement can be issued.
   voidedAt      DateTime?
+  // Why the bill was withdrawn. Free text, because the mistakes are genuinely
+  // varied — a misread meter, a bill against the wrong tenancy, a charge waived
+  // after a conversation — and a list short enough to read would push most of
+  // them into "other". Deliberately unlike the ad-hoc charge categories, which
+  // are fixed because they are totalled across tenancies; this is read once, by
+  // a person, about one bill.
+  //
+  // NULLABLE with no backfill, though the service requires one on the way in.
+  // The invoices already voided were withdrawn for reasons nobody recorded and
+  // nobody now knows: a NOT NULL column would force writing something like
+  // "Reason not recorded" into them, stating as fact a sentence nobody said.
+  // Null reads as "voided before reasons were recorded", which is true.
+  //
+  // Written by whoever withdrew the bill, including the system — cancelling a
+  // tenancy voids its unpaid move-in invoice and records its own reason here,
+  // so a reader never has to check a second place to learn why.
+  voidReason    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -52,6 +52,39 @@ export const markPaidSchema = z.object({
   paidAt: z.coerce.date(),
 });
 
+/**
+ * What is still to be billed for a month.
+ *
+ * Deliberately NOT paginated. This is a worklist an owner works down, and the
+ * question it answers — "which rooms have I not done yet" — has no answer that
+ * fits on a page: a second page of outstanding rooms is a set of rooms that
+ * will be forgotten. A building's worth of tenancies is a bounded number.
+ */
+/**
+ * Withdrawing a bill.
+ *
+ * The reason is REQUIRED. An optional field on an action performed once in a
+ * while is a field that is always left empty, which is the same as not having
+ * it — and the whole point is that a voided invoice stays explainable.
+ *
+ * Trimmed and non-empty, so whitespace does not pass for an answer. Free text
+ * rather than a fixed set: the mistakes are genuinely varied, and a list short
+ * enough to read would push most of them into "other".
+ */
+export const voidInvoiceSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(1, "say why this bill is being withdrawn")
+    .max(500),
+});
+
+export const listDueQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2200),
+  month: z.coerce.number().int().min(1).max(12),
+  buildingId: z.coerce.number().int().positive().optional(),
+});
+
 export const listInvoicesQuerySchema = z.object({
   ...paginationQueryFields,
   buildingId: z.coerce.number().int().positive().optional(),
@@ -72,3 +105,5 @@ export type GenerateInvoiceInput = z.infer<typeof generateInvoiceSchema>;
 export type MarkPaidInput = z.infer<typeof markPaidSchema>;
 export type IssueAdhocInvoiceInput = z.infer<typeof issueAdhocInvoiceSchema>;
 export type ListInvoicesQuery = z.infer<typeof listInvoicesQuerySchema>;
+export type ListDueQuery = z.infer<typeof listDueQuerySchema>;
+export type VoidInvoiceInput = z.infer<typeof voidInvoiceSchema>;

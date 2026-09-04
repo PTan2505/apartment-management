@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client.js";
+import { isConfigured as contractStorageConfigured } from "@/lib/storage.js";
 
 /**
  * Adds whole months to a date, clamping to the last valid day of the target
@@ -21,7 +22,31 @@ export function addMonths(date: Date, months: number): Date {
   return result;
 }
 
-export type LeaseStatus = "active" | "finalized";
+/**
+ * Three states, not two. A tenancy that never took place is not one that ran
+ * and ended: reporting them alike presents as history something that never
+ * happened, inflating how many tenancies a room has had and how many a person
+ * has held.
+ */
+export type LeaseStatus = "active" | "finalized" | "cancelled";
+
+/**
+ * Derived from the two dates rather than stored, which is what stops a status
+ * from contradicting the rows it comes from.
+ *
+ * Cancellation wins where both are somehow set. It cannot happen — cancelling
+ * is refused on a lease that recorded a move-out, and vice versa — but a
+ * precedence has to exist, and "never took place" is the stronger claim.
+ */
+export function leaseStatus(lease: {
+  moveOutDate: Date | null;
+  cancelledAt: Date | null;
+}): LeaseStatus {
+  if (lease.cancelledAt !== null) {
+    return "cancelled";
+  }
+  return lease.moveOutDate === null ? "active" : "finalized";
+}
 
 interface OccupantRow {
   userId: number;
@@ -56,6 +81,7 @@ interface LeaseRow {
   durationMonths: number;
   occupantCount: number;
   moveOutDate: Date | null;
+  cancelledAt: Date | null;
   startMeterReading: number;
   endMeterReading: number | null;
   baseRent: Prisma.Decimal;
@@ -65,9 +91,12 @@ interface LeaseRow {
   depositCarriedOut: Prisma.Decimal;
   depositRefunded: Prisma.Decimal | null;
   depositRefundedAt: Date | null;
+  contractKey: string | null;
   createdAt: Date;
   updatedAt: Date;
   occupants?: OccupantRow[];
+  /** Monthly invoices issued against this tenancy, fetched capped at one. */
+  invoices?: { id: number }[];
 }
 
 /**
@@ -95,9 +124,10 @@ export function toLeaseResponse(lease: LeaseRow) {
    * so on a finished tenancy this finds the person who held it at the end.
    */
   const currentPrimary = lease.occupants?.find((o) => o.isPrimary && o.leftAt === null);
+  const status = leaseStatus(lease);
   const primary =
     currentPrimary ??
-    (lease.moveOutDate !== null ? lease.occupants?.find((o) => o.isPrimary) : undefined);
+    (status !== "active" ? lease.occupants?.find((o) => o.isPrimary) : undefined);
 
   return {
     id: lease.id,
@@ -149,7 +179,56 @@ export function toLeaseResponse(lease: LeaseRow) {
      * date is deliberately unconstrained by the term in the first place.
      */
     moveOutDate: lease.moveOutDate,
-    status: (lease.moveOutDate === null ? "active" : "finalized") satisfies LeaseStatus,
+    /**
+     * When the owner recorded that this tenancy never took place. Reported
+     * beside `moveOutDate` rather than folded into it, because the two are
+     * different events and a reader needs to be able to tell which happened.
+     *
+     * Deliberately NOT an ending date. `moveOutDate` and `expectedEndDate` are
+     * both exclusive bounds on days the tenancy covered; a cancelled tenancy
+     * covered none, so this date bounds nothing and must never be read as if
+     * it did.
+     */
+    cancelledAt: lease.cancelledAt,
+    status,
+    /**
+     * Whether this tenancy has been billed for a month it occupied — the fact
+     * behind `cancellable` below, reported alongside it so a caller withholding
+     * the action can say WHY rather than leaving an owner hunting for a control
+     * that is not there.
+     */
+    hasBilledMonth: (lease.invoices?.length ?? 0) > 0,
+    /**
+     * Whether this tenancy can be recorded as never having taken place.
+     *
+     * Reported rather than left for each caller to work out, because working it
+     * out means restating the service's guard — and a rule stated in two places
+     * is a rule that will eventually be enforced in one of them only. A screen
+     * that offers an action the API refuses is the visible half of that; the
+     * invisible half is a screen that hides one the API would have allowed.
+     */
+    cancellable:
+      status === "active" && (lease.invoices?.length ?? 0) === 0,
+    /**
+     * Whether the signed contract is on file — not WHERE it is.
+     *
+     * The key is an address in the owner's storage and reaches no caller: every
+     * link to the file is signed at the moment it is asked for, and a key on a
+     * screen would be an address with no way to open it and one more thing to
+     * leak.
+     */
+    hasContract: lease.contractKey !== null,
+    /**
+     * Whether this deployment can keep contracts at all.
+     *
+     * Reported so a screen can say storage is unconfigured INSTEAD of offering
+     * an upload that will fail — finding out by having an action refused is
+     * finding out at the worst moment, and the server knows before it is asked.
+     *
+     * A pure read of configuration, so it costs no query and every lease can
+     * carry it.
+     */
+    contractStorageAvailable: contractStorageConfigured(),
     tenant: primary
       ? {
           id: primary.userId,

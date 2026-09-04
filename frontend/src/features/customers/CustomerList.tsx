@@ -55,9 +55,9 @@ export function CustomerList({ customers, onEdit }: CustomerListProps) {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Phone</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>Tên</TableCell>
+              <TableCell>Điện thoại</TableCell>
+              <TableCell align="right">Thao tác</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -77,7 +77,7 @@ export function CustomerList({ customers, onEdit }: CustomerListProps) {
                     startIcon={<EditIcon fontSize="small" />}
                     onClick={() => onEdit(customer)}
                   >
-                    Edit
+                    Sửa
                   </Button>
                 </TableCell>
               </TableRow>
@@ -105,7 +105,7 @@ export function CustomerList({ customers, onEdit }: CustomerListProps) {
                   startIcon={<EditIcon fontSize="small" />}
                   onClick={() => onEdit(customer)}
                 >
-                  Edit
+                  Sửa
                 </Button>
               </Box>
             </CardContent>

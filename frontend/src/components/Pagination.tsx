@@ -40,7 +40,7 @@ export function Pagination({ meta, onPageChange }: PaginationProps) {
       }}
     >
       <Typography variant="body2" color="text.secondary">
-        {first}–{last} of {meta.total}
+        {first}–{last} trên {meta.total}
       </Typography>
       <MuiPagination
         count={meta.totalPages}

@@ -28,7 +28,7 @@ const optionalPhone = z
   .optional()
 
 export const customerFormSchema = z.object({
-  fullName: z.string().trim().min(1, 'Name is required'),
+  fullName: z.string().trim().min(1, 'Vui lòng nhập tên'),
   phone: optionalPhone,
 })
 

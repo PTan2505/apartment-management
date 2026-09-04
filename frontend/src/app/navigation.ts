@@ -11,8 +11,6 @@ export interface Destination {
   label: string
   path: string
   icon: SvgIconComponent
-  /** The OpenSpec change that replaces this destination's placeholder. */
-  providedBy: string
 }
 
 /**
@@ -24,46 +22,39 @@ export interface Destination {
  */
 export const DESTINATIONS: readonly Destination[] = [
   {
-    label: 'Buildings',
+    label: 'Toà nhà',
     path: '/buildings',
     icon: ApartmentIcon,
-    providedBy: 'web-buildings',
   },
   {
-    label: 'Rooms',
+    label: 'Phòng',
     path: '/rooms',
     icon: MeetingRoomIcon,
-    providedBy: 'web-rooms',
   },
   {
-    label: 'Customers',
+    label: 'Khách',
     path: '/customers',
     icon: PeopleIcon,
-    providedBy: 'web-customers',
   },
   {
-    label: 'Leases',
+    label: 'Hợp đồng',
     path: '/leases',
     icon: DescriptionIcon,
-    providedBy: 'web-leases',
   },
   {
-    label: 'Invoices',
+    label: 'Hoá đơn',
     path: '/invoices',
     icon: ReceiptIcon,
-    providedBy: 'web-invoices',
   },
   {
-    label: 'Expenses',
+    label: 'Chi phí',
     path: '/expenses',
     icon: PaymentsIcon,
-    providedBy: 'web-expenses',
   },
   {
-    label: 'Revenue',
+    label: 'Doanh thu',
     path: '/revenue',
     icon: BarChartIcon,
-    providedBy: 'web-revenue-report',
   },
 ]
 

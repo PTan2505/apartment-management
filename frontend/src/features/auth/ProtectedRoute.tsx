@@ -42,9 +42,9 @@ export function ProtectedRoute() {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', p: 2 }}>
         <Alert severity="warning" sx={{ mx: 'auto', maxWidth: 480 }}>
-          <AlertTitle>Cannot reach the server</AlertTitle>
-          Your session has not ended — the application simply cannot contact the
-          API. Check that the backend is running, then reload.
+          <AlertTitle>Không kết nối được máy chủ</AlertTitle>
+          Phiên đăng nhập của bạn chưa hết hạn — chỉ là không liên lạc được với
+          máy chủ. Kiểm tra backend còn chạy không, rồi tải lại trang.
         </Alert>
       </Box>
     )

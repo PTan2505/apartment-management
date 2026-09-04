@@ -96,17 +96,24 @@ The deposit SHALL be recorded as a whole number of months of the agreed rent, be
 - **THEN** the lease starts from the most recent vacancy reading rather than the previous lease's closing reading, because the owner has already paid for the consumption in between
 
 ### Requirement: A room has at most one active lease
-The system SHALL reject a new lease for a room that already has an active lease. Once the existing lease records a move-out, the room SHALL accept a new lease, and the previous lease SHALL be retained as history.
+The system SHALL reject a new lease for a room that already has an active lease. Once the existing lease records a move-out **or is cancelled**, the room SHALL accept a new lease, and the previous lease SHALL be retained as history.
 
 The system SHALL further reject a new lease whose start date falls before the most recent tenancy on that room ended, so that no day is covered by two leases at once. Because an ending date is the first day no longer covered, a new lease MAY begin on exactly the date the previous one ended, and no earlier — the two then meet with neither a gap nor an overlap.
+
+**A cancelled lease SHALL be excluded from that comparison entirely.** It covered no days, so there is nothing for a new tenancy to overlap; treating its dates as occupied would block a room the cancellation was performed to free.
 
 A start date later than the previous tenancy's end SHALL be accepted. A room may stand empty between tenancies, and the days in between belong to nobody rather than being an error.
 
 No other constraint SHALL be placed on the start date. A tenancy may begin on any day of any month; only overlapping a previous tenancy is refused.
 
 #### Scenario: Room already has an active lease
-- **WHEN** an authenticated owner creates a lease for a room whose existing lease has no move-out date
+- **WHEN** an authenticated owner creates a lease for a room whose existing lease has no move-out date and has not been cancelled
 - **THEN** the system responds with HTTP 409 and does not create the lease
+
+#### Scenario: Re-letting a room after a cancellation
+
+- **WHEN** an authenticated owner creates a lease for a room whose only other lease was cancelled
+- **THEN** the system creates it, whatever its start date
 
 #### Scenario: Re-letting a room after move-out
 - **WHEN** an authenticated owner creates a lease for a room whose previous lease has recorded a move-out, starting on or after that date
@@ -217,13 +224,17 @@ The system SHALL treat the lease's occupant count as a manually maintained numbe
 - **THEN** the lease's occupant count is unchanged
 
 ### Requirement: Lease status, expected end date, and tenant are derived
-The system SHALL derive a lease's expected end date from its start date and agreed duration, its status from whether a move-out date is recorded, its tenant from the current primary occupant, and its deposit amount from the agreed rent and the number of deposit months. None of these SHALL be independently settable, so they can never contradict the records they come from.
+The system SHALL derive a lease's expected end date from its start date and agreed duration, its status from whether it has been cancelled or has recorded a move-out, its tenant from the current primary occupant, and its deposit amount from the agreed rent and the number of deposit months. None of these SHALL be independently settable, so they can never contradict the records they come from.
+
+**A lease's status SHALL distinguish three states: running, finalized, and cancelled.** A tenancy that never took place is not one that ran and ended, and reporting them alike would present as history something that never happened — inflating how many tenancies a room has had, and how many a person has held.
 
 A date that ends a tenancy SHALL be **exclusive**: it is the first day the tenancy no longer covers, and the last day covered is the day before it. This SHALL hold for both the expected end date and the move-out date, so that a reader never has to remember which of them counts its own day and which does not.
 
 A lease beginning 1 January for six months therefore has an expected end date of 1 July and covers through 30 June. A lease whose move-out is recorded as 5 July covers through 4 July. In both cases a new lease beginning on that same date follows with neither a gap nor an overlap.
 
 The expected end date SHALL NOT constrain the move-out date. It states when the agreement ends, not when the tenant left — a tenant may stay past it without either party wanting a renewal, and the record SHALL be able to say so.
+
+**A cancelled lease's dates describe an agreement, not an occupancy.** Its expected end date SHALL continue to be reported, because it states what was agreed, but nothing SHALL present it as days the tenancy covered.
 
 The deposit amount SHALL be reported alongside the number of months it was agreed in, so that a caller can show either without computing it. It SHALL follow the lease's own agreed rent rather than the room's current rent, because the deposit was agreed against the rent in the lease.
 
@@ -252,12 +263,17 @@ The deposit amount SHALL be reported alongside the number of months it was agree
 - **THEN** the system accepts it and records that date, rather than requiring a date that did not happen
 
 #### Scenario: Lease without a move-out date is active
-- **WHEN** an authenticated owner retrieves a lease that has no move-out date
+- **WHEN** an authenticated owner retrieves a lease that has no move-out date and has not been cancelled
 - **THEN** the response reports the lease as active
 
 #### Scenario: Lease with a move-out date is finalized
 - **WHEN** an authenticated owner retrieves a lease that has a move-out date
 - **THEN** the response reports the lease as finalized
+
+#### Scenario: A cancelled lease reports itself as cancelled
+
+- **WHEN** an authenticated owner retrieves a lease that has been cancelled
+- **THEN** the response reports it as cancelled, distinct from both active and finalized
 
 #### Scenario: Expected end date follows an updated duration
 - **WHEN** an authenticated owner changes a lease's agreed duration
@@ -570,3 +586,251 @@ The date SHALL be exclusive in the same way as the expected end date: the first 
 
 - **WHEN** an authenticated owner retrieves a lease whose move-out was recorded after its expected end date
 - **THEN** both dates are reported, so what was agreed and what happened can be told apart
+
+
+### Requirement: Owner can cancel a lease that was never lived in
+
+The system SHALL allow an authenticated `owner` to cancel a lease, recording that the tenancy never took place rather than that it ended.
+
+This is a different event from a move-out and SHALL NOT be expressible as one. A move-out closes a tenancy that happened: it takes a closing meter reading, bills a final month, and prorates the days occupied. A cancellation has none of those to take — nobody occupied a day — and the system already refuses to pretend otherwise, rejecting a move-out dated before the start and rejecting one dated on it for covering no days. Without a cancellation those refusals leave the lease with no way out at all: its room held, its move-in invoice outstanding, and nothing correctable.
+
+**Cancellation SHALL be permitted only while no monthly invoice has been issued against the lease.** A monthly invoice is the point past which a tenancy has demonstrably been lived in and billed for, and unwinding it is a different and larger problem. The system SHALL refuse in those terms, naming the move-out as what is wanted instead.
+
+The start date SHALL NOT restrict it. A tenant who promised to arrive and never did leaves a lease whose start date has passed and which was never occupied, and that is precisely the case this exists for.
+
+A lease already cancelled, or one that has recorded a move-out, SHALL NOT be cancellable.
+
+The date of the cancellation SHALL be recorded. When the owner gave up on a tenancy is a fact about the room's history, and without it a cancelled lease cannot be placed in time at all.
+
+#### Scenario: Cancelling a tenancy that never started
+
+- **WHEN** an authenticated owner cancels a lease whose start date has not arrived and which has been billed no monthly invoice
+- **THEN** the system records it as cancelled, together with the date
+
+#### Scenario: Cancelling after the start date has passed
+
+- **WHEN** an authenticated owner cancels a lease whose start date has passed but which has been billed no monthly invoice
+- **THEN** the system records it as cancelled, because the start date says when a tenancy was due to begin and not that it did
+
+#### Scenario: A tenancy that has been billed cannot be cancelled
+
+- **WHEN** an authenticated owner cancels a lease that has been issued a monthly invoice
+- **THEN** the system refuses, and says that a tenancy which has been billed is ended by recording a move-out
+
+#### Scenario: A tenancy that has already ended cannot be cancelled
+
+- **WHEN** an authenticated owner cancels a lease that has recorded a move-out
+- **THEN** the system refuses
+
+#### Scenario: Cancelling twice
+
+- **WHEN** an authenticated owner cancels a lease that is already cancelled
+- **THEN** the system refuses and nothing changes
+
+### Requirement: A lease reports whether it can be cancelled
+
+The system SHALL report, on every lease it returns, whether that tenancy can be cancelled, and whether it has been billed for a month.
+
+The rule behind cancellation lives in the service that enforces it. A caller deciding whether to offer the action would otherwise have to restate that rule — fetch the tenancy's invoices, look for a monthly one, and combine it with the status — which is the same rule written a second time and free to drift from the first. Offering an action the system refuses is the visible half of that drift; withholding one it would have allowed is the half nobody reports.
+
+Both facts SHALL be reported, not just the verdict. A caller that withholds the action needs to say why, and "it has been billed" is the reason an owner can act on.
+
+This SHALL cost no additional request per lease. It is a fact about the tenancy, and a listing of twenty must not become twenty-one requests to report it.
+
+#### Scenario: A cancellable tenancy says so
+
+- **WHEN** an authenticated owner retrieves a running lease that has been billed no monthly invoice
+- **THEN** the response reports it as cancellable, and as not having been billed for a month
+
+#### Scenario: A billed tenancy says why it is not
+
+- **WHEN** an authenticated owner retrieves a running lease that has been issued a monthly invoice
+- **THEN** the response reports it as not cancellable, and as having been billed for a month
+
+#### Scenario: A tenancy that is over is not cancellable
+
+- **WHEN** an authenticated owner retrieves a lease that has recorded a move-out, or one already cancelled
+- **THEN** the response reports it as not cancellable
+
+#### Scenario: Reported across a listing
+
+- **WHEN** an authenticated owner lists leases
+- **THEN** every lease in the page carries both facts, without a request per lease
+
+### Requirement: Cancelling frees the room immediately
+
+A cancelled lease SHALL NOT hold its room. The room SHALL report itself as available, SHALL appear among rooms that can be let, and SHALL accept a new lease starting on any date.
+
+Freeing the room is most of the point. A tenancy that never happened occupies no days, so it constrains no future tenancy's start date — unlike a tenancy that ended, whose dates a successor must not overlap.
+
+#### Scenario: The room is available again
+
+- **WHEN** a lease on a room is cancelled
+- **THEN** the room reports itself as not let, and appears among rooms with no running tenancy
+
+#### Scenario: The room accepts a new tenancy
+
+- **WHEN** an authenticated owner creates a lease for a room whose only other lease was cancelled
+- **THEN** the system creates it
+
+#### Scenario: A cancelled tenancy constrains no start date
+
+- **WHEN** an authenticated owner creates a lease starting before the cancelled lease's own start date
+- **THEN** the system creates it, because a tenancy that never happened covered no days for a new one to overlap
+
+#### Scenario: A cancelled tenancy remains in the room's history
+
+- **WHEN** an authenticated owner lists the leases for a room whose lease was cancelled
+- **THEN** the cancelled lease is included, marked as cancelled
+
+### Requirement: A tenancy can carry its signed contract
+
+The system SHALL allow an authenticated `owner` to attach one signed contract file to a tenancy, to replace it, to remove it, and to retrieve it.
+
+The record cannot otherwise settle an argument. When a tenant says the rent was different or that no deposit was agreed, every figure here is one party's assertion; the signed page is the only thing that is not.
+
+The file SHALL be evidence attached to the record and nothing more. No rule SHALL read it, and no reported value SHALL derive from it — a tenancy with no contract SHALL behave in every other way exactly like one that has it.
+
+Replacing a contract SHALL leave the tenancy with exactly one, and SHALL NOT leave the previous file behind in storage. Storage nobody can reach from the application is storage nobody will ever clear.
+
+#### Scenario: Attaching a contract
+
+- **WHEN** an authenticated owner attaches a contract to a tenancy
+- **THEN** the tenancy reports that it has one
+
+#### Scenario: Replacing a contract
+
+- **WHEN** an authenticated owner attaches a contract to a tenancy that already has one
+- **THEN** the tenancy carries the new one and the previous file is removed from storage
+
+#### Scenario: Removing a contract
+
+- **WHEN** an authenticated owner removes a tenancy's contract
+- **THEN** the tenancy reports that it has none, and the file is removed from storage
+
+#### Scenario: A tenancy without one behaves normally
+
+- **WHEN** a tenancy has no contract attached
+- **THEN** every other operation on it behaves exactly as it does today
+
+### Requirement: Contract bytes do not pass through the API
+
+The system SHALL issue a short-lived signed URL that uploads the file directly to storage, and SHALL NOT accept the file's bytes itself.
+
+A scan of a contract is megabytes uploaded from a phone. Passing it through this process would hold a request open for the length of that upload, on a server whose whole job is answering questions about small records — and the process has nothing to do with the bytes.
+
+**A signed upload URL SHALL permit writing exactly one object**, under the prefix belonging to that tenancy. A URL obtained for one tenancy SHALL NOT be usable to write anywhere else, because the caller chooses none of the destination.
+
+The URL SHALL expire in minutes rather than hours. It authorises a write to the owner's storage, and its useful life is the length of one upload.
+
+The permitted content type SHALL be fixed when the URL is signed, so that a URL obtained for a document cannot be used to store something else.
+
+#### Scenario: Obtaining an upload URL
+
+- **WHEN** an authenticated owner asks to upload a contract for a tenancy
+- **THEN** the system responds with a signed URL, the key it will write, and when the URL expires
+
+#### Scenario: The destination is not the caller's to choose
+
+- **WHEN** an authenticated owner obtains an upload URL
+- **THEN** the object it may write is under that tenancy's own prefix, whatever the caller asked for
+
+#### Scenario: An expired URL
+
+- **WHEN** an upload is attempted with a URL past its expiry
+- **THEN** storage refuses it
+
+#### Scenario: Storage is not configured
+
+- **WHEN** an authenticated owner asks to upload a contract while storage is unconfigured
+- **THEN** the system says so, and every other part of the system continues to work
+
+### Requirement: An upload is confirmed before it is recorded
+
+The system SHALL record a tenancy's contract only after confirming the object exists in storage, and SHALL check its size and content type at that point.
+
+A signed URL is handed out before anything is uploaded, and the upload can fail after it — the browser can be closed, the connection dropped, the file rejected. Recording the contract when the URL is issued would leave tenancies claiming a contract that is not there, and nothing would ever notice.
+
+**A file exceeding the permitted size SHALL be refused and removed from storage.** A size cannot be enforced by a signed PUT the way a content type can, so it is enforced where it can be — after the fact, before anything is recorded — and the rejected object is not left behind.
+
+#### Scenario: Confirming an upload
+
+- **WHEN** an authenticated owner confirms an upload that reached storage
+- **THEN** the tenancy records the contract
+
+#### Scenario: Confirming an upload that never arrived
+
+- **WHEN** an authenticated owner confirms an upload for an object that is not in storage
+- **THEN** the system refuses and the tenancy records nothing
+
+#### Scenario: A file that is too large
+
+- **WHEN** the uploaded object exceeds the permitted size
+- **THEN** the system refuses it, removes it from storage, and the tenancy records nothing
+
+#### Scenario: Confirming against another tenancy's object
+
+- **WHEN** a confirmation names a key outside that tenancy's prefix
+- **THEN** the system refuses
+
+### Requirement: A contract is read back by a short-lived link
+
+The system SHALL return a short-lived signed URL for reading a tenancy's contract, and the stored file SHALL NOT be publicly readable.
+
+A contract carries names, an address, a signature and a phone number. A permanent link is one forwarded message away from being public, and a link that expires limits the damage of forwarding it to the minutes after it was sent.
+
+#### Scenario: Reading a contract
+
+- **WHEN** an authenticated owner asks for a tenancy's contract
+- **THEN** the system responds with a signed URL that expires
+
+#### Scenario: A tenancy with no contract
+
+- **WHEN** an authenticated owner asks for a contract on a tenancy that has none
+- **THEN** the system responds with HTTP 404
+
+#### Scenario: The file is not public
+
+- **WHEN** the stored object is requested without a signed URL
+- **THEN** storage refuses it
+
+### Requirement: Contract endpoints require an authenticated owner
+
+Every contract operation SHALL require an authenticated `owner`.
+
+#### Scenario: Unauthenticated
+
+- **WHEN** an unauthenticated request asks for an upload URL, confirms an upload, reads a contract, or removes one
+- **THEN** the system responds with HTTP 401
+
+### Requirement: A tenancy's storage keeps only its current contract
+
+When a tenancy's contract is confirmed or removed, the system SHALL also remove any other object under that tenancy's own prefix.
+
+An upload that is never confirmed leaves an object behind: the browser sends the file to storage and the confirmation then fails — a closed tab, a dropped connection, an error. Nothing is recorded, which is right, and the object remains, unreachable through the application and invisible in it.
+
+This is the same reasoning that already deletes an oversized file rather than leaving it: an object nobody can reach through the application is one nobody will ever clear. Applying it to one case and not the other left a gap that grows with every failed upload and never shrinks.
+
+The cleanup SHALL be scoped to the tenancy being acted on. Nothing SHALL sweep the bucket, and nothing SHALL run on a schedule — the litter is created by these operations, and clearing it as they happen keeps the two together.
+
+A failure to clear SHALL NOT fail the operation. The record is what the application reads; reporting a successful confirmation as a failure because a stray object survived would invite the owner to repeat an upload that already worked.
+
+#### Scenario: An abandoned upload is cleared
+
+- **WHEN** an upload reaches storage but is never confirmed, and the owner then confirms a later one
+- **THEN** the abandoned object is removed and the confirmed contract remains
+
+#### Scenario: Removing a contract clears the prefix
+
+- **WHEN** an owner removes a tenancy's contract
+- **THEN** nothing is left under that tenancy's prefix
+
+#### Scenario: Only this tenancy is touched
+
+- **WHEN** a contract is confirmed for one tenancy
+- **THEN** objects belonging to any other tenancy are untouched
+
+#### Scenario: The current contract survives
+
+- **WHEN** a contract is confirmed
+- **THEN** the object it names is not among those removed

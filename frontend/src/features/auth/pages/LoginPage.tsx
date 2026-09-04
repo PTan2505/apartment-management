@@ -63,14 +63,14 @@ export function LoginPage() {
       <Card sx={{ width: '100%', maxWidth: 400 }}>
         <CardContent>
           <Typography variant="h5" component="h1" gutterBottom>
-            Sign in
+            Đăng nhập
           </Typography>
 
           {/* Shown only when the session ended on its own. A deliberate
               sign-out carries no reason, so nothing appears. */}
           {state.reason === 'expired' && !submitError && (
             <Alert severity="info" sx={{ mb: 2 }}>
-              Your session ended. Please sign in again.
+              Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.
             </Alert>
           )}
 
@@ -85,7 +85,7 @@ export function LoginPage() {
               sx={{ mb: 2 }}
             >
               {submitError.isTransport
-                ? `Could not sign in: ${submitError.message}`
+                ? `Không đăng nhập được: ${submitError.message}`
                 : submitError.message}
             </Alert>
           )}
@@ -93,7 +93,7 @@ export function LoginPage() {
           <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
             <Stack spacing={2}>
               <TextField
-                label="Phone number"
+                label="Số điện thoại"
                 autoComplete="username"
                 autoFocus
                 fullWidth
@@ -102,7 +102,7 @@ export function LoginPage() {
                 {...register('phone')}
               />
               <TextField
-                label="Password"
+                label="Mật khẩu"
                 type="password"
                 autoComplete="current-password"
                 fullWidth
@@ -120,7 +120,7 @@ export function LoginPage() {
                   isSigningIn ? <CircularProgress size={18} color="inherit" /> : undefined
                 }
               >
-                {isSigningIn ? 'Signing in…' : 'Sign in'}
+                {isSigningIn ? 'Đang đăng nhập…' : 'Đăng nhập'}
               </Button>
             </Stack>
           </Box>

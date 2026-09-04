@@ -13,6 +13,11 @@ import {
   getLeaseHandler,
   updateLeaseHandler,
   moveOutHandler,
+  cancelLeaseHandler,
+  contractUploadUrlHandler,
+  contractConfirmHandler,
+  contractDownloadHandler,
+  contractRemoveHandler,
   extendLeaseHandler,
   listOccupantsHandler,
   addOccupantHandler,
@@ -29,6 +34,10 @@ leasesRouter.get("/", listLeasesHandler);
 leasesRouter.get("/:id", getLeaseHandler);
 leasesRouter.patch("/:id", updateLeaseHandler);
 leasesRouter.post("/:id/move-out", moveOutHandler);
+// Recording that a tenancy never took place. A different event from a move-out
+// and deliberately a different endpoint: the two take different inputs, refuse
+// on different grounds, and mean different things about the room's history.
+leasesRouter.post("/:id/cancel", cancelLeaseHandler);
 // Renewing: closes this lease at its agreed end date and opens a successor
 // beginning the same day, carrying the deposit rather than charging it again.
 leasesRouter.post("/:id/extend", extendLeaseHandler);
@@ -38,6 +47,14 @@ leasesRouter.post("/:id/extend", extendLeaseHandler);
 leasesRouter.get("/:id/deposit-settlement", getSettlementHandler);
 leasesRouter.post("/:id/deposit-refund", refundDepositHandler);
 leasesRouter.post("/:id/deposit-adjustment", adjustDepositHandler);
+
+// The signed contract. Three steps deliberately: the API signs a URL, the
+// BROWSER uploads to storage, and only then does the API record it — a scan is
+// megabytes and this process has nothing to do with the bytes.
+leasesRouter.post("/:id/contract-upload-url", contractUploadUrlHandler);
+leasesRouter.post("/:id/contract", contractConfirmHandler);
+leasesRouter.get("/:id/contract", contractDownloadHandler);
+leasesRouter.delete("/:id/contract", contractRemoveHandler);
 
 leasesRouter.get("/:id/occupants", listOccupantsHandler);
 leasesRouter.post("/:id/occupants", addOccupantHandler);

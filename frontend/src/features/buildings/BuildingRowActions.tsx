@@ -46,14 +46,14 @@ export function BuildingRowActions({
           <ListItemIcon>
             <EditIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Edit</ListItemText>
+          <ListItemText>Sửa</ListItemText>
         </MenuItem>
         {building.isActive ? (
           <MenuItem onClick={() => run(onRetire)}>
             <ListItemIcon>
               <ArchiveIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Retire</ListItemText>
+            <ListItemText>Ngừng sử dụng</ListItemText>
           </MenuItem>
         ) : (
           // No confirmation: restoring is not destructive.
@@ -61,7 +61,7 @@ export function BuildingRowActions({
             <ListItemIcon>
               <UnarchiveIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Restore</ListItemText>
+            <ListItemText>Dùng lại</ListItemText>
           </MenuItem>
         )}
       </Menu>

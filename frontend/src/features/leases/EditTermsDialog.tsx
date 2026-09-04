@@ -61,7 +61,7 @@ export function EditTermsDialog({ open, lease, onClose }: EditTermsDialogProps) 
       await updateMutation.mutateAsync({ id: lease.id, input: values })
       onClose()
     } catch (error) {
-      setFormError(isApiError(error) ? error.message : 'Could not save those changes.')
+      setFormError(isApiError(error) ? error.message : 'Không lưu được thay đổi.')
     }
   }
 
@@ -69,7 +69,7 @@ export function EditTermsDialog({ open, lease, onClose }: EditTermsDialogProps) 
 
   return (
     <Dialog open={open} onClose={isSubmitting ? undefined : onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Edit terms</DialogTitle>
+      <DialogTitle>Sửa điều khoản</DialogTitle>
       <DialogContent>
         {formError && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -85,26 +85,26 @@ export function EditTermsDialog({ open, lease, onClose }: EditTermsDialogProps) 
           sx={{ mt: 1 }}
         >
           <TextField
-            label="Duration"
+            label="Thời hạn"
             type="number"
             fullWidth
             autoFocus
             slotProps={{ htmlInput: { min: 1, step: 1 } }}
             error={Boolean(errors.durationMonths)}
             helperText={
-              errors.durationMonths?.message ?? 'Months. The dates shown follow this.'
+              errors.durationMonths?.message ?? 'Số tháng. Các ngày hiển thị sẽ theo con số này.'
             }
             {...register('durationMonths', { valueAsNumber: true })}
           />
           <TextField
-            label="Bill for"
+            label="Tính cho"
             type="number"
             fullWidth
             slotProps={{ htmlInput: { min: 1, step: 1 } }}
             error={Boolean(errors.occupantCount)}
             helperText={
               errors.occupantCount?.message ??
-              'People, for utilities. Bills already issued keep the count they were billed at.'
+              'Số người, dùng tính điện nước. Hoá đơn đã xuất vẫn giữ số người lúc xuất.'
             }
             {...register('occupantCount', { valueAsNumber: true })}
           />
@@ -112,7 +112,7 @@ export function EditTermsDialog({ open, lease, onClose }: EditTermsDialogProps) 
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={isSubmitting}>
-          Cancel
+          Huỷ
         </Button>
         <Button
           type="submit"
@@ -121,7 +121,7 @@ export function EditTermsDialog({ open, lease, onClose }: EditTermsDialogProps) 
           disabled={isSubmitting}
           startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
-          {isSubmitting ? 'Saving…' : 'Save'}
+          {isSubmitting ? 'Đang lưu…' : 'Lưu'}
         </Button>
       </DialogActions>
     </Dialog>

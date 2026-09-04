@@ -21,7 +21,12 @@ export interface LeaseTenant {
   phone: string | null
 }
 
-export type LeaseStatus = 'active' | 'finalized'
+/**
+ * Three states, not two. A tenancy that never took place is not one that ran
+ * and ended, and showing them alike presents as history something that never
+ * happened.
+ */
+export type LeaseStatus = 'active' | 'finalized' | 'cancelled'
 
 export interface Lease {
   id: number
@@ -39,6 +44,14 @@ export interface Lease {
   /** Exclusive in the same way as `expectedEndDate`. Null while running. */
   moveOutDate: string | null
   /**
+   * When the owner recorded that this tenancy never took place.
+   *
+   * NOT an ending date, and deliberately not passed through `coveredThrough`:
+   * the other two dates bound days the tenancy covered, and a cancelled tenancy
+   * covered none. It is the day a decision was made, shown as itself.
+   */
+  cancelledAt: string | null
+  /**
    * How many people the room is billed for.
    *
    * Maintained by hand and NOT derived from the occupant records — the two may
@@ -53,6 +66,33 @@ export interface Lease {
   /** What is actually held, which is a different question. */
   depositHeld: number
   status: LeaseStatus
+  /**
+   * Whether this tenancy can be recorded as never having taken place.
+   *
+   * Reported by the API rather than worked out here. The rule — running, and
+   * never billed for a month — lives in the service that enforces it, and a
+   * copy of it in this screen would be a second rule free to drift from the
+   * first. Offering an action the API refuses is the visible failure; hiding
+   * one it would have allowed is the failure nobody reports.
+   */
+  cancellable: boolean
+  /** Why cancellation is withheld on a running tenancy: it has been billed. */
+  hasBilledMonth: boolean
+  /**
+   * Whether the signed contract is on file — never WHERE it is.
+   *
+   * The storage key does not reach here: every link to the file is signed at
+   * the moment it is asked for, so a key on screen would be an address with no
+   * way to open it and one more thing to leak.
+   */
+  hasContract: boolean
+  /**
+   * Whether this deployment can keep contracts at all.
+   *
+   * Known before anything is attempted, so the screen says storage is
+   * unconfigured rather than offering an upload that will fail.
+   */
+  contractStorageAvailable: boolean
   tenant: LeaseTenant | null
   createdAt: string
   updatedAt: string

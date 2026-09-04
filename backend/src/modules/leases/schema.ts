@@ -68,6 +68,44 @@ export const moveOutSchema = z.object({
     .default([]),
 });
 
+/**
+ * Recording that a tenancy never took place.
+ *
+ * Both amounts are optional in the SHAPE and required by the SERVICE wherever a
+ * holding exists — the rule is that they account for the whole holding, and a
+ * schema cannot see the holding. Deliberately no default of any kind: returning
+ * everything and keeping everything are both ordinary outcomes, so a default
+ * would be a decision made on the owner's behalf and accepted without being
+ * noticed.
+ */
+export const cancelLeaseSchema = z.object({
+  // Defaults to now in the service. Settable because an owner may be entering
+  // last week's decision, and the month this falls in is the month whatever
+  // they kept is earned in.
+  cancelledAt: isoDate.optional(),
+  depositReturned: z.coerce.number().nonnegative("must not be negative").optional(),
+  depositKept: z.coerce.number().nonnegative("must not be negative").optional(),
+});
+
+/**
+ * Asking for a URL to upload a contract with.
+ *
+ * The caller names a CONTENT TYPE, never a destination. The key is derived by
+ * the service from the tenancy and a random component, so a URL obtained for
+ * one tenancy cannot be turned into a write anywhere else.
+ *
+ * The set is closed rather than free text: it is bound into the signature, so a
+ * value nobody vetted would let a URL issued for a document store anything.
+ */
+export const contractUploadSchema = z.object({
+  contentType: z.enum(["application/pdf", "image/jpeg", "image/png", "image/heic"]),
+});
+
+/** Confirming that an upload reached storage. */
+export const contractConfirmSchema = z.object({
+  key: z.string().min(1, "key is required"),
+});
+
 export const listLeasesQuerySchema = z.object({
   ...paginationQueryFields,
   roomId: z.coerce.number().int().positive().optional(),
@@ -110,3 +148,6 @@ export type UpdateLeaseInput = z.infer<typeof updateLeaseSchema>;
 export type ListLeasesQuery = z.infer<typeof listLeasesQuerySchema>;
 export type AddOccupantInput = z.infer<typeof addOccupantSchema>;
 export type ExtendLeaseInput = z.infer<typeof extendLeaseSchema>;
+export type CancelLeaseInput = z.infer<typeof cancelLeaseSchema>;
+export type ContractUploadInput = z.infer<typeof contractUploadSchema>;
+export type ContractConfirmInput = z.infer<typeof contractConfirmSchema>;

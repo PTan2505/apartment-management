@@ -68,13 +68,13 @@ export function BuildingFilters({
     >
       <TextField
         select
-        label="City"
+        label="Tỉnh/Thành"
         size="small"
         value={city ?? ''}
         onChange={(event) => handleCityChange(event.target.value)}
         sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
       >
-        <MenuItem value="">All cities</MenuItem>
+        <MenuItem value="">Tất cả tỉnh/thành</MenuItem>
         {locations.map((location) => (
           <MenuItem key={location.city} value={location.city}>
             {location.city}
@@ -84,13 +84,13 @@ export function BuildingFilters({
 
       <TextField
         select
-        label="Ward"
+        label="Phường/Xã"
         size="small"
         value={ward ?? ''}
         onChange={(event) => onWardChange(event.target.value === '' ? undefined : event.target.value)}
         sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
       >
-        <MenuItem value="">All wards</MenuItem>
+        <MenuItem value="">Tất cả phường/xã</MenuItem>
         {wardsForCity.map((wardName) => (
           <MenuItem key={wardName} value={wardName}>
             {wardName}
@@ -105,12 +105,12 @@ export function BuildingFilters({
             onChange={(event) => onIncludeInactiveChange(event.target.checked)}
           />
         }
-        label="Include retired"
+        label="Kể cả đã ngừng"
       />
 
       {hasFilters && (
         <Button onClick={onClear} size="small">
-          Clear filters
+          Xoá bộ lọc
         </Button>
       )}
     </Box>

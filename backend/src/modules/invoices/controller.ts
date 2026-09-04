@@ -6,6 +6,8 @@ import {
   issueAdhocInvoiceSchema,
   markPaidSchema,
   listInvoicesQuerySchema,
+  listDueQuerySchema,
+  voidInvoiceSchema,
 } from "./schema.js";
 import * as invoiceService from "./service.js";
 
@@ -29,6 +31,18 @@ export async function listInvoicesHandler(req: Request, res: Response) {
   res.status(200).json(invoices);
 }
 
+export async function listDueHandler(req: Request, res: Response) {
+  const parsed = listDueQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    throw new ValidationError("Invalid query parameters", parsed.error.flatten());
+  }
+
+  const due = await invoiceService.listDueForMonth(parsed.data);
+  // A bare array, not a paginated envelope: this is a worklist rather than a
+  // page of records, and nothing about it is navigable.
+  res.status(200).json({ data: due });
+}
+
 export async function getInvoiceHandler(req: Request, res: Response) {
   const invoice = await invoiceService.getInvoiceById(parseIdParam(req.params.id, "Invoice"));
   res.status(200).json(invoice);
@@ -48,7 +62,15 @@ export async function markPaidHandler(req: Request, res: Response) {
 }
 
 export async function voidInvoiceHandler(req: Request, res: Response) {
-  const invoice = await invoiceService.voidInvoice(parseIdParam(req.params.id, "Invoice"));
+  const parsed = voidInvoiceSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    throw new ValidationError("Invalid void payload", parsed.error.flatten());
+  }
+
+  const invoice = await invoiceService.voidInvoice(
+    parseIdParam(req.params.id, "Invoice"),
+    parsed.data,
+  );
   res.status(200).json(invoice);
 }
 

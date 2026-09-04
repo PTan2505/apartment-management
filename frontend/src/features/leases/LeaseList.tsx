@@ -43,7 +43,7 @@ function roomLabel(lease: Lease): string {
  */
 function tenantLabel(lease: Lease): string {
   if (lease.tenant?.fullName) return lease.tenant.fullName
-  return lease.status === 'active' ? 'Nobody responsible' : 'No tenant recorded'
+  return lease.status === 'active' ? 'Chưa ai đứng tên' : 'Không có người đứng tên'
 }
 
 function tenantColor(lease: Lease): 'text.primary' | 'text.secondary' | 'warning.main' {
@@ -65,18 +65,35 @@ function tenantColor(lease: Lease): 'text.primary' | 'text.secondary' | 'warning
 function StatusChips({ lease }: { lease: Lease }) {
   return (
     <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+      {/*
+        Three labels, not two. A cancelled tenancy shown as "Ended" would be
+        counted among the times a room was let and a person rented — history
+        that never happened, and unrecoverable once it reads that way.
+      */}
       <Chip
         size="small"
-        label={lease.status === 'active' ? 'Running' : 'Ended'}
-        color={lease.status === 'active' ? 'success' : 'default'}
-        variant={lease.status === 'active' ? 'filled' : 'outlined'}
+        label={
+          lease.status === 'active'
+            ? 'Đang thuê'
+            : lease.status === 'cancelled'
+              ? 'Đã huỷ'
+              : 'Đã kết thúc'
+        }
+        color={
+          lease.status === 'active'
+            ? 'success'
+            : lease.status === 'cancelled'
+              ? 'error'
+              : 'default'
+        }
+        variant={lease.status === 'finalized' ? 'outlined' : 'filled'}
       />
       {isTermRunOut(lease) && (
         <Chip
           size="small"
           color="warning"
           icon={<WarningAmberIcon />}
-          label="Term run out"
+          label="Hết hạn"
         />
       )}
     </Stack>
@@ -85,6 +102,12 @@ function StatusChips({ lease }: { lease: Lease }) {
 
 /** What the tenancy covers, always as the last day covered — never the boundary. */
 function coverLabel(lease: Lease): string {
+  // A cancelled tenancy covered no days at all, so it gets no range. Printing
+  // its agreed dates in a column headed "Covers" would state as occupancy the
+  // one thing this status exists to deny.
+  if (lease.status === 'cancelled') {
+    return `Huỷ ngày ${formatDate(lease.cancelledAt)}`
+  }
   const from = formatDate(lease.startDate)
   const to = formatCoveredThrough(lease.moveOutDate ?? lease.expectedEndDate)
   return `${from} – ${to}`
@@ -103,11 +126,11 @@ export function LeaseList({ leases, onOpen }: LeaseListProps) {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Room</TableCell>
-              <TableCell>Tenant</TableCell>
-              <TableCell>Rent</TableCell>
-              <TableCell>Covers</TableCell>
-              <TableCell>Status</TableCell>
+              <TableCell>Phòng</TableCell>
+              <TableCell>Người đứng tên</TableCell>
+              <TableCell>Giá thuê</TableCell>
+              <TableCell>Thời gian ở</TableCell>
+              <TableCell>Trạng thái</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -124,7 +147,7 @@ export function LeaseList({ leases, onOpen }: LeaseListProps) {
                   </Typography>
                 </TableCell>
                 <TableCell>
-                  <Typography variant="body2">{formatMoney(lease.baseRent)} / month</Typography>
+                  <Typography variant="body2">{formatMoney(lease.baseRent)} / tháng</Typography>
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2">{coverLabel(lease)}</Typography>
@@ -163,7 +186,7 @@ export function LeaseList({ leases, onOpen }: LeaseListProps) {
                     {coverLabel(lease)}
                   </Typography>
                   <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                    {formatMoney(lease.baseRent)} / month
+                    {formatMoney(lease.baseRent)} / tháng
                   </Typography>
                 </Stack>
               </CardContent>

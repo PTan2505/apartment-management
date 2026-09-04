@@ -77,10 +77,31 @@ This is the point of the feature. A total is what an owner can already read down
 
 Amounts SHALL be shown as currency a Vietnamese reader recognises, not as raw numbers.
 
+**Each charge SHALL be named in Vietnamese**, using the same labelling the owner's screens use. The portal reads the same stored descriptions, which the system writes in English, and a tenant is the more exposed reader of the two: the owner is one person who will learn what a word means, while a tenant is anybody arriving from a link on their phone.
+
+Naming SHALL be by one shared implementation rather than one per surface. Two would eventually describe the same charge differently, and a tenant querying a bill against what the owner is looking at is the moment that difference surfaces.
+
+**A charge the owner wrote SHALL be shown as the charge itself**, not as a category with their words demoted beneath it. What the owner typed about a broken window is the informative part; "a charge" is not.
+
 #### Scenario: Opening a bill
 
 - **WHEN** a tenant opens a monthly bill
 - **THEN** its rent, electricity, water and service fee charges are each shown with their own amount and the period they cover
+
+#### Scenario: The charges are named in Vietnamese
+
+- **WHEN** a tenant reads any charge on a bill
+- **THEN** it is named in Vietnamese, without the English text the system stored
+
+#### Scenario: A charge the owner described
+
+- **WHEN** a bill carries a charge the owner wrote themselves
+- **THEN** their words are shown as the charge's name, unaltered
+
+#### Scenario: The owner and the tenant see the same charge named the same way
+
+- **WHEN** the same bill is read on the owner's screen and in the portal
+- **THEN** each charge carries the same name in both
 
 #### Scenario: Electricity shows its working
 
@@ -177,9 +198,11 @@ An action that has been taken and not yet answered SHALL be visibly in progress,
 
 ### Requirement: The portal reaches the API by an absolute address
 
-The application SHALL address the API by a full address supplied at build time, rather than by a path on its own origin.
+The application SHALL address the API by a full address supplied at build time, rather than by a path on its own origin, and SHALL use the same address the rest of the application uses.
 
-It has no proxy in front of it and needs none: it sends no cookie and carries its token in a header, so nothing about it depends on sharing an origin with the API. Requiring one would mean putting a proxy in front of a page that does not need it.
+It sends no cookie and carries its token in a header, so nothing about it depends on sharing an origin with the API.
+
+One address rather than two: a second setting naming the same API is a second thing to configure, a second thing to get wrong, and nothing distinguishes the two values in practice.
 
 An absent or empty address SHALL fail the build rather than produce an application that requests paths on itself.
 
@@ -192,3 +215,30 @@ An absent or empty address SHALL fail the build rather than produce an applicati
 
 - **WHEN** the application is built without the API address configured
 - **THEN** the build fails
+
+### Requirement: The portal is a route in the application
+
+The portal SHALL be a route within the owner's application rather than a separate build, and SHALL be reached without signing in.
+
+Two applications were two of everything — two configs, two entries, two build scripts, two API addresses, two CI steps — for a separation whose only remaining benefit is the size of what a tenant downloads. That benefit is real and was weighed: a tenant now receives the whole application rather than the portal alone. It was accepted as the price of one thing to build, configure and deploy.
+
+**The portal SHALL NOT use the owner's API client.** That client renews the session when a request is refused, and a tenant has no session to renew — sharing it would need a flag saying a request is not really authenticated, which is the kind of thing that gets forgotten. The portal keeps its own module: no interceptor, no cookie.
+
+**The portal SHALL NOT sit within whatever establishes the owner's session.** That asks the API who is signed in as soon as it mounts; for a tenant the answer is nobody, and the attempt costs a refused request and a refused renewal before a bill appears.
+
+A tenant SHALL reach it without passing the sign-in guard, and SHALL NOT be redirected to sign in.
+
+#### Scenario: Opening a link
+
+- **WHEN** a tenant opens their link
+- **THEN** the portal loads and shows their bills, without a sign-in screen
+
+#### Scenario: Nothing asks who the tenant is
+
+- **WHEN** a tenant opens their link
+- **THEN** no request is made to establish an owner session, and none is renewed
+
+#### Scenario: A refused request is not retried as a session
+
+- **WHEN** a portal request is refused because the token is no longer valid
+- **THEN** the portal reports it, and nothing attempts to renew a session

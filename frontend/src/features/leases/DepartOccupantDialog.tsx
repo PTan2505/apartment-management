@@ -102,7 +102,7 @@ export function DepartOccupantDialog({
       })
       onClose()
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : 'Could not record that departure.')
+      setError(isApiError(cause) ? cause.message : 'Không ghi nhận được việc rời đi.')
     }
   }
 
@@ -112,18 +112,18 @@ export function DepartOccupantDialog({
 
   return (
     <Dialog open={occupant !== null} onClose={isSubmitting ? undefined : onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Record departure</DialogTitle>
+      <DialogTitle>Ghi nhận rời đi</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           <DialogContentText>
             {name} will be shown as having left. They stay listed on this
-            tenancy — where somebody lived and when is what the record is for.
+            hợp đồng — ai từng ở và ở khi nào chính là thứ hồ sơ này cần lưu.
           </DialogContentText>
 
           {error && <Alert severity="error">{error}</Alert>}
 
           <TextField
-            label="Date they left"
+            label="Ngày rời đi"
             type="date"
             fullWidth
             value={leftAt}
@@ -142,14 +142,14 @@ export function DepartOccupantDialog({
           {mustTransfer && (
             <>
               <Alert severity="info">
-                <AlertTitle>Someone has to take over</AlertTitle>
+                <AlertTitle>Phải có người nhận thay</AlertTitle>
                 {name} is responsible for this agreement, and other people still
-                live here. Responsibility passes first, then the departure is
+                còn ở đây. Chuyển người đứng tên trước, rồi mới ghi nhận
                 recorded.
               </Alert>
               <TextField
                 select
-                label="Takes over responsibility"
+                label="Người nhận đứng tên"
                 fullWidth
                 value={successorId === '' ? '' : String(successorId)}
                 onChange={(event) => setSuccessorId(Number(event.target.value))}
@@ -165,15 +165,15 @@ export function DepartOccupantDialog({
 
           {occupant?.isPrimary === true && others.length === 0 && (
             <Alert severity="warning">
-              <AlertTitle>Nobody left to take over</AlertTitle>
-              This tenancy will report no tenant until a move-out is recorded.
+              <AlertTitle>Không còn ai để nhận thay</AlertTitle>
+              Hợp đồng sẽ không có người đứng tên cho tới khi ghi nhận trả phòng.
             </Alert>
           )}
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={isSubmitting}>
-          Cancel
+          Huỷ
         </Button>
         <Button
           variant="contained"
@@ -181,7 +181,7 @@ export function DepartOccupantDialog({
           disabled={isSubmitting || blocked}
           startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
-          {isSubmitting ? 'Recording…' : 'Record departure'}
+          {isSubmitting ? 'Đang ghi…' : 'Ghi nhận rời đi'}
         </Button>
       </DialogActions>
     </Dialog>

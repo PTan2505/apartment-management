@@ -7,8 +7,9 @@ import {
   buildServiceFeeLineItems,
   computeCharges,
   computeServiceFeeCharges,
-  resolveOccupiedPeriod,
-  resolveRentPeriod,
+  endOfMonth,
+  monthlyBillability,
+  startOfMonth,
 } from "./billing.js";
 import { addMonths } from "@/modules/leases/mapper.js";
 import {
@@ -20,7 +21,9 @@ import {
 import type {
   GenerateInvoiceInput,
   IssueAdhocInvoiceInput,
+  ListDueQuery,
   ListInvoicesQuery,
+  VoidInvoiceInput,
   MarkPaidInput,
 } from "./schema.js";
 
@@ -77,18 +80,33 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
 
   // A finalized lease is still billable for the months it covered — a tenancy
   // that ended on the 15th owes for those 15 days.
-  const period = resolveOccupiedPeriod(
-    input.year,
-    input.month,
-    lease.startDate,
-    lease.moveOutDate,
-    addMonths(lease.startDate, lease.durationMonths),
-  );
-  if (!period) {
+  //
+  // Asked of the shared rule rather than worked out here, so that what this
+  // endpoint accepts and what the month's outstanding list offers cannot drift
+  // apart. Each refusal keeps its own words: the reasons are genuinely
+  // different and an owner acts differently on each.
+  const billability = monthlyBillability(input.year, input.month, {
+    startDate: lease.startDate,
+    moveOutDate: lease.moveOutDate,
+    cancelledAt: lease.cancelledAt,
+    expectedEndDate: addMonths(lease.startDate, lease.durationMonths),
+  });
+  if (!billability.billable) {
+    if (billability.reason === "cancelled") {
+      throw new ValidationError(
+        "That tenancy was cancelled, so it occupied no month and there is nothing to bill",
+      );
+    }
+    if (billability.reason === "not_occupied") {
+      throw new ValidationError(
+        "That month falls outside the period this lease occupied the room",
+      );
+    }
     throw new ValidationError(
-      "That month falls outside the period this lease occupied the room",
+      "The month after this one falls outside the lease's term, so there is no rent to charge — its utilities belong on the final invoice",
     );
   }
+  const { period, rentPeriod } = billability;
 
   const existing = await prisma.invoice.findFirst({
     where: { leaseId: input.leaseId, year: input.year, month: input.month, voidedAt: null },
@@ -109,23 +127,6 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
 
   // Named so the computation and the lines it produces read the same inputs —
   // two copies could drift and the bill would stop explaining its own total.
-  // Rent is charged for the month AFTER the one billed. No such month within
-  // the term means there is no rent left to charge, and that month's utilities
-  // belong on the final invoice — refused rather than silently issued without a
-  // rent line, because an invoice with no rent is what a FINAL invoice is.
-  const rentPeriod = resolveRentPeriod(
-    input.year,
-    input.month,
-    lease.startDate,
-    lease.moveOutDate,
-    addMonths(lease.startDate, lease.durationMonths),
-  );
-  if (rentPeriod === null) {
-    throw new ValidationError(
-      "The month after this one falls outside the lease's term, so there is no rent to charge — its utilities belong on the final invoice",
-    );
-  }
-
   const chargeInputs = {
     // The lease's own agreed rent, not the room's current asking rent. A tenant
     // is billed what their agreement says, so editing the room after a lease
@@ -204,6 +205,112 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
     },
     include: invoiceInclude,
   });
+}
+
+/**
+ * What is still to be billed for a month.
+ *
+ * Exists because the question an owner actually has at month end is not "issue
+ * this invoice" but "which rooms have I not done yet", and nothing could answer
+ * it. A room silently missed is a month of rent never billed and never noticed.
+ *
+ * Reported by the server rather than assembled by a client on purpose. Working
+ * it out means combining the tenancies that occupied the month with the
+ * invoices already issued for it, then resolving one opening reading per
+ * tenancy — a request per room, and a second copy of a rule this module already
+ * owns. Two copies of a billing rule is one that eventually disagrees with the
+ * invoices it produced, and it fails quietly: the screen offers a row, the API
+ * refuses it.
+ *
+ * The result is exactly the outstanding work. A tenancy leaves it the moment
+ * its invoice for that month exists, and never appears where issuing one would
+ * be refused.
+ */
+export async function listDueForMonth(query: ListDueQuery) {
+  const monthStart = startOfMonth(query.year, query.month);
+  const monthEnd = endOfMonth(query.year, query.month);
+
+  // A coarse filter, deliberately. It narrows to tenancies that could plausibly
+  // have covered the month; whether they actually did is settled below by the
+  // same rule the issuing path uses, rather than by a second attempt to express
+  // it in SQL.
+  const candidates = await prisma.lease.findMany({
+    where: {
+      cancelledAt: null,
+      startDate: { lte: monthEnd },
+      OR: [{ moveOutDate: null }, { moveOutDate: { gt: monthStart } }],
+      ...(query.buildingId ? { room: { buildingId: query.buildingId } } : {}),
+    },
+    select: {
+      id: true,
+      startDate: true,
+      durationMonths: true,
+      moveOutDate: true,
+      cancelledAt: true,
+      startMeterReading: true,
+      baseRent: true,
+      occupantCount: true,
+      room: {
+        select: {
+          id: true,
+          roomCode: true,
+          building: { select: { id: true, displayName: true } },
+        },
+      },
+      // Who to name on the row. A room code alone is not enough to act on when
+      // an owner is checking a reading against the right tenancy.
+      occupants: {
+        where: { isPrimary: true, leftAt: null },
+        select: { user: { select: { id: true, fullName: true, phone: true } } },
+        take: 1,
+      },
+    },
+    orderBy: [{ room: { buildingId: "asc" } }, { room: { roomCode: "asc" } }],
+  });
+
+  const billable = candidates.filter(
+    (lease) =>
+      monthlyBillability(query.year, query.month, {
+        startDate: lease.startDate,
+        moveOutDate: lease.moveOutDate,
+        cancelledAt: lease.cancelledAt,
+        expectedEndDate: addMonths(lease.startDate, lease.durationMonths),
+      }).billable,
+  );
+
+  // Already billed, in one query rather than one per tenancy. Voided invoices
+  // are excluded: voiding withdraws the bill, so the work is outstanding again.
+  const alreadyBilled = await prisma.invoice.findMany({
+    where: {
+      leaseId: { in: billable.map((lease) => lease.id) },
+      year: query.year,
+      month: query.month,
+      voidedAt: null,
+    },
+    select: { leaseId: true },
+  });
+  const billedLeaseIds = new Set(alreadyBilled.map((invoice) => invoice.leaseId));
+
+  const due = billable.filter((lease) => !billedLeaseIds.has(lease.id));
+
+  // The reading each invoice would ACTUALLY open from, resolved by the same
+  // function the issuing path calls. A figure that merely resembles it would be
+  // worse than none: the whole point is to give a person something to check
+  // their typing against, and a plausible wrong number defeats that.
+  return Promise.all(
+    due.map(async (lease) => ({
+      leaseId: lease.id,
+      room: { id: lease.room.id, roomCode: lease.room.roomCode },
+      building: lease.room.building,
+      tenant: lease.occupants[0]?.user ?? null,
+      baseRent: lease.baseRent,
+      occupantCount: lease.occupantCount,
+      previousElectricityUse: await resolveOpeningReading(
+        lease.id,
+        lease.startMeterReading,
+      ),
+    })),
+  );
 }
 
 export async function listInvoices(query: ListInvoicesQuery) {
@@ -350,7 +457,7 @@ export async function markPaid(id: number, input: MarkPaidInput) {
  * Unwinding the deposit holdings an invoice moved is no longer done here — it
  * belongs to the reversal, and doing both would restore a holding twice.
  */
-export async function voidInvoice(id: number) {
+export async function voidInvoice(id: number, input: VoidInvoiceInput) {
   const invoice = await findInvoiceOrThrow(id);
 
   if (invoice.voidedAt !== null) {
@@ -364,7 +471,9 @@ export async function voidInvoice(id: number) {
 
   return prisma.invoice.update({
     where: { id },
-    data: { voidedAt: new Date() },
+    // Why, alongside when. A withdrawn bill carrying only a date cannot be
+    // explained months later — least of all to the tenant asking about it.
+    data: { voidedAt: new Date(), voidReason: input.reason },
     include: invoiceInclude,
   });
 }

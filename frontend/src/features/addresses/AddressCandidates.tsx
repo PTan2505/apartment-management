@@ -41,7 +41,7 @@ export function AddressCandidates({ term, sessionToken, onChoose }: AddressCandi
     // provider does not know — not a failure.
     return (
       <Alert severity="info" sx={{ mt: 1 }}>
-        No matching address found. You can type the rest yourself.
+        Không tìm thấy địa chỉ khớp. Bạn có thể tự nhập phần còn lại.
       </Alert>
     )
   }

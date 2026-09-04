@@ -117,6 +117,75 @@ export function resolveRentPeriod(
 }
 
 /**
+ * Whether a tenancy can be issued a MONTHLY invoice for a given month, and the
+ * two periods that bill would be computed from.
+ *
+ * The one place that answers this. It is asked from two directions — the screen
+ * asking what is still to be billed for a month, and the endpoint issuing one —
+ * and those two answers have to agree permanently. A second copy would offer
+ * the owner a row the API then refuses, which is a form arguing with itself,
+ * and it would drift silently because nothing compares the two.
+ *
+ * It answers WHY where the answer is no, because the issuing path has to report
+ * a reason and a listing has to know which rows to leave out; collapsing both
+ * into a bare boolean would push the distinction back into a caller.
+ *
+ * Nothing here reads the database. Whether an invoice for that month ALREADY
+ * exists is a separate question, asked separately by both callers.
+ */
+export type MonthlyBillability =
+  | { billable: true; period: OccupiedPeriod; rentPeriod: OccupiedPeriod }
+  | { billable: false; reason: "cancelled" | "not_occupied" | "no_rent_left" };
+
+export function monthlyBillability(
+  year: number,
+  month: number,
+  lease: {
+    startDate: Date;
+    moveOutDate: Date | null;
+    cancelledAt: Date | null;
+    /** Exclusive. The first day the agreed term no longer covers. */
+    expectedEndDate: Date;
+  },
+): MonthlyBillability {
+  // A cancelled tenancy occupied no day of any month, so there is nothing to
+  // meter and nothing to prorate. Checked first: the period arithmetic below
+  // would happily produce a plausible answer for it, since a cancelled lease
+  // keeps the dates it was agreed on.
+  if (lease.cancelledAt !== null) {
+    return { billable: false, reason: "cancelled" };
+  }
+
+  const period = resolveOccupiedPeriod(
+    year,
+    month,
+    lease.startDate,
+    lease.moveOutDate,
+    lease.expectedEndDate,
+  );
+  if (period === null) {
+    return { billable: false, reason: "not_occupied" };
+  }
+
+  // Rent is charged for the month AFTER the one billed. No such month within
+  // the term means there is no rent left to charge, and that month's utilities
+  // belong on the final invoice — an invoice with no rent is what a FINAL
+  // invoice is.
+  const rentPeriod = resolveRentPeriod(
+    year,
+    month,
+    lease.startDate,
+    lease.moveOutDate,
+    lease.expectedEndDate,
+  );
+  if (rentPeriod === null) {
+    return { billable: false, reason: "no_rent_left" };
+  }
+
+  return { billable: true, period, rentPeriod };
+}
+
+/**
  * The slice of the month a tenancy BEGINS in that it covers, from the start
  * date to the end of that month. What a move-in invoice charges rent for.
  */

@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-09-03
+# Tooling only: a CI workflow and a deploy step. No system behaviour changes,
+# so there is nothing for a spec to describe — see CLAUDE.md on skip_specs.
+skip_specs: true
