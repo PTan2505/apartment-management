@@ -31,8 +31,11 @@ interface InvoiceListProps {
  * bill as money owed is how an owner ends up chasing a tenant for nothing.
  */
 function StatusChips({ invoice }: { invoice: Invoice }) {
+  // The chips stay on one line. `white-space` on the table cell stops the
+  // LABELS breaking, but the chips are flex items and would still wrap between
+  // themselves, which is the same broken look one level up.
   return (
-    <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+    <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'nowrap', gap: 0.5 }}>
       <Chip size="small" variant="outlined" label={invoiceTypeLabel(invoice.type)} />
       {invoice.voidedAt !== null ? (
         <Chip size="small" color="default" variant="filled" label="Đã rút" />
@@ -73,7 +76,14 @@ export function InvoiceList({ invoices, onOpen }: InvoiceListProps) {
               <TableCell>Kỳ</TableCell>
               <TableCell>Hợp đồng</TableCell>
               <TableCell align="right">Số tiền</TableCell>
-              <TableCell>Trạng thái</TableCell>
+              {/*
+                Wide enough for the longest Vietnamese status, and refusing to
+                wrap. The supplied design has this column too narrow — "Đã thu
+                đủ" breaks across three lines in it — and a pill that wraps is
+                not a pill. The treatment is taken from the design; the width
+                is not.
+              */}
+              <TableCell sx={{ whiteSpace: 'nowrap' }}>Trạng thái</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -97,7 +107,7 @@ export function InvoiceList({ invoices, onOpen }: InvoiceListProps) {
                 <TableCell align="right">
                   <Typography variant="body2">{formatMoney(invoice.totalAmount)}</Typography>
                 </TableCell>
-                <TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>
                   <StatusChips invoice={invoice} />
                 </TableCell>
               </TableRow>

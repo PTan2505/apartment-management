@@ -6,11 +6,13 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import MenuItem from '@mui/material/MenuItem'
+import Paper from '@mui/material/Paper'
 import Switch from '@mui/material/Switch'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import EventAvailableIcon from '@mui/icons-material/EventAvailable'
 
+import { MOBILE_BREAKPOINT } from '@/app/theme'
 import { isApiError } from '@/lib/api-error'
 import { useListParams } from '@/lib/useListParams'
 import { EmptyState } from '@/components/EmptyState'
@@ -160,105 +162,125 @@ export function InvoicesPage() {
         </Button>
       </Box>
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
-        <TextField
-          select
-          label="Toà nhà"
-          size="small"
-          value={filters.buildingId ?? ''}
-          onChange={(event) =>
-            // Both at once: a room belongs to one building, so changing the
-            // building leaves a chosen room pointing somewhere it is not.
-            setFilters({
-              buildingId: event.target.value === '' ? undefined : event.target.value,
-              roomId: undefined,
-            })
-          }
-          sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
-        >
-          <MenuItem value="">Tất cả toà nhà</MenuItem>
-          {(buildingsQuery.data?.data ?? []).map((building) => (
-            <MenuItem key={building.id} value={String(building.id)}>
-              {building.displayName}
-            </MenuItem>
-          ))}
-        </TextField>
+      {/*
+        One surface holds the filters AND the results, because that is what
+        they are: the filters describe the table beneath them, and splitting
+        them into two cards would claim they are two unrelated things.
 
-        <TextField
-          select
-          label="Phòng"
-          size="small"
-          value={filters.roomId ?? ''}
-          onChange={(event) =>
-            setFilter('roomId', event.target.value === '' ? undefined : event.target.value)
-          }
-          sx={{ minWidth: 180, flexGrow: { xs: 1, sm: 0 } }}
-        >
-          <MenuItem value="">Tất cả phòng</MenuItem>
-          {(roomsQuery.data?.data ?? []).map((room) => (
-            <MenuItem key={room.id} value={String(room.id)}>
-              {buildingId ? room.roomCode : `${room.roomCode} · ${room.building.displayName}`}
-            </MenuItem>
-          ))}
-        </TextField>
+        Below the breakpoint it turns itself off. The list is already a stack of
+        outlined cards down there, and a frame around a stack of frames reads as
+        a mistake rather than as structure.
+      */}
+      <Paper
+        variant="outlined"
+        sx={{
+          border: { xs: 0, [MOBILE_BREAKPOINT]: 1 },
+          borderStyle: 'solid',
+          borderColor: 'divider',
+          bgcolor: { xs: 'transparent', [MOBILE_BREAKPOINT]: 'background.paper' },
+          p: { xs: 0, [MOBILE_BREAKPOINT]: 2 },
+        }}
+      >
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
+          <TextField
+            select
+            label="Toà nhà"
+            size="small"
+            value={filters.buildingId ?? ''}
+            onChange={(event) =>
+              // Both at once: a room belongs to one building, so changing the
+              // building leaves a chosen room pointing somewhere it is not.
+              setFilters({
+                buildingId: event.target.value === '' ? undefined : event.target.value,
+                roomId: undefined,
+              })
+            }
+            sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
+          >
+            <MenuItem value="">Tất cả toà nhà</MenuItem>
+            {(buildingsQuery.data?.data ?? []).map((building) => (
+              <MenuItem key={building.id} value={String(building.id)}>
+                {building.displayName}
+              </MenuItem>
+            ))}
+          </TextField>
 
-        <TextField
-          select
-          label="Tháng"
-          size="small"
-          value={filters.period ?? ''}
-          onChange={(event) =>
-            setFilter('period', event.target.value === '' ? undefined : event.target.value)
-          }
-          sx={{ minWidth: 180 }}
-        >
-          <MenuItem value="">Tất cả các tháng</MenuItem>
-          {months.map((m) => (
-            <MenuItem key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>
-              {monthLabel(m.year, m.month)}
-            </MenuItem>
-          ))}
-        </TextField>
+          <TextField
+            select
+            label="Phòng"
+            size="small"
+            value={filters.roomId ?? ''}
+            onChange={(event) =>
+              setFilter('roomId', event.target.value === '' ? undefined : event.target.value)
+            }
+            sx={{ minWidth: 180, flexGrow: { xs: 1, sm: 0 } }}
+          >
+            <MenuItem value="">Tất cả phòng</MenuItem>
+            {(roomsQuery.data?.data ?? []).map((room) => (
+              <MenuItem key={room.id} value={String(room.id)}>
+                {buildingId ? room.roomCode : `${room.roomCode} · ${room.building.displayName}`}
+              </MenuItem>
+            ))}
+          </TextField>
 
-        {/*
-          The filter this screen exists for. An owner chasing money asks "who
-          has not paid", and no other ordering answers that question.
-        */}
-        <TextField
-          select
-          label="Tình trạng"
-          size="small"
-          value={filters.paymentStatus ?? ''}
-          onChange={(event) =>
-            setFilter('paymentStatus', event.target.value === '' ? undefined : event.target.value)
-          }
-          sx={{ minWidth: 150 }}
-        >
-          <MenuItem value="">All</MenuItem>
-          <MenuItem value="pending">Chưa trả</MenuItem>
-          <MenuItem value="paid">Đã trả</MenuItem>
-        </TextField>
+          <TextField
+            select
+            label="Tháng"
+            size="small"
+            value={filters.period ?? ''}
+            onChange={(event) =>
+              setFilter('period', event.target.value === '' ? undefined : event.target.value)
+            }
+            sx={{ minWidth: 180 }}
+          >
+            <MenuItem value="">Tất cả các tháng</MenuItem>
+            {months.map((m) => (
+              <MenuItem key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>
+                {monthLabel(m.year, m.month)}
+              </MenuItem>
+            ))}
+          </TextField>
 
-        <FormControlLabel
-          control={
-            <Switch
-              checked={filters.includeVoided === 'true'}
-              onChange={(event) =>
-                setFilter('includeVoided', event.target.checked ? 'true' : undefined)
-              }
-            />
-          }
-          label="Kể cả đã rút"
-        />
+          {/*
+            The filter this screen exists for. An owner chasing money asks "who
+            has not paid", and no other ordering answers that question.
+          */}
+          <TextField
+            select
+            label="Tình trạng"
+            size="small"
+            value={filters.paymentStatus ?? ''}
+            onChange={(event) =>
+              setFilter('paymentStatus', event.target.value === '' ? undefined : event.target.value)
+            }
+            sx={{ minWidth: 150 }}
+          >
+            <MenuItem value="">Tất cả tình trạng</MenuItem>
+            <MenuItem value="pending">Chưa trả</MenuItem>
+            <MenuItem value="paid">Đã trả</MenuItem>
+          </TextField>
 
-        {hasFilters && (
-          <Button onClick={clearFilters} size="small">
-            Xoá bộ lọc
-          </Button>
-        )}
-      </Box>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={filters.includeVoided === 'true'}
+                onChange={(event) =>
+                  setFilter('includeVoided', event.target.checked ? 'true' : undefined)
+                }
+              />
+            }
+            label="Kể cả đã rút"
+          />
 
-      {body()}
+          {hasFilters && (
+            <Button onClick={clearFilters} size="small">
+              Xoá bộ lọc
+            </Button>
+          )}
+        </Box>
+
+        {body()}
+      </Paper>
     </Box>
   )
 }
