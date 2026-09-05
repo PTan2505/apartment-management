@@ -13,7 +13,9 @@ import DialogContentText from '@mui/material/DialogContentText'
 import DialogTitle from '@mui/material/DialogTitle'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
+import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import DeleteIcon from '@mui/icons-material/Delete'
+import DescriptionIcon from '@mui/icons-material/Description'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 
@@ -136,66 +138,112 @@ export function ContractCard({ lease }: { lease: Lease }) {
               động bình thường.
             </Alert>
           ) : lease.hasContract ? (
-            <>
-              <Typography variant="body2" color="text.secondary">
-                Đã có bản scan trên hệ thống. Đường dẫn xem chỉ có hiệu lực vài
-                phút, nên không thể chia sẻ lâu dài.
-              </Typography>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-                <Button
-                  variant="outlined"
-                  startIcon={<OpenInNewIcon />}
-                  disabled={busy !== null}
-                  onClick={() => void open()}
-                >
-                  {busy === 'opening' ? 'Đang mở…' : 'Xem hợp đồng'}
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<UploadFileIcon />}
-                  disabled={busy !== null}
-                  onClick={() => fileInput.current?.click()}
-                >
-                  {busy === 'uploading' ? 'Đang tải lên…' : 'Thay bản khác'}
-                </Button>
-                <Button
-                  color="error"
-                  startIcon={<DeleteIcon />}
-                  disabled={busy !== null}
-                  onClick={() => setConfirmRemove(true)}
-                >
-                  Xoá
-                </Button>
+            /*
+              A bordered row standing for the file — NOT a file listing. The
+              name, the size and the upload time are not shown because the API
+              does not report them, and it does not report them on purpose: the
+              storage key never reaches the browser, and every link is signed at
+              the moment it is asked for. So the row says what is true — a scan
+              is on file — and offers what can be done with it.
+            */
+            <Box
+              sx={{
+                border: 1,
+                borderColor: 'divider',
+                borderRadius: 2,
+                p: 2,
+              }}
+            >
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={2}
+                sx={{ alignItems: { sm: 'center' } }}
+              >
+                <DescriptionIcon color="action" />
+                <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    Đã có bản scan trên hệ thống
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Đường dẫn xem chỉ có hiệu lực vài phút, nên không thể chia sẻ
+                    lâu dài.
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<OpenInNewIcon />}
+                    disabled={busy !== null}
+                    onClick={() => void open()}
+                  >
+                    {busy === 'opening' ? 'Đang mở…' : 'Xem hợp đồng'}
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<UploadFileIcon />}
+                    disabled={busy !== null}
+                    onClick={() => fileInput.current?.click()}
+                  >
+                    {busy === 'uploading' ? 'Đang tải lên…' : 'Thay bản khác'}
+                  </Button>
+                  <Button
+                    size="small"
+                    color="error"
+                    startIcon={<DeleteIcon />}
+                    disabled={busy !== null}
+                    onClick={() => setConfirmRemove(true)}
+                  >
+                    Xoá
+                  </Button>
+                </Stack>
               </Stack>
-            </>
+            </Box>
           ) : (
-            <>
-              {/*
-                The limits are stated BEFORE a file is chosen. Learning them by
-                having a file rejected after it uploaded is learning them at the
-                most expensive moment.
-              */}
-              <Typography variant="body2" color="text.secondary">
-                Chưa có bản scan nào. Nhận tệp PDF hoặc ảnh (JPG, PNG, HEIC), tối
-                đa 20 MB.
+            /*
+              The empty case, as a place a file goes rather than a sentence
+              about one. The limits are stated BEFORE a file is chosen: learning
+              them by having a file rejected after it uploaded is learning them
+              at the most expensive moment.
+            */
+            <Box
+              sx={{
+                border: 1,
+                borderStyle: 'dashed',
+                borderColor: 'divider',
+                borderRadius: 2,
+                px: 2,
+                py: 4,
+                textAlign: 'center',
+              }}
+            >
+              <CloudUploadIcon sx={{ color: 'text.disabled', fontSize: 36 }} />
+              <Typography variant="body2" sx={{ fontWeight: 500, mt: 1 }}>
+                Chưa có bản scan nào
               </Typography>
-              <Box>
-                <Button
-                  variant="contained"
-                  startIcon={
-                    busy === 'uploading' ? (
-                      <CircularProgress size={18} color="inherit" />
-                    ) : (
-                      <UploadFileIcon />
-                    )
-                  }
-                  disabled={busy !== null}
-                  onClick={() => fileInput.current?.click()}
-                >
-                  {busy === 'uploading' ? 'Đang tải lên…' : 'Tải hợp đồng lên'}
-                </Button>
-              </Box>
-            </>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: 'block', mb: 2 }}
+              >
+                Nhận tệp PDF hoặc ảnh (JPG, PNG, HEIC), tối đa 20 MB.
+              </Typography>
+              <Button
+                variant="contained"
+                startIcon={
+                  busy === 'uploading' ? (
+                    <CircularProgress size={18} color="inherit" />
+                  ) : (
+                    <UploadFileIcon />
+                  )
+                }
+                disabled={busy !== null}
+                onClick={() => fileInput.current?.click()}
+              >
+                {busy === 'uploading' ? 'Đang tải lên…' : 'Tải hợp đồng lên'}
+              </Button>
+            </Box>
           )}
 
           <input

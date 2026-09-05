@@ -63,6 +63,63 @@ export function formatCoveredThrough(exclusiveEnd: string | null | undefined): s
 }
 
 /**
+ * How much of an agreed term is left, in whole months and days.
+ *
+ * Null once there is nothing left to report — the boundary has passed, or the
+ * tenancy is no longer running. That absence is the point: a tenancy that ended
+ * in March has no remaining time, and rendering the arithmetic anyway produces
+ * "còn 0 tháng", which states something false with total confidence.
+ *
+ * This is arithmetic over dates the API already sent, not a second copy of a
+ * rule the server owns. `cancellable` stays on the API for exactly the opposite
+ * reason: it encodes a decision, and a second implementation of a decision is
+ * free to disagree with the first.
+ */
+export function remainingTerm(lease: {
+  status: string
+  expectedEndDate: string
+  moveOutDate: string | null
+}): { months: number; days: number } | null {
+  if (lease.status !== 'active' || lease.moveOutDate !== null) return null
+
+  // The last day covered, not the exclusive boundary — a tenancy running
+  // through today has a day left, not none.
+  const end = coveredThrough(lease.expectedEndDate)
+  const now = new Date()
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  if (end.getTime() < today) return null
+
+  let months = 0
+  // Counted by stepping whole calendar months rather than dividing by an
+  // average month: "3 tháng 2 ngày" has to mean the calendar's months, or it
+  // disagrees with the end date printed directly beneath it.
+  const cursor = new Date(today)
+  for (;;) {
+    const next = new Date(cursor)
+    next.setUTCMonth(next.getUTCMonth() + 1)
+    if (next.getTime() > end.getTime()) break
+    cursor.setTime(next.getTime())
+    months += 1
+  }
+  const days = Math.round((end.getTime() - cursor.getTime()) / (24 * 60 * 60 * 1000))
+  return { months, days }
+}
+
+/** The remaining term as an owner would say it, or null when there is none. */
+export function formatRemainingTerm(lease: {
+  status: string
+  expectedEndDate: string
+  moveOutDate: string | null
+}): string | null {
+  const left = remainingTerm(lease)
+  if (left === null) return null
+  if (left.months === 0 && left.days === 0) return 'Hết hạn hôm nay'
+  if (left.months === 0) return `Còn ${left.days} ngày`
+  if (left.days === 0) return `Còn ${left.months} tháng`
+  return `Còn ${left.months} tháng ${left.days} ngày`
+}
+
+/**
  * Whether a running tenancy's agreed term has already run out.
  *
  * Judged against the same exclusive boundary the API uses for its own overdue
