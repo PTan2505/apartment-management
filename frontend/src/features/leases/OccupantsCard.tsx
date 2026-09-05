@@ -86,7 +86,7 @@ export function OccupantsCard({ lease }: OccupantsCardProps) {
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   {current.length} người đang ở
-                  {departed.length > 0 ? `, ${departed.length} since left` : ''}
+                  {departed.length > 0 ? `, ${departed.length} người đã rời đi` : ''}
                 </Typography>
               </Box>
               {isRunning && (
