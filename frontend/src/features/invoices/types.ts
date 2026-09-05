@@ -101,6 +101,15 @@ export interface DueForMonth {
   baseRent: number
   occupantCount: number
   previousElectricityUse: number
+  /**
+   * What a kWh costs this tenancy.
+   *
+   * Reported alongside the reading rather than assembled from the buildings
+   * list, and NOT computed here from anything: which rate applies is decided by
+   * the server when it issues, and a second implementation in the browser is
+   * the one that eventually disagrees with the invoice it was meant to preview.
+   */
+  electricityRate: number
 }
 
 export interface Paginated<T> {

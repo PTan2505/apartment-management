@@ -258,7 +258,21 @@ export async function listDueForMonth(query: ListDueQuery) {
         select: {
           id: true,
           roomCode: true,
-          building: { select: { id: true, displayName: true } },
+          building: {
+            select: {
+              id: true,
+              displayName: true,
+              // The multiplier the reading is about to meet. A reading alone is
+              // half a figure — what gets billed is the difference times this —
+              // so an owner shown only the difference cannot tell a plausible
+              // number from a wrong one until the invoice already exists.
+              //
+              // Selected here rather than fetched per building by the caller:
+              // that would be a request per row for something this query
+              // already holds, and a second place deciding which rate applies.
+              electricityRate: true,
+            },
+          },
         },
       },
       // Who to name on the row. A room code alone is not enough to act on when
@@ -305,7 +319,13 @@ export async function listDueForMonth(query: ListDueQuery) {
     due.map(async (lease) => ({
       leaseId: lease.id,
       room: { id: lease.room.id, roomCode: lease.room.roomCode },
-      building: lease.room.building,
+      building: {
+        id: lease.room.building.id,
+        displayName: lease.room.building.displayName,
+      },
+      // Alongside the reading, not inside the building: it is a fact about what
+      // this tenancy's invoice would charge, which is what the row is for.
+      electricityRate: lease.room.building.electricityRate,
       tenant: lease.occupants[0]?.user ?? null,
       baseRent: lease.baseRent,
       occupantCount: lease.occupantCount,
