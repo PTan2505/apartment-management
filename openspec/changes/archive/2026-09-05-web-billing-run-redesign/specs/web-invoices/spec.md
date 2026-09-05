@@ -34,6 +34,38 @@ Readings SHALL carry their unit wherever they are shown. Consumption, an opening
 - **WHEN** a row's reading is below the one it opens from
 - **THEN** that row is distinguishable from a valid one without reading its message
 
+### Requirement: A refusal the owner cannot act on is not offered again
+
+When issuing a row fails, the screen SHALL distinguish a refusal from a failure to deliver, and SHALL offer the control again only where pressing it could produce a different outcome.
+
+A rejection is the server's verdict on exactly the reading in the field. Leaving the control live invites the owner to produce that same refusal as many times as they have patience for, which is a screen wasting somebody's afternoon politely. A request that never arrived is the opposite case and SHALL stay retryable.
+
+The block SHALL lift as soon as the reading is edited, so the owner is never stranded on a row.
+
+A refused row SHALL NOT be counted among the rooms entered, and SHALL NOT be shown as entered. It produced no invoice, and reporting it as done contradicts the refusal displayed on the same row.
+
+The screen SHALL NOT describe a refusal as a fault in the reading unless it is one. A reading below the one the row opens from is a data error; a month already billed says nothing about what was typed.
+
+#### Scenario: A rejected reading cannot be resubmitted unchanged
+
+- **WHEN** the server refuses to issue a row, on grounds that the same reading would meet again
+- **THEN** that row's control refuses further attempts, and the reason is shown in the reader's language
+
+#### Scenario: Editing the reading makes the row issuable again
+
+- **WHEN** the owner changes the reading on a refused row
+- **THEN** that row can be issued again
+
+#### Scenario: A refused row is not counted as done
+
+- **WHEN** a row has been refused by the server
+- **THEN** it is not included in the count of rooms entered, and is not shown as entered
+
+#### Scenario: A failure that never reached the server stays retryable
+
+- **WHEN** issuing a row fails because the request did not arrive
+- **THEN** the owner can press it again
+
 ### Requirement: A reading can be confirmed from the keyboard
 
 The owner SHALL be able to issue the row they are typing without leaving the keyboard.
