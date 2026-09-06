@@ -22,6 +22,62 @@ type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 const CHARGE_CATEGORIES = ["damage", "cleaning", "lost_item", "penalty", "other"] as const;
 type ChargeCategory = (typeof CHARGE_CATEGORIES)[number];
 
+/**
+ * One room beneath a month's figures.
+ *
+ * Produced from the SAME grouping that produces the month totals, one level
+ * finer — never a second query written to look similar. A second query passes
+ * the "detail sums to the total" check only by accident, and stops passing it
+ * the moment a lease has two invoices in a month, or one is voided, or an
+ * ad-hoc charge is issued mid-month. This database has all three.
+ *
+ * `received` is deliberately absent. It is keyed on the day money arrived,
+ * while everything here is keyed on the month an invoice was issued; a cash
+ * figure inside an accrual row reproduces, at a finer grain and where it is
+ * harder to see, exactly the confusion the report is built to prevent.
+ */
+export interface RoomFigures {
+  roomId: number;
+  roomCode: string;
+  leaseId: number | null;
+  /** Absent where the tenancy has nobody recorded — a real state, not a gap. */
+  tenantName: string | null;
+  billed: Dec;
+  settled: Dec;
+  outstanding: Dec;
+}
+
+/**
+ * How many things a figure counts.
+ *
+ * A sum with no count behind it cannot be sanity-checked. An owner who knows
+ * twenty-eight rooms are let, and reads a figure covering twenty-two, has
+ * learned something the figure alone does not say.
+ *
+ * `rooms` counts the rooms the figures COVER — tenanted in that month — which
+ * is smaller than the rooms in the building.
+ */
+export interface Counts {
+  /** Rooms let in this month, whether or not anything was billed for them. */
+  rooms: number;
+  /** Billed, and owing nothing. */
+  roomsSettled: number;
+  /** Billed, and owing something. */
+  roomsOutstanding: number;
+  /**
+   * Let, and billed nothing this month.
+   *
+   * Its own count rather than folded into `roomsSettled`. A room nobody has
+   * invoiced owes nothing, so the arithmetic would work — and it would report
+   * a building where five rooms were never billed as having collected from
+   * them, which is the opposite of what the owner needs to notice.
+   *
+   * The three sum to `rooms`.
+   */
+  roomsUnbilled: number;
+  expenseRecords: number;
+}
+
 export interface MonthFigures {
   year: number;
   month: number;
@@ -31,6 +87,9 @@ export interface MonthFigures {
   expenses: Dec;
   netBilled: Dec;
   netSettled: Dec;
+  counts: Counts;
+  /** Present only when the caller asked for room detail. */
+  rooms?: RoomFigures[];
   // Money that actually ARRIVED in the month, keyed on the payments' own
   // dates rather than on the month an invoice was issued. The only figure here
   // that answers a cash question; every other one is an accrual.
@@ -40,7 +99,7 @@ export interface MonthFigures {
 export type CategoryBreakdown = Record<ExpenseCategory, Dec>;
 export type ChargeBreakdown = Record<ChargeCategory, Dec>;
 
-export interface Totals extends Omit<MonthFigures, "year" | "month"> {
+export interface Totals extends Omit<MonthFigures, "year" | "month" | "counts" | "rooms"> {
   expensesByCategory: CategoryBreakdown;
   // A partition of `billed`, not an addition to it. An ad-hoc charge appears in
   // both, once — reporting it as a separate total would invite anyone summing
@@ -132,6 +191,38 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
   // answers what an owner actually asks — what did I bill out in March — for a
   // bill settling February's utilities beside March's rent, which belongs
   // wholly to neither.
+  /**
+   * The tenancies that occupied a room at any point in the range.
+   *
+   * A SECOND query, and a deliberate one: it answers a different question from
+   * the invoices — which rooms were let — rather than recomputing a figure the
+   * invoices already carry. Without it a room tenanted all month with nothing
+   * billed simply vanishes from the detail, and the room count reports fewer
+   * rooms let than there were.
+   *
+   * An absence reads as data that failed to load, which is the same reason an
+   * empty month is reported as zero rather than omitted.
+   */
+  const tenancies = await prisma.lease.findMany({
+    where: {
+      cancelledAt: null,
+      startDate: { lte: rangeEnd },
+      OR: [{ moveOutDate: null }, { moveOutDate: { gt: rangeStart } }],
+      ...(buildingIds.length > 0 ? { room: { buildingId: { in: buildingIds } } } : {}),
+    },
+    select: {
+      id: true,
+      startDate: true,
+      moveOutDate: true,
+      room: { select: { id: true, roomCode: true, buildingId: true } },
+      occupants: {
+        where: { isPrimary: true, leftAt: null },
+        select: { user: { select: { fullName: true } } },
+        take: 1,
+      },
+    },
+  });
+
   const invoices = await prisma.invoice.findMany({
     where: {
       voidedAt: null,
@@ -148,7 +239,22 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
       // it represents. totalAmount stays what the tenant owes, which is a real
       // and different question.
       lineItems: { select: { kind: true, amount: true, chargeCategory: true } },
-      lease: { select: { room: { select: { buildingId: true } } } },
+      /*
+        The room and the tenancy come from THIS query, so the room rows and the
+        month totals are the same grouping at two grains rather than two
+        queries that have to be kept agreeing.
+      */
+      lease: {
+        select: {
+          id: true,
+          room: { select: { id: true, roomCode: true, buildingId: true } },
+          occupants: {
+            where: { isPrimary: true, leftAt: null },
+            select: { user: { select: { fullName: true } } },
+            take: 1,
+          },
+        },
+      },
     },
   });
 
@@ -212,11 +318,22 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
   const received = new Map<string, Dec>();
   const outstanding = new Map<string, Dec>();
   const expenseTotal = new Map<string, Dec>();
+  const expenseCount = new Map<string, number>();
   const categoryByBuilding = new Map<number, CategoryBreakdown>();
   const chargesByBuilding = new Map<number, ChargeBreakdown>();
 
   const add = (m: Map<string, Dec>, k: string, v: Dec) =>
     m.set(k, (m.get(k) ?? ZERO()).add(v));
+
+  /**
+   * Rooms beneath each month, accumulated in the SAME pass as the totals.
+   *
+   * Keyed `building|year|month|roomId` so a room with two invoices in one month
+   * lands in one row — which is the case a separate query gets wrong while
+   * looking right.
+   */
+  const roomRows = new Map<string, RoomFigures & { buildingKey: string }>();
+  const roomKey = (k: string, roomId: number) => `${k}|${roomId}`;
 
   for (const inv of invoices) {
     const k = key(
@@ -257,6 +374,63 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
     } else {
       add(outstanding, k, revenue);
     }
+
+    // The same invoice, the same `revenue`, one level finer. Because it is the
+    // same value rather than a recomputation, the rooms cannot fail to sum to
+    // the month above them.
+    const rk = roomKey(k, inv.lease.room.id);
+    const row =
+      roomRows.get(rk) ??
+      {
+        buildingKey: k,
+        roomId: inv.lease.room.id,
+        roomCode: inv.lease.room.roomCode,
+        leaseId: inv.lease.id,
+        // Absent where the tenancy has nobody recorded — which happens when the
+        // last occupant left before a move-out was entered, and is a state of
+        // the record rather than a value to substitute.
+        tenantName: inv.lease.occupants[0]?.user.fullName ?? null,
+        billed: ZERO(),
+        settled: ZERO(),
+        outstanding: ZERO(),
+      };
+    row.billed = row.billed.add(revenue);
+    if (inv.paymentStatus === "paid") row.settled = row.settled.add(revenue);
+    else row.outstanding = row.outstanding.add(revenue);
+    roomRows.set(rk, row);
+  }
+
+  /*
+    Every room that was let in a month, seeded at zero before the invoices are
+    added on top. A room billed nothing that month keeps its zero row; one that
+    was billed has its figures accumulated into the row already here.
+
+    Seeded per month of the grid rather than once, because occupancy is a fact
+    about a month: a tenancy starting in July is not a let room in May.
+  */
+  for (const lease of tenancies) {
+    for (const g of grid) {
+      const monthStart = new Date(Date.UTC(g.year, g.month - 1, 1));
+      const monthEnd = new Date(Date.UTC(g.year, g.month, 0, 23, 59, 59, 999));
+      const occupied =
+        lease.startDate <= monthEnd &&
+        (lease.moveOutDate === null || lease.moveOutDate > monthStart);
+      if (!occupied) continue;
+
+      const k = key(lease.room.buildingId, g.year, g.month);
+      const rk = roomKey(k, lease.room.id);
+      if (roomRows.has(rk)) continue;
+      roomRows.set(rk, {
+        buildingKey: k,
+        roomId: lease.room.id,
+        roomCode: lease.room.roomCode,
+        leaseId: lease.id,
+        tenantName: lease.occupants[0]?.user.fullName ?? null,
+        billed: ZERO(),
+        settled: ZERO(),
+        outstanding: ZERO(),
+      });
+    }
   }
 
   const inRange = (date: Date) => date >= rangeStart && date <= rangeEnd;
@@ -296,7 +470,10 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
   for (const exp of expenses) {
     const year = exp.incurredAt.getUTCFullYear();
     const month = exp.incurredAt.getUTCMonth() + 1;
-    add(expenseTotal, key(exp.buildingId, year, month), exp.amount);
+    const ek = key(exp.buildingId, year, month);
+    add(expenseTotal, ek, exp.amount);
+    // How many records the total is made of, counted from the same rows.
+    expenseCount.set(ek, (expenseCount.get(ek) ?? 0) + 1);
 
     const cats = categoryByBuilding.get(exp.buildingId) ?? emptyCategories();
     cats[exp.category as ExpenseCategory] = cats[exp.category as ExpenseCategory].add(
@@ -321,6 +498,13 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
       const mOutstanding = outstanding.get(k) ?? ZERO();
       const mExpenses = expenseTotal.get(k) ?? ZERO();
 
+      // The rooms of this month, from the same pass that produced the sums
+      // above. Sorted by code so a reader comparing two months reads the same
+      // order twice.
+      const rooms = [...roomRows.values()]
+        .filter((r) => r.buildingKey === k)
+        .sort((x, y) => x.roomCode.localeCompare(y.roomCode, "vi"));
+
       const figures: MonthFigures = {
         year: g.year,
         month: g.month,
@@ -333,6 +517,22 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
         // information, not an error, so it is reported rather than clamped.
         netBilled: mBilled.sub(mExpenses),
         netSettled: mSettled.sub(mExpenses),
+        // Counted off the same rows the sums came from. A separate COUNT over
+        // its own WHERE is how a count and a total come to disagree.
+        counts: {
+          rooms: rooms.length,
+          roomsSettled: rooms.filter((r) => !r.billed.isZero() && r.outstanding.isZero()).length,
+          roomsOutstanding: rooms.filter((r) => !r.outstanding.isZero()).length,
+          roomsUnbilled: rooms.filter((r) => r.billed.isZero()).length,
+          expenseRecords: expenseCount.get(k) ?? 0,
+        },
+        // Only when asked for. Present as an absent key rather than an empty
+        // array, so a caller cannot mistake "not requested" for "no rooms".
+        ...(q.detail
+          ? {
+              rooms: rooms.map(({ buildingKey: _ignored, ...room }) => room),
+            }
+          : {}),
       };
 
       runningTotal = accumulate(runningTotal, figures);
@@ -370,7 +570,15 @@ export async function buildRevenueReport(q: RevenueReportQuery): Promise<Revenue
   };
 }
 
-type Sums = Omit<MonthFigures, "year" | "month">;
+/**
+ * The figures that ADD UP across months. Counts and room rows do not.
+ *
+ * Summing `rooms` over a range would produce room-months while looking exactly
+ * like a number of rooms: eight rooms billed for six months would report
+ * forty-eight, and a reader would take that for the size of the building. The
+ * counts stay where they are true, on the month.
+ */
+type Sums = Omit<MonthFigures, "year" | "month" | "counts" | "rooms">;
 
 function blankTotals(): Sums {
   return {

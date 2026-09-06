@@ -48,21 +48,28 @@ A report over twelve months and several buildings carries a few dozen figures; t
 
 ### Requirement: A figure states how many things it counts
 
-The report SHALL state, for each building and month, how many rooms its figures cover, how many of those are fully collected, and how many are outstanding. It SHALL state how many expense records make up each expense total.
+The report SHALL state, for each building and month, how many rooms were LET, how many of those were billed and owe nothing, how many were billed and owe something, and how many were billed nothing at all. It SHALL state how many expense records make up each expense total.
 
 A sum with no count behind it cannot be sanity-checked. An owner who knows twenty-eight rooms are let, and reads a figure covering twenty-two, has learned something the figure alone does not say — and learning it by counting rows is the work this report exists to remove.
 
-The counts SHALL be consistent with the figures they accompany: the collected and outstanding counts SHALL sum to the room count, for the same reason the collected and outstanding amounts sum to what was billed.
+A room let but not billed SHALL be counted on its own, and SHALL NOT be folded into the collected count. It owes nothing, so the arithmetic would work — and a building where five rooms were never invoiced would be reported as having collected from them, which is the opposite of what an owner needs to notice.
+
+The counts SHALL be consistent with the figures they accompany: collected, outstanding and unbilled SHALL sum to the room count.
 
 #### Scenario: Counts beside the figures
 
 - **WHEN** an authenticated owner reads a month's figures for a building
-- **THEN** the number of rooms covered, the number collected and the number outstanding are reported with them
+- **THEN** the number of rooms let, the number collected, the number outstanding and the number billed nothing are reported with them
 
 #### Scenario: The counts agree with themselves
 
-- **WHEN** a month reports a room count with collected and outstanding counts
-- **THEN** the latter two sum to the former
+- **WHEN** a month reports a room count with its collected, outstanding and unbilled counts
+- **THEN** the latter three sum to the former
+
+#### Scenario: A room let but never invoiced
+
+- **WHEN** a room was let for the month and nothing was billed against it
+- **THEN** it is counted as unbilled, and NOT as collected
 
 #### Scenario: How many vouchers a cost is made of
 
