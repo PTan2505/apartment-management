@@ -194,10 +194,26 @@ export async function getPortalOverview(token: string) {
           position: true,
         },
       },
-      lease: { select: { room: { select: { roomCode: true } } } },
-      // Whether an attempt is already under way, so a tenant who scanned a code
-      // and did not finish is not made to start again without knowing.
-      payments: { where: { state: "pending" }, select: { id: true } },
+      lease: {
+        select: {
+          room: {
+            select: { roomCode: true, building: { select: { displayName: true } } },
+          },
+        },
+      },
+      /*
+        The payments, ONCE, carrying what both questions need — whether an
+        attempt is under way, and when one landed.
+
+        Selected once rather than twice under two names, which is not something
+        Prisma allows: a relation appears in a `select` once, and a second entry
+        for the same relation is an unknown field. The filtering that used to be
+        in the query therefore moves to the mapper.
+      */
+      payments: {
+        select: { id: true, state: true, paidAt: true, reversedAt: true },
+        orderBy: { paidAt: "desc" },
+      },
     },
     // Newest first: what a tenant opens the portal to check is almost always
     // the most recent bill.
