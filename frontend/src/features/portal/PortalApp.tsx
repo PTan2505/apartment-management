@@ -53,7 +53,22 @@ export function PortalApp() {
   // this the spinner turns for ever beside an error nothing will clear.
   const [loadFailed, setLoadFailed] = useState(false)
 
-  const [expandedId, setExpandedId] = useState<number | null>(null)
+  /**
+   * Which bill is open. `undefined` until the first load decides.
+   *
+   * The newest bill opens on arrival: a tenant follows this link because of one
+   * bill, and a list that opens entirely closed asks them to go and find the
+   * thing they were sent here for.
+   *
+   * Newest rather than "the first unpaid one" — newest is a fact about the
+   * list, while "the one they came for" is a guess, and it guesses wrong for
+   * the tenant who has just paid and opened the link to check it registered.
+   *
+   * `undefined` rather than `null` because the two mean different things here:
+   * nothing has been decided yet, versus the tenant has closed every card.
+   * Collapsing the last open one has to stay possible.
+   */
+  const [expandedId, setExpandedId] = useState<number | null | undefined>(undefined)
   const [offers, setOffers] = useState<Record<number, PaymentOffer>>({})
   const [payingId, setPayingId] = useState<number | null>(null)
   const [watchingId, setWatchingId] = useState<number | null>(null)
@@ -83,6 +98,16 @@ export function PortalApp() {
     void load().finally(() => window.clearTimeout(slowTimer))
     return () => window.clearTimeout(slowTimer)
   }, [load])
+
+  // Opened once, on the first load that brings bills. Not on every load: the
+  // polling below reloads every few seconds while a payment is in flight, and
+  // re-opening the newest card each time would fight a tenant who had just
+  // collapsed it.
+  useEffect(() => {
+    if (expandedId !== undefined) return
+    const newest = overview?.invoices[0]
+    if (newest) setExpandedId(newest.id)
+  }, [overview, expandedId])
 
   const stopWatching = useRef<() => void>(() => {})
 
@@ -193,16 +218,33 @@ export function PortalApp() {
     )
   }
 
+  const rooms = [...new Set(overview.invoices.map((invoice) => invoice.roomCode))]
+
   return (
     <Container maxWidth="sm" sx={{ py: 3 }}>
       <Stack spacing={2}>
+        {/*
+          The rooms these bills are for, and who they are addressed to.
+
+          A tenant may hold bills for more than one room, and the card list
+          alone made them scan for it. Deliberately built from the bills
+          themselves: the payload reports no building, so this says nothing
+          about where the rooms are — see the change's proposal for what the API
+          does not report, and `api-portal-detail` for where that is recorded.
+        */}
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 600 }}>
-            {overview.tenant.fullName}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="overline" color="text.secondary">
             Hoá đơn của bạn
           </Typography>
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>
+            {overview.tenant.fullName}
+          </Typography>
+          {rooms.length > 0 && (
+            <Typography variant="body2" color="text.secondary">
+              {rooms.length === 1 ? 'Phòng ' : 'Phòng: '}
+              {rooms.join(' · ')}
+            </Typography>
+          )}
         </Box>
 
         {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}

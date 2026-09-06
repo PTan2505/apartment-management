@@ -17,6 +17,9 @@ build/
 
 # Local-only docs (feature overview, OpenAPI spec for Postman)
 docs/
+# Screen-by-screen description of what each screen does and why.
+# Kept out of the repository deliberately, like docs/ above.
+SCREENS.md
 
 # Vercel CLI linking state — machine-local, and `vercel pull` writes
 # fetched environment variables next to it.
