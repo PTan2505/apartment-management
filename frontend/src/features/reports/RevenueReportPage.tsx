@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { Link as RouterLink } from 'react-router'
 import Alert from '@mui/material/Alert'
 import AlertTitle from '@mui/material/AlertTitle'
@@ -30,9 +30,146 @@ import { monthLabel, recentMonths } from '@/features/invoices/labels'
 import { useRevenueReport } from '@/features/reports/hooks'
 import type { BuildingReport, MonthFigures, Totals } from '@/features/reports/types'
 
+/**
+ * The chart, and the charting library with it, fetched only when this screen is
+ * opened.
+ *
+ * `recharts` is the largest dependency in this application by a wide margin. In
+ * one bundle it was downloaded by everyone who reached the sign-in page, for a
+ * chart on a screen most sessions never visit. Split out, it is paid for by the
+ * readers who actually asked for it.
+ */
+const RevenueTrendChart = lazy(() =>
+  import('@/features/reports/RevenueTrendChart').then((m) => ({
+    default: m.RevenueTrendChart,
+  })),
+)
+
 /** `2026-08` from a `{year, month}`. */
 function toParam(period: { year: number; month: number }): string {
   return `${period.year}-${String(period.month).padStart(2, '0')}`
+}
+
+/**
+ * A share of something, or nothing at all.
+ *
+ * Null when the denominator is zero. That case is not cosmetic: a range with
+ * nothing billed makes every share 0/0, and the two obvious renderings are both
+ * wrong. `NaN%` is a bug on screen. `0%` is a claim that nothing was collected,
+ * which is a different statement from there having been nothing to collect —
+ * and it is the statement an owner would act on.
+ */
+function share(part: number, whole: number): string | null {
+  if (whole === 0) return null
+  return `${((part / whole) * 100).toFixed(1)}%`
+}
+
+/**
+ * One of the four figures the screen opens with.
+ *
+ * The share carries the name of its denominator. A bare percentage beside an
+ * amount invites the reader to guess what it is a share of, and the guesses
+ * differ enough to matter: 78% of what was billed in this range is not 78% of
+ * everything ever owed.
+ */
+function HeadlineFigure({
+  label,
+  value,
+  detail,
+  percent,
+  tone = 'default',
+}: {
+  label: string
+  value: number
+  detail: string
+  percent: string | null
+  tone?: 'default' | 'good' | 'bad'
+}) {
+  const color =
+    tone === 'good' ? 'success.main' : tone === 'bad' ? 'error.main' : 'text.primary'
+
+  return (
+    <Card variant="outlined" sx={{ flex: '1 1 220px', minWidth: 0 }}>
+      <CardContent>
+        <Typography variant="body2" color="text.secondary">
+          {label}
+        </Typography>
+        <Typography
+          variant="h5"
+          component="p"
+          sx={{ fontWeight: 700, mt: 0.5, wordBreak: 'break-word' }}
+          color={color}
+        >
+          {formatMoney(value)}
+        </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            columnGap: 1,
+            rowGap: 0.25,
+            flexWrap: 'wrap',
+            mt: 1.5,
+            pt: 1.5,
+            borderTop: 1,
+            borderColor: 'divider',
+          }}
+        >
+          <Typography variant="caption" color="text.secondary">
+            {detail}
+          </Typography>
+          {percent !== null && (
+            <Typography variant="caption" sx={{ fontWeight: 600 }} color={color}>
+              {percent}
+            </Typography>
+          )}
+        </Box>
+      </CardContent>
+    </Card>
+  )
+}
+
+/** A category, its amount, and how much of the total it is. */
+function CategoryBar({
+  label,
+  amount,
+  whole,
+}: {
+  label: string
+  amount: number
+  whole: number
+}) {
+  const percent = share(amount, whole)
+  const width = whole === 0 ? 0 : Math.min(100, (amount / whole) * 100)
+
+  return (
+    <Box>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          columnGap: 1,
+          rowGap: 0.25,
+          flexWrap: 'wrap',
+        }}
+      >
+        <Typography variant="body2">{label}</Typography>
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          {formatMoney(amount)}{' '}
+          {percent !== null && (
+            <Box component="span" sx={{ color: 'text.secondary', fontWeight: 400 }}>
+              ({percent})
+            </Box>
+          )}
+        </Typography>
+      </Box>
+      <Box sx={{ height: 6, borderRadius: 3, bgcolor: 'action.hover', mt: 0.5 }}>
+        <Box sx={{ height: '100%', width: `${width}%`, borderRadius: 3, bgcolor: 'primary.main' }} />
+      </Box>
+    </Box>
+  )
 }
 
 /** A figure and what it is, for the summary rows. */
@@ -88,8 +225,17 @@ function Breakdown({
   values: Record<string, number>
   labels?: Record<string, string>
 }) {
-  const entries = Object.entries(values).filter(([, amount]) => amount !== 0)
+  const entries = Object.entries(values)
+    .filter(([, amount]) => amount !== 0)
+    .sort((a, b) => b[1] - a[1])
   if (entries.length === 0) return null
+
+  // The whole these are parts OF. Summed from the entries rather than taken
+  // from a total elsewhere: each of these maps partitions a different figure —
+  // expenses partition spending, charges partition what was billed — and a
+  // denominator borrowed from the wrong one would produce shares that do not
+  // add to 100.
+  const whole = entries.reduce((sum, [, amount]) => sum + amount, 0)
 
   return (
     <Box>
@@ -97,13 +243,18 @@ function Breakdown({
       <Typography variant="caption" color="text.secondary">
         {partOf}
       </Typography>
-      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, mt: 0.5 }}>
+      {/*
+        Bars, the same as the expense breakdown above. Two presentations of one
+        kind of data a few lines apart makes a reader look for a difference
+        between them that is not there.
+      */}
+      <Stack spacing={1.5} sx={{ mt: 1 }}>
         {entries.map(([key, amount]) => (
-          <Chip
+          <CategoryBar
             key={key}
-            size="small"
-            variant="outlined"
-            label={`${labels?.[key] ?? key}: ${formatMoney(amount)}`}
+            label={labels?.[key] ?? key}
+            amount={amount}
+            whole={whole}
           />
         ))}
       </Stack>
@@ -201,7 +352,136 @@ function ArrivedSection({ months, total }: { months: MonthFigures[]; total: Tota
   )
 }
 
-function BuildingSection({ report }: { report: BuildingReport }) {
+/**
+ * The months of every building in the report, added together.
+ *
+ * Summing figures the API already sent, keyed on the month it already keyed
+ * them on — not a second implementation of anything the server decides. The
+ * report gives months per building and a grand total with no months, so this is
+ * the only way to chart the range as a whole.
+ *
+ * `received` is carried through so the type stays honest, and is not charted.
+ */
+function mergeMonths(buildings: BuildingReport[]): MonthFigures[] {
+  const byPeriod = new Map<string, MonthFigures>()
+
+  for (const building of buildings) {
+    for (const m of building.months) {
+      const key = `${m.year}-${m.month}`
+      const found = byPeriod.get(key)
+      if (!found) {
+        byPeriod.set(key, { ...m })
+        continue
+      }
+      found.billed += m.billed
+      found.settled += m.settled
+      found.outstanding += m.outstanding
+      found.expenses += m.expenses
+      found.netBilled += m.netBilled
+      found.netSettled += m.netSettled
+      found.received += m.received
+    }
+  }
+
+  return [...byPeriod.values()].sort((a, b) => a.year - b.year || a.month - b.month)
+}
+
+/**
+ * What the owner came to find out, before any table.
+ *
+ * Four figures and the profit. Every one of them comes straight from the
+ * report's own totals; the only arithmetic here is the shares, and `netBilled`
+ * is the API's own figure rather than a subtraction repeated in the browser.
+ */
+function SummarySection({ total }: { total: Totals }) {
+  return (
+    <Stack spacing={2}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+        <HeadlineFigure
+          label="Đã xuất hoá đơn"
+          value={total.billed}
+          detail="Tiền đã ghi hoá đơn trong tháng, không tính cọc"
+          percent={share(total.billed, total.billed)}
+        />
+        <HeadlineFigure
+          label="Đã thu"
+          value={total.settled}
+          detail="Trong số đó, khách đã trả"
+          percent={share(total.settled, total.billed)}
+          tone="good"
+        />
+        <HeadlineFigure
+          label="Còn nợ"
+          value={total.outstanding}
+          detail="Trong số đó, khách còn nợ"
+          percent={share(total.outstanding, total.billed)}
+          tone="bad"
+        />
+        <HeadlineFigure
+          label="Chi phí"
+          value={total.expenses}
+          detail="Đã chi ra trong tháng"
+          percent={share(total.expenses, total.billed)}
+        />
+      </Box>
+
+      {/*
+        The profit, stated rather than left as a subtraction — with the
+        subtraction shown beside it so the figure can be checked. `netBilled` is
+        the API's own, not recomputed here.
+      */}
+      <Card
+        variant="outlined"
+        sx={{ borderColor: 'primary.main', bgcolor: 'action.hover' }}
+      >
+        <CardContent>
+          <Stack
+            direction={{ xs: 'column', md: 'row' }}
+            spacing={2}
+            sx={{ justifyContent: 'space-between', alignItems: { md: 'center' } }}
+          >
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                Đã xuất hoá đơn trừ chi phí
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                = {formatMoney(total.billed)} − {formatMoney(total.expenses)}
+                {share(total.netBilled, total.billed) !== null &&
+                  ` · còn lại ${share(total.netBilled, total.billed)} trên tổng đã xuất hoá đơn`}
+              </Typography>
+            </Box>
+            <Typography
+              variant="h4"
+              component="p"
+              sx={{ fontWeight: 700, wordBreak: 'break-word' }}
+              // A loss reads as a loss. A report that cannot express a bad month
+              // is worse than one that says so plainly.
+              color={total.netBilled < 0 ? 'error.main' : 'primary.main'}
+            >
+              {formatMoney(total.netBilled)}
+            </Typography>
+          </Stack>
+        </CardContent>
+      </Card>
+    </Stack>
+  )
+}
+
+function BuildingSection({
+  report,
+  /**
+   * Whether the page has already stated these totals above.
+   *
+   * With one building in the report, the summary at the top IS this building's
+   * summary, and repeating it here would print the same five figures twice on
+   * one screen. The month table, the cash section and the charge breakdown are
+   * not repeated anywhere, so they stay either way.
+   */
+  summarisedAbove,
+}: {
+  report: BuildingReport
+  summarisedAbove: boolean
+}) {
   const { total } = report
 
   return (
@@ -210,6 +490,7 @@ function BuildingSection({ report }: { report: BuildingReport }) {
         <Stack spacing={2}>
           <Typography variant="h6">{report.displayName}</Typography>
 
+          {!summarisedAbove && (
           <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap', rowGap: 2 }}>
             <Figure
               label="Đã xuất hoá đơn"
@@ -226,6 +507,7 @@ function BuildingSection({ report }: { report: BuildingReport }) {
               tone="loss"
             />
           </Stack>
+          )}
 
           {total.outstanding > 0 && (
             <Box>
@@ -307,12 +589,18 @@ function BuildingSection({ report }: { report: BuildingReport }) {
 
           <ArrivedSection months={report.months} total={total} />
 
-          <Breakdown
-            title="Chi phí theo loại"
-            partOf={`Các phần của ${formatMoney(total.expenses)} chi phí`}
-            values={total.expensesByCategory}
-            labels={EXPENSE_LABELS}
-          />
+          {/*
+            The expense breakdown is not repeated here when the page has already
+            drawn it as bars above — one screen, one statement of a fact.
+          */}
+          {!summarisedAbove && (
+            <Breakdown
+              title="Chi phí theo loại"
+              partOf={`Các phần của ${formatMoney(total.expenses)} chi phí`}
+              values={total.expensesByCategory}
+              labels={EXPENSE_LABELS}
+            />
+          )}
 
           <Breakdown
             title="Khoản bạn tự đặt, theo loại"
@@ -380,34 +668,125 @@ export function RevenueReportPage() {
       )
     }
 
+    const merged = mergeMonths(report.buildings)
+    const expenseEntries = Object.entries(report.total.expensesByCategory)
+      .filter(([, amount]) => amount !== 0)
+      .sort((a, b) => b[1] - a[1])
+
     return (
       <Stack spacing={2}>
+        <SummarySection total={report.total} />
+
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: '1fr',
+              [MOBILE_BREAKPOINT]: 'minmax(0, 3fr) minmax(0, 2fr)',
+            },
+            gap: 2,
+            alignItems: 'start',
+          }}
+        >
+          <Card variant="outlined">
+            <CardContent>
+              <Typography variant="h6">Đối chiếu doanh thu theo tháng</Typography>
+              {/*
+                A reserved box, not a bare spinner: the chart is 300px tall, and
+                a fallback of a different height makes the rest of the page jump
+                when it lands.
+              */}
+              <Suspense
+                fallback={
+                  <Box
+                    sx={{
+                      height: 332,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <CircularProgress size={24} />
+                  </Box>
+                }
+              >
+                <RevenueTrendChart months={merged} />
+              </Suspense>
+            </CardContent>
+          </Card>
+
+          <Card variant="outlined">
+            <CardContent>
+              <Stack
+                direction="row"
+                sx={{ justifyContent: 'space-between', alignItems: 'baseline', columnGap: 2 }}
+              >
+                <Typography variant="h6">Chi phí theo loại</Typography>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="caption" color="text.secondary" component="div">
+                    Tổng chi
+                  </Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                    {formatMoney(report.total.expenses)}
+                  </Typography>
+                </Box>
+              </Stack>
+              <Stack spacing={1.5} sx={{ mt: 2 }}>
+                {expenseEntries.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    Không có chi phí nào trong khoảng này.
+                  </Typography>
+                ) : (
+                  expenseEntries.map(([key, amount]) => (
+                    <CategoryBar
+                      key={key}
+                      label={EXPENSE_LABELS[key] ?? key}
+                      amount={amount}
+                      whole={report.total.expenses}
+                    />
+                  ))
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+        </Box>
+
         {report.buildings.map((building) => (
-          <BuildingSection key={building.buildingId} report={building} />
+          <BuildingSection
+            key={building.buildingId}
+            report={building}
+            summarisedAbove={report.buildings.length === 1}
+          />
         ))}
 
         {/*
-          The grand total appears only where there is more than one building to
-          total. With one, it would restate the section above it word for word.
+          The grand total, reduced to the ONE figure the summary at the top does
+          not state.
+
+          Its five accrual figures used to be repeated here; the summary now
+          carries them, and printing the same numbers twice on one screen invites
+          a reader to look for a difference between them.
+
+          The cash figure is what remains, and it keeps a card to itself rather
+          than joining the four above. That is the whole design of this screen:
+          it is keyed on the day money ARRIVED, the others on the month an
+          invoice was ISSUED, and side by side they read as a discrepancy in a
+          report rather than as two different questions.
         */}
         {report.buildings.length > 1 && (
           <Card variant="outlined">
             <CardContent>
-              <Stack spacing={2}>
-                <Typography variant="h6">Tất cả các toà nhà</Typography>
-                <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap', rowGap: 2 }}>
-                  <Figure label="Đã xuất hoá đơn" value={report.total.billed} />
-                  <Figure label="Đã thu" value={report.total.settled} />
-                  <Figure label="Còn nợ" value={report.total.outstanding} />
-                  <Figure label="Chi phí" value={report.total.expenses} />
-                  <Figure label="Còn lại" value={report.total.netBilled} tone="loss" />
-                  <Figure
-                    label="Tiền thực nhận"
-                    value={report.total.received}
-                    hint="Tiền vào tay, tính theo ngày nhận"
-                  />
-                </Stack>
-              </Stack>
+              <Typography variant="h6">Tất cả các toà nhà</Typography>
+              <Typography variant="subtitle2" sx={{ mt: 1 }}>
+                Tiền thực nhận
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Tiền vào tay, tính theo ngày nhận — bất kể hoá đơn xuất tháng nào, nên nó
+                cố ý KHÔNG khớp với các con số phía trên.
+              </Typography>
+              <Typography variant="h5" component="p" sx={{ fontWeight: 700, mt: 0.5 }}>
+                {formatMoney(report.total.received)}
+              </Typography>
             </CardContent>
           </Card>
         )}
