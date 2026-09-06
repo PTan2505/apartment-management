@@ -160,7 +160,11 @@ A wildcard origin lets any page on the internet call this API from a visitor's b
 
 More than one origin SHALL be configurable. The owner's application and the tenant portal are deployed separately and both call this API.
 
-**Where no origins are configured, the system SHALL accept any origin.** That is what local development depends on, and requiring configuration to run the API on a laptop would be a cost paid every day for a protection that matters only once deployed.
+**In production, the system SHALL refuse to start with no origins configured.** The previous rule — no origins meaning any origin — described a permission that permits nothing: every real client of this API signs in, signing in sends credentials, and a browser will not send credentials to a wildcard. A deployment left unconfigured therefore does not get a permissive API, it gets one whose front end cannot sign in, and it discovers this at a user's first attempt rather than at startup.
+
+Refusing to start is the same treatment this system already gives a partial payment configuration and a cross-site cookie setting that cannot take effect: a setting that cannot work fails where somebody is watching.
+
+**Outside production, no origins configured SHALL mean the requesting origin is accepted, with credentials.** Requiring configuration to run the API on a laptop would be a daily cost for a protection that matters once deployed — but the permission granted has to be one that works, or local behaviour and deployed behaviour differ in a way only the deployment reveals.
 
 An origin that is not allowed SHALL simply not be granted access; the API SHALL NOT treat it as an error worth failing a request over, since the browser is what enforces the outcome.
 
@@ -179,10 +183,20 @@ An origin that is not allowed SHALL simply not be granted access; the API SHALL 
 - **WHEN** a browser on some other origin calls the API
 - **THEN** it is not granted cross-origin access
 
+#### Scenario: Production with nothing configured
+
+- **WHEN** the system is started in production with no origins configured
+- **THEN** it refuses to start, and says which setting is missing and why
+
 #### Scenario: Development
 
-- **WHEN** the system runs with no origins configured
-- **THEN** any origin is accepted, as it is today
+- **WHEN** the system runs outside production with no origins configured, and a browser calls it from some origin
+- **THEN** that origin is accepted, and credentials are permitted from it — not a wildcard, which a browser will not send credentials to
+
+#### Scenario: A locally built bundle can sign in
+
+- **WHEN** a production build of the front end is served locally and calls the API on another port with no origins configured
+- **THEN** signing in succeeds, rather than failing in a way that only appears outside the dev proxy
 
 ### Requirement: An error code names the situation, not its category
 
