@@ -45,6 +45,7 @@ export function InvoiceCard({ invoice, expanded, onToggle, children }: Props) {
     invoice.coversYear && invoice.coversMonth
       ? `tháng ${invoice.coversMonth}/${invoice.coversYear}`
       : null
+  const hasReadings = invoice.meterReadingFrom !== null && invoice.meterReadingTo !== null
 
   return (
     <Accordion expanded={expanded} onChange={onToggle} disableGutters>
@@ -66,41 +67,62 @@ export function InvoiceCard({ invoice, expanded, onToggle, children }: Props) {
               label={invoice.isPaid ? 'Đã trả' : 'Chưa trả'}
             />
           </Stack>
-          <Stack direction="row" spacing={1} sx={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+          {/*
+            An unpaid bill leads with what is owed, labelled. The amount and the
+            state are the reason the link was opened, and reading them used to
+            mean taking a colour from one corner and a number from the other.
+          */}
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ justifyContent: 'space-between', alignItems: 'flex-end' }}
+          >
             <Typography variant="body2" color="text.secondary">
               Phòng {invoice.roomCode} · {formatDate(invoice.issueDate)}
             </Typography>
-            <Typography sx={{ fontWeight: 600 }}>{formatMoney(invoice.totalAmount)}</Typography>
+            <Box sx={{ textAlign: 'right' }}>
+              {!invoice.isPaid && (
+                <Typography variant="caption" color="text.secondary" component="div">
+                  Tổng cần nộp
+                </Typography>
+              )}
+              <Typography
+                sx={{ fontWeight: 700, fontSize: invoice.isPaid ? '1rem' : '1.25rem' }}
+                color={invoice.isPaid ? 'text.primary' : 'warning.dark'}
+              >
+                {formatMoney(invoice.totalAmount)}
+              </Typography>
+            </Box>
           </Stack>
         </Stack>
       </AccordionSummary>
 
       <AccordionDetails>
         <Stack spacing={1.5}>
-          {/*
-            The meter readings. This is the point of the whole feature: a total
-            is what an owner can already read down the telephone, and the
-            reading is what a tenant cannot check any other way.
-          */}
-          {invoice.meterReadingFrom !== null && invoice.meterReadingTo !== null && (
-            <Typography variant="body2" color="text.secondary">
-              Chỉ số điện: {invoice.meterReadingFrom} → {invoice.meterReadingTo} (
-              {invoice.meterReadingTo - invoice.meterReadingFrom} kWh)
-            </Typography>
-          )}
+          <Typography variant="overline" color="text.secondary">
+            Chi tiết các khoản phí
+          </Typography>
 
-          <Stack spacing={1} divider={<Divider flexItem />}>
+          <Stack spacing={1.25} divider={<Divider flexItem />}>
             {invoice.charges.map((charge, index) => {
               const period = formatPeriod(charge.periodStart, charge.periodEnd)
               const basis =
                 charge.quantity !== null && charge.unitAmount !== null
                   ? `${charge.quantity} × ${formatMoney(charge.unitAmount)}`
                   : null
+              // The readings belong under the charge they explain, not floating
+              // above the list where the reader has to connect them.
+              const readings =
+                charge.kind === 'electricity' && hasReadings
+                  ? `Chỉ số: ${invoice.meterReadingFrom} → ${invoice.meterReadingTo} (${
+                      invoice.meterReadingTo! - invoice.meterReadingFrom!
+                    } kWh)`
+                  : null
 
               return (
                 <Stack key={index} spacing={0.25}>
                   <Stack direction="row" spacing={1} sx={{ justifyContent: 'space-between' }}>
-                    <Typography variant="body2">
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
                       {/*
                         The same labelling the owner's screens use, so a tenant
                         querying a bill and the owner looking at it read the
@@ -110,24 +132,51 @@ export function InvoiceCard({ invoice, expanded, onToggle, children }: Props) {
                       */}
                       {lineLabel(charge)}
                     </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {formatMoney(charge.amount)}
                     </Typography>
                   </Stack>
                   {/*
-                    The stored description is gone from here: it was the English
-                    the system wrote, and the heading above now says the same
-                    thing in Vietnamese. What remains is numbers and dates.
+                    The working, subordinate to the charge rather than beside it:
+                    a tenant asks "what am I paying for" before "how was that
+                    reached", and on a phone one weight makes the two interleave.
+
+                    Nothing is dropped in the reordering. The quantity, the rate,
+                    the period and the readings are what make a bill checkable
+                    rather than merely stated, and checkable is the whole point
+                    of this screen.
                   */}
-                  {(basis || period) && (
-                    <Typography variant="caption" color="text.secondary">
-                      {[basis, period].filter(Boolean).join(' · ')}
+                  {[readings, basis, period].filter(Boolean).map((detail) => (
+                    <Typography key={detail} variant="caption" color="text.secondary">
+                      {detail}
                     </Typography>
-                  )}
+                  ))}
                 </Stack>
               )
             })}
           </Stack>
+
+          {/*
+            Unreachable today, and kept deliberately.
+
+            Every write of a meter reading happens inside `generateInvoice`,
+            which builds its lines through `buildLineItems`, which pushes the
+            electricity line unconditionally — so a bill with readings always
+            has an electricity charge to hang them under. Checked, rather than
+            assumed, when this branch could not be exercised.
+
+            It stays because that coupling lives in the billing module and the
+            code depending on it lives here. Make the electricity line
+            conditional — skipping it at zero consumption is the obvious future
+            change — and without this the readings would simply stop appearing,
+            with nothing failing to say so.
+          */}
+          {hasReadings && !invoice.charges.some((charge) => charge.kind === 'electricity') && (
+            <Typography variant="caption" color="text.secondary">
+              Chỉ số điện: {invoice.meterReadingFrom} → {invoice.meterReadingTo} (
+              {invoice.meterReadingTo! - invoice.meterReadingFrom!} kWh)
+            </Typography>
+          )}
 
           <Divider />
           <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
