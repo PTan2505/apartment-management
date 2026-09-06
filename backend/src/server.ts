@@ -32,17 +32,22 @@ const app = express();
  * a wildcard origin at all, which is why fixing the cookie's SameSite alone
  * would leave a cross-site sign-in broken.
  *
- * No origins configured means any origin, which is what local development
- * depends on and what runs today.
+ * Production cannot reach here unconfigured: `env.ts` refuses to start without
+ * `WEB_ORIGINS`, because an API that names no origins is one no browser can
+ * sign in to.
  */
 app.use(
   cors(
     env.WEB_ORIGINS.length === 0
-      ? // Wildcard and NO credentials. A browser ignores `Allow-Credentials`
-        // beside a wildcard origin, so claiming it would be an incoherent
-        // answer — and asserting a permission that is not granted is worse
-        // than not asserting it. This is exactly today's behaviour.
-        {}
+      ? // Development only. `origin: true` ECHOES the requesting origin, which
+        // is what a browser will accept credentials against; a wildcard is
+        // what it will not, and answering with one is how the local case came
+        // to differ from the deployed one in a way only deployment revealed.
+        //
+        // This is a real permission and would be wrong in production — which
+        // is exactly why production is refused above rather than being given
+        // this branch.
+        { origin: true, credentials: true }
       : { origin: env.WEB_ORIGINS, credentials: true },
   ),
 );

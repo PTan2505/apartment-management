@@ -61,12 +61,24 @@ const envSchema = z.object({
    * Both surfaces need naming: the owner's application and the tenant portal
    * are deployed separately and both call here.
    *
-   * EMPTY MEANS ANY ORIGIN, which is what runs today and what local
-   * development depends on. Requiring this before the API will talk to a
-   * browser at all would be a cost paid every day for a protection that only
-   * matters once deployed — and the trade is the right way round: an
-   * over-permissive API is recoverable, while a deployment that refuses its own
-   * frontend is an outage.
+   * REQUIRED IN PRODUCTION, and refused at startup without it — see the
+   * refinement below.
+   *
+   * It used to be optional, documented as "empty means any origin". That
+   * described a permission which permits nothing. A browser will not send
+   * credentials to a wildcard origin, and every real client of this API signs
+   * in, so an unconfigured deployment does not get a permissive API: it gets
+   * one whose frontend cannot sign in, and it finds out at a user's first
+   * attempt.
+   *
+   * Local development never noticed because it does not use CORS at all — the
+   * dev server proxies `/api`, so the browser is making same-origin requests.
+   * The fallback was therefore never exercised by anything that worked while
+   * being described as the thing local development depended on.
+   *
+   * Outside production it stays optional, and the requesting origin is
+   * reflected WITH credentials rather than answered with a wildcard, so a
+   * locally built bundle behaves the way the deployed one will.
    */
   WEB_ORIGINS: z.preprocess(
     (value) =>
@@ -128,6 +140,24 @@ const envSchema = z.object({
         message:
           `Contract storage is partially configured. Set all of ${keys.join(", ")} or none of them — ` +
           `missing: ${missing.join(", ")}`,
+      });
+    }
+  })
+  .superRefine((value, ctx) => {
+    // A production API with no origins named cannot be reached by any browser
+    // that signs in, because signing in sends credentials and a browser refuses
+    // to send those to a wildcard origin. Failing here puts the discovery in
+    // front of whoever is deploying, instead of in front of the first user.
+    if (value.NODE_ENV === "production" && value.WEB_ORIGINS.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["WEB_ORIGINS"],
+        message:
+          "WEB_ORIGINS is required when NODE_ENV=production. Name the origins your " +
+          "frontends are served from, comma-separated, e.g. " +
+          "https://app.example.com,https://portal.example.com — without it the API " +
+          "answers browsers with a wildcard, which they refuse to send credentials " +
+          "to, so sign-in fails while everything else appears to work",
       });
     }
   })
