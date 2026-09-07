@@ -3,6 +3,31 @@ import { paginationQueryFields } from "@/lib/pagination.js";
 
 const isoDate = z.coerce.date();
 
+/**
+ * Terms of the agreement, as distinct from what it takes to bill it.
+ *
+ * All optional, on creation and on correction alike. An owner recording a
+ * tenancy signed years ago may not have any of them, and demanding one would
+ * turn missing history into an obstacle.
+ *
+ * `reference` is absent on purpose: it is generated, never accepted. A typed
+ * reference drifts — two leases get the same one, a typo makes one unfindable,
+ * and the field becomes a place people write notes.
+ */
+const agreementTermFields = {
+  noticeDays: z.coerce.number().int().nonnegative("must not be negative").optional(),
+  // 1–31 rather than the length of a particular month: it is the day an
+  // agreement names, and February is the biller's problem rather than this
+  // field's.
+  paymentDay: z.coerce.number().int().min(1, "must be between 1 and 31")
+    .max(31, "must be between 1 and 31").optional(),
+  // Zero is a legitimate reading, so this accepts it and the column stays
+  // nullable — "the meter read zero" and "no reading recorded" are different
+  // facts and stay different values.
+  startWaterReading: z.coerce.number().int().nonnegative("must not be negative").optional(),
+  handoverSignedAt: isoDate.optional(),
+} as const;
+
 export const createLeaseSchema = z.object({
   roomId: z.coerce.number().int().positive("roomId is required"),
   signatoryId: z.coerce.number().int().positive("signatoryId is required"),
@@ -22,12 +47,23 @@ export const createLeaseSchema = z.object({
     .number({ message: "depositMonths is required" })
     .int("must be a whole number of months")
     .nonnegative("must not be negative"),
+  ...agreementTermFields,
 });
 
+
+/**
+ * Correcting the terms of a running tenancy.
+ *
+ * `.partial()` over the whole object, so correcting one term never demands
+ * another. That matters more now than it did: five of these are absent on every
+ * tenancy signed before they existed, and requiring one as the price of fixing
+ * a rent would turn missing history into an obstacle.
+ */
 export const updateLeaseSchema = z
   .object({
     durationMonths: z.coerce.number().int().min(1, "must be at least 1"),
     occupantCount: z.coerce.number().int().min(1, "must be at least 1"),
+    ...agreementTermFields,
   })
   .partial();
 

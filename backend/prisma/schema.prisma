@@ -194,6 +194,52 @@ model Lease {
   // default starting point for the room's next lease.
   endMeterReading   Int?
 
+  // --- terms of the agreement, as distinct from what it takes to bill it ---
+  //
+  // Every one NULLABLE, and null means NOT AGREED rather than zero or a
+  // default. Every lease predating these columns has none of them and never
+  // will retroactively, and a `NOT NULL DEFAULT` would state a term for
+  // tenancies whose paper agreements say something else — or say nothing.
+  // Thirty days is the common notice period; it is not the notice period of a
+  // tenancy nobody asked.
+  //
+  /// How much notice a departure requires, in days.
+  noticeDays        Int?
+  /// The day of the month rent falls due, 1–31.
+  ///
+  /// RECORDED here and acted on nowhere. Making the biller honour it has real
+  /// consequences for proration and belongs to its own change; conflating the
+  /// two would hide a billing change inside a field addition.
+  paymentDay        Int?
+  /// The WATER meter reading this tenancy starts from.
+  ///
+  /// Water is billed on metered consumption exactly as electricity is, and the
+  /// start of one was recorded while the start of the other was not — so a
+  /// water dispute has no agreed starting point to appeal to.
+  ///
+  /// Nullable rather than `DEFAULT 0` because ZERO IS A LEGITIMATE READING.
+  /// A default would make "no reading recorded" and "the meter read zero" the
+  /// same value, and the difference between them is the whole substance of the
+  /// dispute this exists to settle.
+  startWaterReading Int?
+  /// When the handover record was signed.
+  ///
+  /// A timestamp rather than a boolean: "whether" is the question and "when" is
+  /// the useful answer, and a boolean that later needs a date is a migration
+  /// while the reverse never is.
+  handoverSignedAt  DateTime?
+  /// A human-readable name for this agreement, distinct from its id.
+  ///
+  /// An id is what the system uses; a reference is what two people say out loud
+  /// to be sure they mean the same agreement, and an owner reading a number out
+  /// of a URL is using the wrong one.
+  ///
+  /// GENERATED, never typed. A typed reference drifts: two leases get the same
+  /// one, a typo makes one unfindable, and the field becomes a place people
+  /// write notes. Uniqueness is enforced HERE rather than by the generator,
+  /// because a generator is what races with itself.
+  reference         String?   @unique
+
   // --- the deposit actually held, as distinct from the one the terms agreed ---
   //
   // The agreed deposit stays derived (depositMonths × baseRent). This is what

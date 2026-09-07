@@ -92,6 +92,12 @@ interface LeaseRow {
   depositRefunded: Prisma.Decimal | null;
   depositRefundedAt: Date | null;
   contractKey: string | null;
+  // Terms of the agreement. Every one nullable, and null means NOT AGREED.
+  noticeDays: number | null;
+  paymentDay: number | null;
+  startWaterReading: number | null;
+  handoverSignedAt: Date | null;
+  reference: string | null;
   createdAt: Date;
   updatedAt: Date;
   occupants?: OccupantRow[];
@@ -148,6 +154,23 @@ export function toLeaseResponse(lease: LeaseRow) {
     occupantCount: lease.occupantCount,
     baseRent: lease.baseRent,
     depositMonths: lease.depositMonths,
+    /*
+      Terms of the agreement, reported exactly as stored.
+
+      Null is passed through rather than filled in. Every tenancy signed before
+      these existed has none of them, and a default — thirty days' notice, the
+      fifth of the month, a water reading of zero — would state as agreed
+      something nobody agreed to, on a screen that reads as a contract.
+
+      The water reading is the case that proves it: zero is a legitimate
+      reading, so `null` and `0` mean different things and stay different
+      values all the way to the reader.
+    */
+    noticeDays: lease.noticeDays,
+    paymentDay: lease.paymentDay,
+    startWaterReading: lease.startWaterReading,
+    handoverSignedAt: lease.handoverSignedAt,
+    reference: lease.reference,
     // Derived, never stored. A stored amount could disagree with the two values
     // it comes from — a rent corrected after the fact would leave a deposit
     // matching neither the months agreed nor the rent agreed.

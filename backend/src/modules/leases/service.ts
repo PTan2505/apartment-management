@@ -31,6 +31,23 @@ import type {
 const Decimal = Prisma.Decimal;
 
 /**
+ * A human-readable name for an agreement, generated from what it already holds.
+ *
+ * The room and the starting year say something a person recognises; the id
+ * makes it unique without a retry loop, because it is unique before this runs.
+ *
+ * Never accepted from a caller. A typed reference drifts — two leases get the
+ * same one, a typo makes one unfindable, and the field becomes a place people
+ * write notes.
+ *
+ * The same shape the migration back-filled existing rows with, so a reference
+ * written today and one written by the migration read alike.
+ */
+function buildLeaseReference(roomCode: string, startDate: Date, id: number): string {
+  return `HD-${roomCode}-${startDate.getUTCFullYear()}-${id}`;
+}
+
+/**
  * What every lease response is built from.
  *
  * The room comes with it because a lease reporting only a room id cannot be
@@ -219,7 +236,27 @@ export async function createLease(input: CreateLeaseInput) {
         startMeterReading,
         baseRent,
         depositMonths: input.depositMonths,
+        // Terms of the agreement. Absent stays absent — undefined leaves the
+        // column null, which is what "not agreed" means here.
+        noticeDays: input.noticeDays,
+        paymentDay: input.paymentDay,
+        startWaterReading: input.startWaterReading,
+        handoverSignedAt: input.handoverSignedAt,
       },
+    });
+
+    /*
+      The reference, set in the same transaction from facts the row now has.
+
+      Built after the insert rather than before it because it includes the id,
+      which is unique by construction — so the generator cannot collide with
+      itself, needs no retry loop, and does not race with a concurrent creation.
+      The unique index on the column is still what enforces it; this is what
+      makes enforcement never fire.
+    */
+    await tx.lease.update({
+      where: { id: created.id },
+      data: { reference: buildLeaseReference(room.roomCode, created.startDate, created.id) },
     });
 
     await tx.leaseOccupant.create({
