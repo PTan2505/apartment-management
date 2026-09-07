@@ -20,6 +20,9 @@ import TableRow from '@mui/material/TableRow'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
+import ExpandLessIcon from '@mui/icons-material/ExpandLess'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import IconButton from '@mui/material/IconButton'
 
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
@@ -282,28 +285,128 @@ const CHARGE_LABELS: Record<string, string> = {
  *
  * `received` is deliberately absent from this table — see `ArrivedSection`.
  */
+/**
+ * The rooms behind a month, and how many its figures cover.
+ *
+ * Collapsed by default. The screen's job is still the month figures, and eight
+ * rooms across twelve months is a wall rather than a report.
+ *
+ * Nothing here is computed. The counts and the room figures come from the API;
+ * this does not re-derive them, does not sum the rooms to check the total, and
+ * does not fill in a room the report omitted. If the two ever disagree that is
+ * a bug in the report, and papering over it here would hide it.
+ */
 function MonthRow({ figures }: { figures: MonthFigures }) {
+  const [open, setOpen] = useState(false)
+  const rooms = figures.rooms ?? []
+  const counts = figures.counts
+
   return (
-    <TableRow>
-      <TableCell>{monthLabel(figures.year, figures.month)}</TableCell>
-      {/*
-        These three are kept adjacent and in this order because
-        billed = settled + outstanding exactly, and that identity is the
-        reader's only way to check the table against itself.
-      */}
-      <TableCell align="right">{formatMoney(figures.billed)}</TableCell>
-      <TableCell align="right">{formatMoney(figures.settled)}</TableCell>
-      <TableCell align="right">{formatMoney(figures.outstanding)}</TableCell>
-      <TableCell align="right">{formatMoney(figures.expenses)}</TableCell>
-      <TableCell align="right">
-        <Typography
-          variant="body2"
-          color={figures.netBilled < 0 ? 'error.main' : 'text.primary'}
-        >
-          {formatMoney(figures.netBilled)}
-        </Typography>
-      </TableCell>
-    </TableRow>
+    <>
+      <TableRow>
+        <TableCell sx={{ whiteSpace: 'nowrap' }}>
+          {rooms.length > 0 && (
+            <IconButton
+              size="small"
+              onClick={() => setOpen((current) => !current)}
+              aria-label={open ? 'Ẩn chi tiết theo phòng' : 'Xem chi tiết theo phòng'}
+              sx={{ mr: 0.5 }}
+            >
+              {open ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+            </IconButton>
+          )}
+          {monthLabel(figures.year, figures.month)}
+        </TableCell>
+        {/*
+          These three are kept adjacent and in this order because
+          billed = settled + outstanding exactly, and that identity is the
+          reader's only way to check the table against itself.
+        */}
+        <TableCell align="right">{formatMoney(figures.billed)}</TableCell>
+        <TableCell align="right">{formatMoney(figures.settled)}</TableCell>
+        <TableCell align="right">{formatMoney(figures.outstanding)}</TableCell>
+        <TableCell align="right">
+          {formatMoney(figures.expenses)}
+          {counts.expenseRecords > 0 && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+              {counts.expenseRecords} phiếu chi
+            </Typography>
+          )}
+        </TableCell>
+        <TableCell align="right">
+          <Typography
+            variant="body2"
+            color={figures.netBilled < 0 ? 'error.main' : 'text.primary'}
+          >
+            {formatMoney(figures.netBilled)}
+          </Typography>
+        </TableCell>
+      </TableRow>
+
+      {counts.rooms > 0 && (
+        <TableRow>
+          <TableCell colSpan={6} sx={{ py: 0.5, borderBottom: open ? 0 : undefined }}>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+              <Chip size="small" variant="outlined" label={`${counts.rooms} phòng có người ở`} />
+              <Chip size="small" variant="outlined" color="success"
+                label={`${counts.roomsSettled} đã thu đủ`} />
+              <Chip size="small" variant="outlined" color="warning"
+                label={`${counts.roomsOutstanding} còn nợ`} />
+              {/*
+                Given emphasis on purpose. Of the four, this is the only one
+                that reveals something no amount on the screen would: a room
+                nobody invoiced produces no figure anywhere, so it is invisible
+                exactly when it matters.
+              */}
+              {counts.roomsUnbilled > 0 && (
+                <Chip size="small" color="error" label={`${counts.roomsUnbilled} CHƯA XUẤT HOÁ ĐƠN`} />
+              )}
+            </Stack>
+          </TableCell>
+        </TableRow>
+      )}
+
+      {open && (
+        <TableRow>
+          <TableCell colSpan={6} sx={{ py: 0, bgcolor: 'action.hover' }}>
+            <Table size="small" sx={{ my: 1 }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Phòng</TableCell>
+                  <TableCell>Người đứng tên</TableCell>
+                  <TableCell align="right">Đã xuất HĐ</TableCell>
+                  <TableCell align="right">Đã thu</TableCell>
+                  <TableCell align="right">Còn nợ</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {rooms.map((room) => (
+                  <TableRow key={room.roomId}>
+                    <TableCell>{room.roomCode}</TableCell>
+                    <TableCell>
+                      {/*
+                        Said out loud rather than left blank. A tenancy with
+                        nobody responsible is a state the system allows — the
+                        last occupant left before a move-out was recorded — and
+                        a blank reads as data that failed to load.
+                      */}
+                      {room.tenantName ?? (
+                        <Typography variant="body2" color="text.secondary">
+                          Chưa ai đứng tên
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="right">{formatMoney(room.billed)}</TableCell>
+                    <TableCell align="right">{formatMoney(room.settled)}</TableCell>
+                    <TableCell align="right">{formatMoney(room.outstanding)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableCell>
+        </TableRow>
+      )}
+    </>
   )
 }
 
@@ -579,6 +682,24 @@ function BuildingSection({
                     >
                       Còn lại {formatMoney(m.netBilled)}
                     </Typography>
+                    {/*
+                      On a phone the counts carry more than the room table
+                      would: eight rooms × five columns does not fit, and the
+                      count of rooms nobody invoiced is the part worth seeing.
+                    */}
+                    {m.counts.rooms > 0 && (
+                      <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+                        <Chip size="small" variant="outlined" label={`${m.counts.rooms} phòng`} />
+                        <Chip size="small" variant="outlined" color="success"
+                          label={`${m.counts.roomsSettled} đã thu đủ`} />
+                        <Chip size="small" variant="outlined" color="warning"
+                          label={`${m.counts.roomsOutstanding} còn nợ`} />
+                        {m.counts.roomsUnbilled > 0 && (
+                          <Chip size="small" color="error"
+                            label={`${m.counts.roomsUnbilled} chưa xuất HĐ`} />
+                        )}
+                      </Stack>
+                    )}
                   </Stack>
                 </CardContent>
               </Card>

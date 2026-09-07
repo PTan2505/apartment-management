@@ -23,11 +23,60 @@ export interface MonthFigures {
   netSettled: number
   /** The only cash figure: money that ARRIVED in this month, whenever billed. */
   received: number
+  counts: MonthCounts
+  /**
+   * The rooms behind this month's figures.
+   *
+   * Optional because the API reports it only when asked. Absent means NOT
+   * REQUESTED — deliberately distinguishable from an empty array, which would
+   * mean the month covered no rooms at all.
+   */
+  rooms?: RoomFigures[]
+}
+
+/**
+ * How many rooms a month's figures cover.
+ *
+ * `roomsUnbilled` is counted apart from `roomsSettled` on purpose. A room
+ * nobody invoiced owes nothing, so folding the two together makes the
+ * arithmetic work — and reports a building where rooms were never billed as
+ * having collected from them. The three sum to `rooms`.
+ */
+export interface MonthCounts {
+  rooms: number
+  roomsSettled: number
+  roomsOutstanding: number
+  roomsUnbilled: number
+  expenseRecords: number
+}
+
+/**
+ * One room beneath a month.
+ *
+ * Notice there is no cash figure. Every value here is keyed on the month the
+ * invoice was ISSUED; the money-arrived figure is keyed on the day it arrived,
+ * and one row carrying both would assert they are measured the same way.
+ */
+export interface RoomFigures {
+  roomId: number
+  roomCode: string
+  leaseId: number | null
+  /** Absent where the tenancy has nobody recorded — a real state, not a gap. */
+  tenantName: string | null
+  billed: number
+  settled: number
+  outstanding: number
 }
 
 export type CategoryBreakdown = Record<string, number>
 
-export interface Totals extends Omit<MonthFigures, 'year' | 'month'> {
+/**
+ * Totals over the whole range.
+ *
+ * Counts and room rows are absent, and that is not an omission: summing rooms
+ * across months gives room-months while looking exactly like a number of rooms.
+ */
+export interface Totals extends Omit<MonthFigures, 'year' | 'month' | 'counts' | 'rooms'> {
   expensesByCategory: CategoryBreakdown
   /**
    * A PARTITION of `billed`, not an addition to it. An owner-named charge
