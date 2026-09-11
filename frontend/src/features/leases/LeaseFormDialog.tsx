@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import Alert from '@mui/material/Alert'
+import Autocomplete from '@mui/material/Autocomplete'
 import AlertTitle from '@mui/material/AlertTitle'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
@@ -19,7 +20,8 @@ import { useTheme } from '@mui/material/styles'
 import { isApiError } from '@/lib/api-error'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
 import { useBuildings } from '@/features/buildings/hooks'
-import { useCustomers } from '@/features/customers/hooks'
+import { useCreateCustomer, useCustomers } from '@/features/customers/hooks'
+import type { Customer } from '@/features/customers/types'
 import { useRoomMeterReading, useRooms } from '@/features/rooms/hooks'
 import { useCreateLease } from '@/features/leases/hooks'
 import { createLeaseFormSchema, type CreateLeaseFormValues } from '@/features/leases/schema'
@@ -52,6 +54,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
   const fullScreen = useMediaQuery(theme.breakpoints.down(MOBILE_BREAKPOINT))
 
   const createMutation = useCreateLease()
+  const createCustomerMutation = useCreateCustomer()
   const [formError, setFormError] = useState<string | null>(null)
   const isSubmitting = createMutation.isPending
 
@@ -94,7 +97,10 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
     resolver: zodResolver(createLeaseFormSchema) as never,
     defaultValues: {
       roomId: 0,
-      signatoryId: 0,
+      // Starts as an unchosen EXISTING person rather than a blank new one: the
+      // common case is picking somebody already on file, and a form that opens
+      // asking for a phone number asks for one it usually already has.
+      signatory: { kind: 'existing', customerId: 0 },
       startDate: today(),
       durationMonths: 12,
       occupantCount: 1,
@@ -140,9 +146,11 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
     if (!open) return
     setFormError(null)
     setPickerBuildingId('')
+    setMatched(null)
+    createdRef.current = null
     reset({
       roomId: roomId ?? 0,
-      signatoryId: 0,
+      signatory: { kind: 'existing', customerId: 0 },
       startDate: today(),
       durationMonths: 12,
       occupantCount: 1,
@@ -150,16 +158,77 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
     })
   }, [open, roomId, reset])
 
+  /**
+   * A phone number that turned out to belong to somebody already on file.
+   *
+   * Held rather than acted on. `POST /customers` answers 200 in this case and
+   * returns whoever holds the number — DISCARDING the name that was typed — so
+   * proceeding would attach the tenancy to a record the owner never read. It is
+   * worst in the case that looks most ordinary: a returning tenant whose name
+   * is spelled slightly differently.
+   *
+   * It cannot be caught afterwards by comparing the returned name against the
+   * typed one, because those agree exactly when the existing person happens to
+   * share the name.
+   */
+  const [matched, setMatched] = useState<Customer | null>(null)
+
+  /**
+   * The person created for this attempt, kept if the lease then fails.
+   *
+   * The two calls are not atomic and deliberately in this order: a person with
+   * no tenancy is a record the owner can use, while a tenancy without its
+   * signatory cannot exist at all — the lease endpoint requires the id. Keeping
+   * them means a retry reuses that person instead of making a second one.
+   */
+  const createdRef = useRef<Customer | null>(null)
+
+  async function resolveSignatoryId(
+    signatory: CreateLeaseFormValues['signatory'],
+  ): Promise<number | null> {
+    if (signatory.kind === 'existing') return signatory.customerId
+    if (createdRef.current) return createdRef.current.id
+
+    const result = await createCustomerMutation.mutateAsync({
+      fullName: signatory.fullName.trim(),
+      phone: signatory.phone.trim(),
+    })
+    if (!result.created) {
+      // Stop. See `matched` above.
+      setMatched(result.customer)
+      return null
+    }
+    createdRef.current = result.customer
+    return result.customer.id
+  }
+
   async function onSubmit(values: CreateLeaseFormValues) {
     setFormError(null)
     try {
-      const input = createLeaseFormSchema.parse(values)
+      const signatoryId = await resolveSignatoryId(values.signatory)
+      if (signatoryId === null) return
+
+      const input = { ...createLeaseFormSchema.parse(values), signatoryId }
       const lease = await createMutation.mutateAsync(input)
       onCreated(lease)
       onClose()
     } catch (error) {
       if (!isApiError(error)) {
         setFormError('Có lỗi xảy ra. Vui lòng thử lại.')
+        return
+      }
+
+      /*
+        The number belongs to an account that is NOT a customer — an owner.
+        The API reports this apart from a customer match, and rightly: saying
+        only "this number is taken" would send the owner looking for a customer
+        who does not exist.
+
+        The code was checked against the service rather than guessed; an
+        invented code would silently fall through to the generic branch.
+      */
+      if (error.isConflict && error.code === 'PHONE_BELONGS_TO_ANOTHER') {
+        setError('signatory.phone', { type: 'server', message: errorMessage(error) })
         return
       }
 
@@ -221,7 +290,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
               value={`${fixedRoom.roomCode} · ${fixedRoom.building.displayName}`}
               slotProps={{ input: { readOnly: true }, inputLabel: { shrink: true } }}
               error={Boolean(errors.roomId)}
-              helperText={errors.roomId?.message ?? 'Signing a tenancy for this room'}
+              helperText={errors.roomId?.message ?? 'Đang ký hợp đồng cho phòng này'}
             />
           ) : (
             <>
@@ -277,31 +346,176 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
           )}
 
           <Controller
-            name="signatoryId"
+            name="signatory"
             control={control}
-            render={({ field }) => (
-              <TextField
-                select
-                label="Người đứng tên"
-                fullWidth
-                value={field.value ? String(field.value) : ''}
-                onChange={(event) => field.onChange(Number(event.target.value))}
-                onBlur={field.onBlur}
-                inputRef={field.ref}
-                error={Boolean(errors.signatoryId)}
-                helperText={
-                  errors.signatoryId?.message ?? 'Người đứng tên trên hợp đồng'
-                }
-              >
-                {customers.map((customer) => (
-                  <MenuItem key={customer.id} value={String(customer.id)}>
-                    {customer.fullName}
-                    {customer.phone ? ` · ${customer.phone}` : ''}
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
+            render={({ field }) => {
+              const value = field.value
+              const picked =
+                value.kind === 'existing' && value.customerId
+                  ? (customers.find((c) => c.id === value.customerId) ?? null)
+                  : null
+              const typedName = value.kind === 'new' ? value.fullName : ''
+              /*
+                Whether what has been typed still matches somebody on file.
+
+                The phone field appears only once it matches NOBODY. Keying it
+                on "the name is non-empty" instead — which this did at first —
+                pops the field open on the first keystroke of an existing
+                customer's name, asking for a number the system already holds
+                and that the owner is about to select anyway.
+              */
+              const stillMatches =
+                typedName.trim() !== '' &&
+                customers.some((c) =>
+                  `${c.fullName} ${c.phone ?? ''}`
+                    .toLowerCase()
+                    .includes(typedName.trim().toLowerCase()),
+                )
+              const signatoryError = errors.signatory as
+                | { message?: string; fullName?: { message?: string }; phone?: { message?: string }; customerId?: { message?: string } }
+                | undefined
+
+              return (
+                <>
+                  {/*
+                    One control, two outcomes: a customer already on file, or a
+                    name that is not yet anybody.
+
+                    A second "add a customer" dialog on top of this one was the
+                    obvious alternative and is worse — it is the detour this
+                    change exists to remove, moved inside the form.
+                  */}
+                  <Autocomplete
+                    freeSolo
+                    // Every other field on this form is full width; without
+                    // this one the row it sits in is visibly narrower.
+                    fullWidth
+                    options={customers}
+                    value={picked}
+                    /*
+                      ALWAYS controlled. Passing `undefined` when somebody is
+                      picked — which this did at first — flips the component
+                      between controlled and uncontrolled, and MUI then resets
+                      the text on blur: clicking the submit button wiped the
+                      typed name, and the form refused with "nhập tên" for a
+                      name that had just been on screen.
+                    */
+                    inputValue={
+                      picked
+                        ? `${picked.fullName}${picked.phone ? ` · ${picked.phone}` : ''}`
+                        : typedName
+                    }
+                    onInputChange={(_event, input, reason) => {
+                      /*
+                        Only what the owner TYPED. A blocklist of reasons was
+                        the first attempt and let one through: MUI clears the
+                        text on blur, so clicking the submit button wiped the
+                        name and the form refused with "nhập tên" for a name
+                        that had just been on screen.
+                      */
+                      if (reason !== 'input') return
+                      // Typing past a chosen person means they are no longer the
+                      // one meant; fall back to a name nobody holds yet.
+                      field.onChange({ kind: 'new', fullName: input, phone: value.kind === 'new' ? value.phone : '' })
+                    }}
+                    onChange={(_event, chosen) => {
+                      if (chosen && typeof chosen !== 'string') {
+                        field.onChange({ kind: 'existing', customerId: chosen.id })
+                        return
+                      }
+                      field.onChange({
+                        kind: 'new',
+                        fullName: typeof chosen === 'string' ? chosen : '',
+                        phone: value.kind === 'new' ? value.phone : '',
+                      })
+                    }}
+                    getOptionLabel={(option) =>
+                      typeof option === 'string'
+                        ? option
+                        : `${option.fullName}${option.phone ? ` · ${option.phone}` : ''}`
+                    }
+                    isOptionEqualToValue={(option, selected) =>
+                      typeof option !== 'string' && typeof selected !== 'string' && option.id === selected.id
+                    }
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Người đứng tên"
+                        fullWidth
+                        onBlur={field.onBlur}
+                        error={Boolean(signatoryError?.message ?? signatoryError?.fullName?.message ?? signatoryError?.customerId?.message)}
+                        helperText={
+                          signatoryError?.message ??
+                          signatoryError?.fullName?.message ??
+                          signatoryError?.customerId?.message ??
+                          'Gõ để tìm khách cũ, hoặc nhập tên khách mới'
+                        }
+                      />
+                    )}
+                  />
+
+                  {/*
+                    Shown only once the typed name matches nobody. Always showing
+                    it would ask for a number the system usually already holds.
+                  */}
+                  {value.kind === 'new' && value.fullName.trim() !== '' && !stillMatches && (
+                    <TextField
+                      label="Số điện thoại"
+                      fullWidth
+                      value={value.phone}
+                      onChange={(event) =>
+                        field.onChange({ ...value, phone: event.target.value })
+                      }
+                      error={Boolean(signatoryError?.phone?.message)}
+                      helperText={
+                        signatoryError?.phone?.message ??
+                        'Khách mới — số điện thoại là thứ dùng để nhận ra họ lần sau'
+                      }
+                    />
+                  )}
+                </>
+              )
+            }}
           />
+
+          {/*
+            The number matched somebody already on file.
+
+            Shown and waited on, never auto-accepted: the API kept the name it
+            already held and threw away the one just typed, so continuing would
+            sign the tenancy to a record the owner has not read.
+
+            Not refused either — a returning tenant IS that person, and making
+            the owner go and find them by hand restores the detour this whole
+            change removes.
+          */}
+          {matched && (
+            <Alert
+              severity="warning"
+              action={
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    size="small"
+                    color="inherit"
+                    onClick={() => {
+                      setMatched(null)
+                      setValue('signatory', { kind: 'existing', customerId: matched.id })
+                    }}
+                  >
+                    Dùng người này
+                  </Button>
+                  <Button size="small" color="inherit" onClick={() => setMatched(null)}>
+                    Sửa lại
+                  </Button>
+                </Stack>
+              }
+            >
+              <AlertTitle>Số điện thoại này đã có người dùng</AlertTitle>
+              Số {matched.phone} đang thuộc về <strong>{matched.fullName}</strong>. Tên bạn
+              vừa nhập sẽ không được lưu — hệ thống giữ tên đang có. Nếu đúng là người này
+              thì chọn "Dùng người này", còn không thì sửa lại số.
+            </Alert>
+          )}
 
           <TextField
             label="Ngày bắt đầu"

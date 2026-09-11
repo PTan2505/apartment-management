@@ -247,6 +247,25 @@ export const theme = createTheme({
       styleOverrides: { root: { borderRadius: 8 } },
     },
 
+    /*
+     * An Autocomplete's list needs the same lift a Select's menu gets.
+     *
+     * `MuiPaper` above sets `elevation: 0` as a default, which is right for the
+     * cards and panels that make up the screens. A Select's menu escapes it by
+     * asking for `elevation={8}` itself; an Autocomplete's list does not, so it
+     * rendered with no shadow and no border — the options appeared to float on
+     * the dialog behind them, overlapping the fields underneath.
+     *
+     * Taken from `theme.shadows[8]` rather than written out, so the two kinds
+     * of dropdown match by construction instead of by a copied string that one
+     * of them will eventually stop agreeing with.
+     */
+    MuiAutocomplete: {
+      styleOverrides: {
+        paper: ({ theme: t }) => ({ boxShadow: t.shadows[8] }),
+      },
+    },
+
     MuiChip: {
       styleOverrides: {
         root: { borderRadius: 6, fontWeight: 600 },

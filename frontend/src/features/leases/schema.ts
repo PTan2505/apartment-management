@@ -13,9 +13,39 @@ const wholeMonths = z
   .number({ message: 'Nhập số tháng' })
   .int('Phải là số tháng nguyên')
 
+/**
+ * The person responsible, which is one of two things.
+ *
+ * Either somebody already on file — an id — or somebody being added here, a
+ * name and a phone number. The form models both rather than pretending the
+ * second is a special case of the first, because the two need different
+ * validation and produce different work at submit.
+ *
+ * The phone number is REQUIRED for a new person, though the customers screen
+ * keeps it optional. It is the only value the system recognises a returning
+ * tenant by: a signatory recorded without one becomes a second record of the
+ * same name the next time they rent.
+ */
+export const signatorySchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('existing'),
+    customerId: z.number().int().positive('Chọn người đứng tên'),
+  }),
+  z.object({
+    kind: z.literal('new'),
+    fullName: z.string().trim().min(1, 'Nhập tên người đứng tên'),
+    phone: z
+      .string()
+      .trim()
+      .min(1, 'Người đứng tên cần số điện thoại, vì đó là thứ dùng để nhận ra họ lần sau'),
+  }),
+])
+
+export type SignatoryValue = z.infer<typeof signatorySchema>
+
 export const createLeaseFormSchema = z.object({
   roomId: z.number({ message: 'Chọn phòng' }).int().positive('Chọn phòng'),
-  signatoryId: z.number({ message: 'Chọn người đứng tên' }).int().positive('Chọn người đứng tên'),
+  signatory: signatorySchema,
   startDate: z.string().min(1, 'Vui lòng chọn ngày bắt đầu'),
   durationMonths: wholeMonths.min(1, 'Tối thiểu 1 tháng'),
   occupantCount: z
