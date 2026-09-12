@@ -87,7 +87,7 @@ export function TransferPrimaryDialog({
           >
             {candidates.map((candidate) => (
               <MenuItem key={candidate.id} value={String(candidate.customerId)}>
-                {candidate.fullName ?? `Customer #${candidate.customerId}`}
+                {candidate.fullName ?? `Khách #${candidate.customerId}`}
               </MenuItem>
             ))}
           </TextField>

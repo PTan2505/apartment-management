@@ -185,7 +185,7 @@ export function OccupantsCard({ lease }: OccupantsCardProps) {
                   <Box>
                     <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                       <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                        {occupant.fullName ?? `Customer #${occupant.customerId}`}
+                        {occupant.fullName ?? `Khách #${occupant.customerId}`}
                       </Typography>
                       {occupant.isPrimary && occupant.status === 'current' && (
                         <Chip size="small" color="primary" label="Người đứng tên" />
@@ -197,7 +197,7 @@ export function OccupantsCard({ lease }: OccupantsCardProps) {
                     <Typography variant="caption" color="text.secondary">
                       {occupant.phone ? `${occupant.phone} · ` : ''}
                       Vào ở {formatDate(occupant.joinedAt)}
-                      {occupant.leftAt ? ` · Rời ngày ${formatDate(occupant.leftAt)}` : ''}
+                      {occupant.leftAt ? ` · Rời đi ngày ${formatDate(occupant.leftAt)}` : ''}
                     </Typography>
                   </Box>
                   {isRunning && occupant.status === 'current' && (

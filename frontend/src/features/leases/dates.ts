@@ -21,6 +21,16 @@
  * rejected in design.md: two dates meaning almost the same thing is how two
  * dates drift apart. This is genuinely presentation, so it lives in
  * presentation.
+ *
+ * ── The one deliberate exception ───────────────────────────────────────────
+ *
+ * The terms card shows a move-out as "Đã trả phòng ngày {moveOutDate}" — the
+ * stored boundary, unconverted — with "Ở đến hết {coveredThrough}" beneath it.
+ * That does not break the rule above: the label says the date is the day the
+ * room came back, which is exactly what the boundary is, and the last day
+ * covered is shown with it. The owner chose this so the lease and its
+ * occupants, whose departure is the same stored day, read as the same date.
+ * Do not "fix" it back to a lone covered-through date.
  */
 
 /**
@@ -134,4 +144,27 @@ export function isTermRunOut(lease: {
 }): boolean {
   if (lease.status !== 'active' || lease.moveOutDate !== null) return false
   return new Date(lease.expectedEndDate).getTime() <= Date.now()
+}
+
+/**
+ * How a recorded move-out compares with the agreed end: before it, on it, or after.
+ *
+ * Both are exclusive boundaries — the first day no longer covered — so they
+ * compare directly, and equal means the tenancy covered exactly the agreed days.
+ * Compared as whole UTC days, like everything in this file, so a reader east or
+ * west of the server cannot turn "on time" into "a day late".
+ *
+ * Three answers, not two. The screen once asked only "past the term?", so a
+ * tenancy handed back nine months early read "Trả phòng trong hạn" — the same
+ * words as one that ran its full term.
+ */
+export function departureAgainstTerm(
+  moveOutDate: string,
+  expectedEndDate: string,
+): 'early' | 'onTime' | 'late' {
+  const day = (iso: string) => Math.floor(new Date(iso).getTime() / 86_400_000)
+  const out = day(moveOutDate)
+  const end = day(expectedEndDate)
+  if (out < end) return 'early'
+  return out === end ? 'onTime' : 'late'
 }

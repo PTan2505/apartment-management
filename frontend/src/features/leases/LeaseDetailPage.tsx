@@ -23,6 +23,7 @@ import { formatMoney } from '@/lib/format'
 import { EmptyState } from '@/components/EmptyState'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
 import {
+  departureAgainstTerm,
   formatCoveredThrough,
   formatDate,
   formatRemainingTerm,
@@ -51,7 +52,7 @@ function Field({
 }: {
   label: string
   value: string
-  hint?: string
+  hint?: string | string[]
   emphasis?: boolean
 }) {
   return (
@@ -67,11 +68,16 @@ function Field({
       <Typography variant={emphasis ? 'h6' : 'body1'} component="p">
         {value}
       </Typography>
-      {hint && (
-        <Typography variant="caption" color="text.secondary">
-          {hint}
+      {/*
+        One line or two. A move-out carries two facts — the last day covered, and
+        how that compares with the agreement — and joining them into one sentence
+        makes the date hard to find.
+      */}
+      {(Array.isArray(hint) ? hint : hint ? [hint] : []).map((line) => (
+        <Typography key={line} variant="caption" color="text.secondary" component="div">
+          {line}
         </Typography>
-      )}
+      ))}
     </Box>
   )
 }
@@ -215,11 +221,20 @@ function SummaryBand({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
  */
 const KHONG_GHI = 'Chưa ghi nhận'
 
+/**
+ * How a move-out compares with the agreed end, as the owner would say it.
+ *
+ * Three phrasings because there are three cases. "Trả phòng trong hạn" used to
+ * cover both an early departure and an on-time one.
+ */
+const DEPARTURE_WORDS = {
+  early: 'Trả phòng trước hạn hợp đồng',
+  onTime: 'Trả phòng đúng hạn hợp đồng',
+  late: 'Ở quá hạn hợp đồng',
+} as const
+
 function TermsCard({ lease }: { lease: Lease }) {
   const isCancelled = lease.status === 'cancelled'
-  const ranPastTerm =
-    lease.moveOutDate !== null &&
-    new Date(lease.moveOutDate).getTime() > new Date(lease.expectedEndDate).getTime()
 
   return (
     <Card variant="outlined">
@@ -290,7 +305,7 @@ function TermsCard({ lease }: { lease: Lease }) {
               instead.
             */}
             <Field
-              label={isCancelled ? 'Dự kiến bắt đầu' : 'Ngày bắt đầu hiệu lực'}
+              label={isCancelled ? 'Dự kiến bắt đầu' : 'Ở từ ngày'}
               value={formatDate(lease.startDate)}
             />
             {/*
@@ -299,12 +314,12 @@ function TermsCard({ lease }: { lease: Lease }) {
               boundary the API reports — see dates.ts.
             */}
             <Field
-              label="Ngày kết thúc thoả thuận"
+              label="Hợp đồng đến hết ngày"
               value={formatCoveredThrough(lease.expectedEndDate)}
               hint={
                 isCancelled
                   ? 'Đây là thoả thuận. Không có ngày nào thực sự ở'
-                  : `${lease.durationMonths} tháng kể từ ngày bắt đầu`
+                  : `Thoả thuận ${lease.durationMonths} tháng`
               }
             />
             {/*
@@ -319,11 +334,21 @@ function TermsCard({ lease }: { lease: Lease }) {
                 hint="Ghi nhận là chưa từng diễn ra"
               />
             )}
+            {/*
+              The handed-back day itself — the stored boundary, NOT passed through
+              coveredThrough — with the last day covered directly beneath it. The
+              label says it is the day the room came back, which is exactly what
+              the boundary is; see the exception recorded in dates.ts. It matches
+              the occupants' "Rời đi ngày" below, which is the same stored day.
+            */}
             {lease.moveOutDate !== null && (
               <Field
-                label="Thực tế đến hết"
-                value={formatCoveredThrough(lease.moveOutDate)}
-                hint={ranPastTerm ? 'Ở quá hạn thoả thuận' : 'Trả phòng trong hạn'}
+                label="Đã trả phòng ngày"
+                value={formatDate(lease.moveOutDate)}
+                hint={[
+                  `Ở đến hết ${formatCoveredThrough(lease.moveOutDate)}`,
+                  DEPARTURE_WORDS[departureAgainstTerm(lease.moveOutDate, lease.expectedEndDate)],
+                ]}
               />
             )}
           </Stack>
