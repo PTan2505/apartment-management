@@ -14,7 +14,8 @@
     "backfill:deposits": "tsx src/scripts/backfill-deposit-holdings.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "codes:generate": "tsx scripts/generate-error-codes.ts",
-    "codes:check": "tsx scripts/generate-error-codes.ts --check"
+    "codes:check": "tsx scripts/generate-error-codes.ts --check",
+    "atomic:check": "tsx scripts/check-atomic-writes.ts"
   },
   "keywords": [],
   "author": "",

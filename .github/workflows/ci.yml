@@ -57,6 +57,14 @@ jobs:
       - name: Check the frontend's error codes are current
         run: npm run codes:check
 
+      # Every multi-table write in this API is inside a transaction today, held
+      # up by nobody forgetting. The failure that guards against is quiet — a
+      # lease created whose occupant row was not — so it is checked rather than
+      # remembered. The script says what it cannot see, and carries one
+      # exemption with its reason.
+      - name: Check multi-table writes are atomic
+        run: npm run atomic:check
+
       # Compiles for real, which catches what `--noEmit` cannot: a path alias
       # `tsc-alias` fails to rewrite produces a build that type-checks and then
       # cannot find its own imports at runtime.
