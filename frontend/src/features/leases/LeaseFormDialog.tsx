@@ -233,6 +233,21 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
       }
 
       /**
+       * The person already lives somewhere else.
+       *
+       * Against the SIGNATORY, not the room. This sits above the general
+       * conflict branch below, which attributes everything to the room — a
+       * reasonable default when the only 409 was "that room is taken", and
+       * exactly wrong for this one. "Người này đang thuê phòng P302" under a
+       * field labelled Phòng reads as a complaint about the room the owner just
+       * picked, and sends them to change the one answer that was right.
+       */
+      if (error.isConflict && error.code === 'SIGNATORY_ALREADY_HOUSED') {
+        setError('signatory', { type: 'server', message: errorMessage(error) })
+        return
+      }
+
+      /**
        * The room was let between opening this form and submitting it.
        *
        * Reported against the room, because that is the only answer now wrong —

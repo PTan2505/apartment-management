@@ -95,6 +95,13 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   OCCUPANT_PAYLOAD_INVALID: 'Thông tin người ở chưa hợp lệ.',
   OCCUPANT_ADD_TO_FINALIZED: 'Không thể thêm người ở vào hợp đồng đã kết thúc.',
   OCCUPANT_ALREADY_PRESENT: 'Người này đang ở trong hợp đồng rồi.',
+  // Both of these read better with the room named, and NAMED_ROOM below does
+  // that when the API sends one. These are the honest fallback for when it does
+  // not — vaguer, but never wrong.
+  SIGNATORY_ALREADY_HOUSED:
+    'Người này đang thuê một phòng khác. Hãy kết thúc hợp đồng đó trước khi ký hợp đồng mới.',
+  OCCUPANT_ALREADY_HOUSED:
+    'Người này đang thuê một phòng khác. Hãy kết thúc hợp đồng đó trước khi thêm vào đây.',
   OCCUPANT_ALREADY_DEPARTED: 'Người này đã rời đi.',
   OCCUPANT_DEPARTURE_PAYLOAD_INVALID: 'Thông tin rời đi chưa hợp lệ.',
   DEPARTURE_BEFORE_JOIN: 'Ngày rời đi không thể trước ngày vào ở.',
@@ -251,6 +258,34 @@ export function messageForCode(code: string | undefined, status: number | null):
  * Takes `unknown` because that is what a `catch` and a react-query `error` hand
  * over, and every caller would otherwise repeat the same narrowing.
  */
+/**
+ * Sentences that are better with a value the API sent alongside the code.
+ *
+ * Kept APART from `MESSAGES` rather than widening it to allow functions. That
+ * Record is exhaustive over the generated union, which is what makes a missing
+ * phrase a compile error — the one guarantee in this file. A code appearing
+ * here has an entry there too, used whenever the detail is absent, so this can
+ * only ever improve a sentence and never be the only thing standing between a
+ * reader and a code.
+ *
+ * "Đang thuê phòng P302" is a different message from "đang thuê một phòng
+ * khác": the first tells the owner where to go next, which is the whole reason
+ * the refusal happened.
+ */
+const NAMED_ROOM: Partial<Record<BackendErrorCode, (roomCode: string) => string>> = {
+  SIGNATORY_ALREADY_HOUSED: (room) =>
+    `Người này đang thuê phòng ${room}. Hãy kết thúc hợp đồng đó trước khi ký hợp đồng mới.`,
+  OCCUPANT_ALREADY_HOUSED: (room) =>
+    `Người này đang thuê phòng ${room}. Hãy kết thúc hợp đồng đó trước khi thêm vào đây.`,
+}
+
+/** The room the API named, where it named one. */
+function namedRoom(details: unknown): string | null {
+  if (typeof details !== 'object' || details === null) return null
+  const value = (details as { roomCode?: unknown }).roomCode
+  return typeof value === 'string' && value !== '' ? value : null
+}
+
 export function errorMessage(error: unknown): string {
   if (!isApiError(error)) return 'Đã xảy ra lỗi không mong muốn.'
 
@@ -259,6 +294,9 @@ export function errorMessage(error: unknown): string {
   // looking for a mistake they did not make.
   if (error.isTransport) return 'Không kết nối được tới máy chủ. Vui lòng thử lại.'
 
-  const phrase = MESSAGES[error.code as BackendErrorCode]
-  return phrase ?? fallbackForStatus(error.status)
+  const code = error.code as BackendErrorCode
+  const room = namedRoom(error.details)
+  const withRoom = room === null ? undefined : NAMED_ROOM[code]?.(room)
+
+  return withRoom ?? MESSAGES[code] ?? fallbackForStatus(error.status)
 }

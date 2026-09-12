@@ -17,7 +17,7 @@ import {
 } from "@/modules/invoices/issue.js";
 import { carryHolding, deductFromDeposit } from "@/modules/deposits/holding.js";
 import { addMonths } from "./mapper.js";
-import { HOLDS_ITS_ROOM } from "./occupancy.js";
+import { HOLDS_ITS_ROOM, roomOccupiedBy } from "./occupancy.js";
 import type {
   AddOccupantInput,
   CancelLeaseInput,
@@ -163,7 +163,30 @@ export async function createLease(input: CreateLeaseInput) {
     throw new ValidationError("SIGNATORY_PHONE_REQUIRED", "The lease signatory must have a phone number");
   }
 
-  // First: is the room still let? This guard runs before the overlap check
+  /*
+    Is the PERSON free? The room guard below asks the other half of the same
+    question, and for a long time only that half was asked — so a tenancy could
+    be signed for somebody who already lived somewhere else, and the electricity
+    they used once was split across two rooms.
+
+    Before the room check, deliberately: where both are true, the signatory is
+    the answer the owner can act on. A room being taken is somebody else's
+    business; their own tenant already having a room is theirs.
+  */
+  const housed = await roomOccupiedBy(prisma, input.signatoryId);
+  if (housed) {
+    throw new ConflictError(
+      "SIGNATORY_ALREADY_HOUSED",
+      `That person is already living in room ${housed.roomCode}. End that tenancy before signing this one`,
+      // The room as DATA, not only inside the sentence. The reader's sentence is
+      // written in the frontend, which cannot parse a room code back out of
+      // English prose — so it is handed over as a field it can name the room
+      // with.
+      { roomCode: housed.roomCode, leaseId: housed.leaseId },
+    );
+  }
+
+  // Then: is the room still let? This guard runs before the overlap check
   // below so a room with a running tenancy reports the reason the owner can
   // actually act on, rather than a date conflict against a lease that has no
   // ending date yet.
@@ -1023,6 +1046,25 @@ export async function addOccupant(leaseId: number, input: AddOccupantInput) {
   );
   if (alreadyCurrent) {
     throw new ConflictError("OCCUPANT_ALREADY_PRESENT", "That person is already a current occupant of this lease");
+  }
+
+  /*
+    Checked AFTER the same-lease case above, so adding somebody who is already
+    here keeps reporting that rather than the cross-room message — the owner has
+    made a different mistake and can take a different action.
+
+    `exceptLeaseId` is not needed here: this lease was just cleared by the check
+    above. It is passed anyway so the two call sites read the same, and so a
+    later change to the order above cannot turn this into a lease refusing its
+    own occupant.
+  */
+  const elsewhere = await roomOccupiedBy(prisma, input.customerId, { exceptLeaseId: leaseId });
+  if (elsewhere) {
+    throw new ConflictError(
+      "OCCUPANT_ALREADY_HOUSED",
+      `That person is already living in room ${elsewhere.roomCode}. End that tenancy before recording them here`,
+      { roomCode: elsewhere.roomCode, leaseId: elsewhere.leaseId },
+    );
   }
 
   // A person who previously departed gets a fresh record; the earlier one is
