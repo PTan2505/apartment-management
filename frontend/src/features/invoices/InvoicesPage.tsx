@@ -268,7 +268,7 @@ export function InvoicesPage() {
                 }
               />
             }
-            label="Kể cả đã rút"
+            label="Kể cả đã thu hồi"
           />
 
           {hasFilters && (

@@ -38,7 +38,7 @@ function StatusChips({ invoice }: { invoice: Invoice }) {
     <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'nowrap', gap: 0.5 }}>
       <Chip size="small" variant="outlined" label={invoiceTypeLabel(invoice.type)} />
       {invoice.voidedAt !== null ? (
-        <Chip size="small" color="default" variant="filled" label="Đã rút" />
+        <Chip size="small" color="default" variant="filled" label="Đã thu hồi" />
       ) : (
         <Chip
           size="small"

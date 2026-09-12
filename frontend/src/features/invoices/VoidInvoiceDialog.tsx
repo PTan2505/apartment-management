@@ -74,12 +74,12 @@ export function VoidInvoiceDialog({ open, invoice, onClose }: VoidInvoiceDialogP
 
   return (
     <Dialog open={open} onClose={isSubmitting ? undefined : onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Rút hoá đơn này</DialogTitle>
+      <DialogTitle>Thu hồi hoá đơn này</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           <DialogContentText>
             {formatMoney(invoice.totalAmount)}
-            {period ? ` for ${period}` : ''} sẽ không còn được tính vào khoản phải thu.
+            {period ? ` của ${period}` : ''} sẽ không còn được tính vào khoản phải thu.
           </DialogContentText>
 
           {error && <Alert severity="error">{error}</Alert>}
@@ -92,12 +92,12 @@ export function VoidInvoiceDialog({ open, invoice, onClose }: VoidInvoiceDialogP
           */}
           <Alert severity="info">
             <AlertTitle>Hoá đơn được GIỮ LẠI, không bị xoá</AlertTitle>
-            Vẫn nằm trong hồ sơ như bằng chứng đã thu khoản gì, đánh dấu là đã rút.
+            Vẫn nằm trong hồ sơ như bằng chứng đã thu khoản gì, đánh dấu là đã thu hồi.
             {period ? ` Hợp đồng sẽ quay lại danh sách cần xuất của ${period}, có thể xuất lại ở đó.` : ''}
           </Alert>
 
           <TextField
-            label="Vì sao rút hoá đơn này?"
+            label="Vì sao thu hồi hoá đơn này?"
             fullWidth
             multiline
             minRows={2}
@@ -121,7 +121,7 @@ export function VoidInvoiceDialog({ open, invoice, onClose }: VoidInvoiceDialogP
           disabled={isSubmitting || reason.trim() === ''}
           startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
-          {isSubmitting ? 'Đang rút…' : 'Rút hoá đơn'}
+          {isSubmitting ? 'Đang thu hồi…' : 'Thu hồi hoá đơn'}
         </Button>
       </DialogActions>
     </Dialog>

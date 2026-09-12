@@ -342,7 +342,7 @@ export function InvoiceDetailPage() {
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
           <Chip variant="outlined" label={invoiceTypeLabel(invoice.type)} />
           {isVoided ? (
-            <Chip label="Đã rút" />
+            <Chip label="Đã thu hồi" />
           ) : (
             <Chip
               color={invoice.paymentStatus === 'paid' ? 'success' : 'warning'}
@@ -384,7 +384,7 @@ export function InvoiceDetailPage() {
             ) : undefined
           }
         >
-          <AlertTitle>Hoá đơn này đã bị rút</AlertTitle>
+          <AlertTitle>Hoá đơn này đã bị thu hồi</AlertTitle>
           {/*
             The reason, where there is one. Null means the bill was voided
             before reasons were recorded — a real state, said as such rather
@@ -397,11 +397,11 @@ export function InvoiceDetailPage() {
             </>
           ) : (
             <>
-              Không ghi nhận lý do — hoá đơn này bị rút từ trước khi hệ thống lưu lý do.
+              Không ghi nhận lý do — hoá đơn này bị thu hồi từ trước khi hệ thống lưu lý do.
               <br />
             </>
           )}
-          Rút ngày {formatDate(invoice.voidedAt)}. Vẫn được giữ làm bằng chứng đã thu
+          Thu hồi ngày {formatDate(invoice.voidedAt)}. Vẫn được giữ làm bằng chứng đã thu
           những khoản gì, và không tính vào bất kỳ con số nào.
           {/*
             Withdrawing is almost never the goal — the owner is correcting a
@@ -475,7 +475,7 @@ export function InvoiceDetailPage() {
                 startIcon={<BlockIcon />}
                 onClick={() => setVoidOpen(true)}
               >
-                Rút hoá đơn
+                Thu hồi hoá đơn
               </Button>
             </Stack>
           </Box>
@@ -491,9 +491,9 @@ export function InvoiceDetailPage() {
         */}
         {!isVoided && invoice.paymentStatus === 'paid' && (
           <Alert severity="info">
-            <AlertTitle>Muốn rút hoá đơn này thì phải đảo giao dịch trước</AlertTitle>
-            Hoá đơn đã thanh toán thì không rút được — số tiền đã trả sẽ không còn gắn
-            với khoản nào. Đảo giao dịch ở trên trước, rồi mới rút được.
+            <AlertTitle>Muốn thu hồi hoá đơn này thì phải đảo giao dịch trước</AlertTitle>
+            Hoá đơn đã thanh toán thì không thu hồi được — số tiền đã trả sẽ không còn gắn
+            với khoản nào. Đảo giao dịch ở trên trước, rồi mới thu hồi được.
           </Alert>
         )}
       </Stack>

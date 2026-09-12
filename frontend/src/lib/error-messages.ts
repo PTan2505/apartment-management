@@ -134,10 +134,10 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   INVOICE_NO_RENT_LEFT:
     'Tháng kế tiếp nằm ngoài kỳ hạn hợp đồng nên không còn tiền nhà để tính — hãy ghi nhận trả phòng.',
   INVOICE_ALREADY_PAID: 'Hoá đơn này đã được thanh toán.',
-  INVOICE_ALREADY_VOIDED: 'Hoá đơn này đã được rút.',
-  INVOICE_VOID_PAYLOAD_INVALID: 'Thông tin rút hoá đơn chưa hợp lệ.',
+  INVOICE_ALREADY_VOIDED: 'Hoá đơn này đã được thu hồi.',
+  INVOICE_VOID_PAYLOAD_INVALID: 'Thông tin thu hồi hoá đơn chưa hợp lệ.',
   INVOICE_VOID_AFTER_PAYMENT:
-    'Hoá đơn đã thu tiền nên không rút được. Hãy đảo giao dịch thanh toán trước.',
+    'Hoá đơn đã thu tiền nên không thu hồi được. Hãy đảo giao dịch thanh toán trước.',
   INVOICE_SERVICE_FEE_UNKNOWN: 'Dịch vụ được chọn không tồn tại.',
   METER_BELOW_LEASE_START: 'Số điện cuối kỳ không thể thấp hơn số lúc hợp đồng bắt đầu.',
   METER_BELOW_INVOICED: 'Số điện cuối kỳ không thể thấp hơn số đã xuất hoá đơn trước đó.',
@@ -146,7 +146,7 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   // ── Thanh toán ───────────────────────────────────────────────────────────
   PAYMENT_NOT_FOUND: 'Không tìm thấy giao dịch thanh toán.',
   PAYMENT_PAYLOAD_INVALID: 'Thông tin thanh toán chưa hợp lệ.',
-  PAYMENT_ON_VOIDED_INVOICE: 'Không thể ghi nhận thanh toán cho hoá đơn đã rút.',
+  PAYMENT_ON_VOIDED_INVOICE: 'Không thể ghi nhận thanh toán cho hoá đơn đã thu hồi.',
   PAYMENT_ALREADY_REVERSED: 'Giao dịch này đã được đảo.',
   PAYMENT_REVERSAL_PAYLOAD_INVALID: 'Thông tin đảo giao dịch chưa hợp lệ.',
   PAYMENT_NOT_FROM_GATEWAY: 'Giao dịch này không thực hiện qua cổng thanh toán.',

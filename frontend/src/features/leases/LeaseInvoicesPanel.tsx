@@ -42,7 +42,7 @@ const PAGE_SIZE = 100
 /** What settles an invoice, as an owner would name it. */
 function PaymentChip({ invoice }: { invoice: Invoice }) {
   if (invoice.voidedAt !== null) {
-    return <Chip size="small" variant="outlined" label="Đã huỷ" />
+    return <Chip size="small" variant="outlined" label="Đã thu hồi" />
   }
   if (invoice.paymentStatus === 'paid') {
     return <Chip size="small" color="success" variant="outlined" label="Đã thu đủ" />

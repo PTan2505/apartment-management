@@ -196,8 +196,8 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
             <Alert severity="info">
               <AlertTitle>Không có gì để tất toán</AlertTitle>
               Hợp đồng này chưa thu được đồng cọc nào — hoá đơn nhận phòng
-              chưa hề được thanh toán. Hoá đơn đó sẽ được rút, để thôi bị
-              counted as owed.
+              chưa hề được thanh toán. Hoá đơn đó sẽ được thu hồi, để không còn
+              bị tính là tiền nợ.
             </Alert>
           )}
         </Stack>
