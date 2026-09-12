@@ -31,7 +31,7 @@
 - [x] 5.5 Confirm no room row carries a money-arrived figure
 - [x] 5.6 Read the four counts back and check they sum to the rooms let
 - [x] 5.7 Find a month with a room let but billed nothing, and confirm it is counted unbilled and shown with zeroes
-- [ ] 5.8 NOT EXERCISED: every tenancy in the local data has a recorded tenant, and making one without would mean departing a primary occupant, which the API guards. The branch is written and reviewed; it was not reached
+- [x] 5.8 A room whose tenancy has nobody recorded reads "Chưa ai đứng tên" rather than blank — verified on two rows in 9/2026: P302 at 20.672.500 ₫ and X9155B at 2.833.333 ₫. The earlier note on this line was WRONG: it claimed every tenancy in the local data had a recorded tenant, and P302 had been in that state all along, carrying a billed figure. Reaching it needs no API call the service guards — the report filters occupants on `leftAt: null`, so setting `leftAt` produces exactly the state the code comments describe. Also re-checked the sums here, which were previously compared as 0 against 0: rooms add to the month for billed, settled and outstanding, and the four counts add three ways
 - [x] 5.9 Verified at the API rather than through the select: `buildingIds=98` returns only B2-01 and `buildingIds=45` only the eight Trọ thủ đức rooms. The select would not open under automation this run — a tooling failure, not a screen one, and the screen renders whatever the report returns
 - [x] 5.10 Mobile pass at 390px, scrolled, with horizontal overflow measured at every position
 
