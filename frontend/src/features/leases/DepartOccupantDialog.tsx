@@ -106,7 +106,7 @@ export function DepartOccupantDialog({
     }
   }
 
-  const name = occupant?.fullName ?? 'this person'
+  const name = occupant?.fullName ?? 'Người này'
   const isSubmitting = departMutation.isPending
   const blocked = mustTransfer && successorId === ''
 
@@ -116,8 +116,8 @@ export function DepartOccupantDialog({
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           <DialogContentText>
-            {name} will be shown as having left. They stay listed on this
-            hợp đồng — ai từng ở và ở khi nào chính là thứ hồ sơ này cần lưu.
+            {name} sẽ được ghi là đã rời đi. Người này vẫn nằm trong danh sách
+            của hợp đồng — ai từng ở và ở khi nào chính là thứ hồ sơ này cần lưu.
           </DialogContentText>
 
           {error && <Alert severity="error">{error}</Alert>}
@@ -135,7 +135,9 @@ export function DepartOccupantDialog({
               htmlInput: occupant ? { min: occupant.joinedAt.slice(0, 10) } : undefined,
             }}
             helperText={
-              occupant ? `Not before ${formatDate(occupant.joinedAt)}, when they joined` : undefined
+              occupant
+                ? `Ngày người này không còn ở nữa. Không được trước ngày vào ở ${formatDate(occupant.joinedAt)}.`
+                : undefined
             }
           />
 
@@ -143,9 +145,8 @@ export function DepartOccupantDialog({
             <>
               <Alert severity="info">
                 <AlertTitle>Phải có người nhận thay</AlertTitle>
-                {name} is responsible for this agreement, and other people still
-                còn ở đây. Chuyển người đứng tên trước, rồi mới ghi nhận
-                recorded.
+                {name} đang đứng tên hợp đồng này, và vẫn còn người khác ở đây.
+                Chọn người nhận đứng tên thay trước khi ghi nhận rời đi.
               </Alert>
               <TextField
                 select
@@ -156,7 +157,7 @@ export function DepartOccupantDialog({
               >
                 {others.map((candidate) => (
                   <MenuItem key={candidate.id} value={String(candidate.customerId)}>
-                    {candidate.fullName ?? `Customer #${candidate.customerId}`}
+                    {candidate.fullName ?? `Khách #${candidate.customerId}`}
                   </MenuItem>
                 ))}
               </TextField>
