@@ -206,6 +206,15 @@ function SummaryBand({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
   )
 }
 
+/**
+ * Said out loud, never left blank.
+ *
+ * These four are null on every tenancy signed before the columns existed, and
+ * an empty space reads as a screen that failed to load rather than as a fact
+ * about the agreement.
+ */
+const KHONG_GHI = 'Chưa ghi nhận'
+
 function TermsCard({ lease }: { lease: Lease }) {
   const isCancelled = lease.status === 'cancelled'
   const ranPastTerm =
@@ -225,6 +234,13 @@ function TermsCard({ lease }: { lease: Lease }) {
           <Stack
             direction={{ xs: 'column', sm: 'row' }}
             spacing={3}
+            /*
+              Gap, not margins. Stack's default spacing is a margin on every
+              child but the first, which a wrapped item carries onto the next
+              line — so the first field of a wrapped row sits 24px right of
+              every other row's first field. Measured at x=305 against 281.
+            */
+            useFlexGap
             sx={{ flexWrap: 'wrap', rowGap: 2 }}
           >
             <Field
@@ -258,6 +274,13 @@ function TermsCard({ lease }: { lease: Lease }) {
           <Stack
             direction={{ xs: 'column', sm: 'row' }}
             spacing={3}
+            /*
+              Gap, not margins. Stack's default spacing is a margin on every
+              child but the first, which a wrapped item carries onto the next
+              line — so the first field of a wrapped row sits 24px right of
+              every other row's first field. Measured at x=305 against 281.
+            */
+            useFlexGap
             sx={{ flexWrap: 'wrap', rowGap: 2 }}
           >
             {/*
@@ -303,6 +326,67 @@ function TermsCard({ lease }: { lease: Lease }) {
                 hint={ranPastTerm ? 'Ở quá hạn thoả thuận' : 'Trả phòng trong hạn'}
               />
             )}
+          </Stack>
+
+          <Divider />
+
+          {/*
+            The terms an owner is asked for by a tenant or needs in a dispute.
+
+            Every row is shown even when empty. Hiding what is null cannot
+            distinguish "no notice period was agreed" from "the screen chose not
+            to show it", and it makes the card's shape depend on the data, so
+            two tenancies side by side have different rows for no visible
+            reason.
+          */}
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            spacing={3}
+            /*
+              Gap, not margins. Stack's default spacing is a margin on every
+              child but the first, which a wrapped item carries onto the next
+              line — so the first field of a wrapped row sits 24px right of
+              every other row's first field. Measured at x=305 against 281.
+            */
+            useFlexGap
+            sx={{ flexWrap: 'wrap', rowGap: 2 }}
+          >
+            {/*
+              Generated, unique, never typed — so it is read here and absent
+              from the edit dialog entirely.
+            */}
+            <Field label="Số hợp đồng" value={lease.reference} />
+            <Field
+              label="Báo trước khi kết thúc"
+              value={lease.noticeDays === null ? KHONG_GHI : `${lease.noticeDays} ngày`}
+            />
+            <Field
+              label="Ngày thanh toán hàng tháng"
+              value={lease.paymentDay === null ? KHONG_GHI : `Ngày ${lease.paymentDay}`}
+            />
+            {/*
+              Labelled as the OPENING reading. Beside an electricity reading
+              that the bills actually consume, a bare "số nước" invites reading
+              this as the current one — water is billed per person here, so
+              nothing has computed from it since handover.
+            */}
+            <Field
+              label="Số nước lúc bàn giao"
+              value={
+                lease.startWaterReading === null
+                  ? KHONG_GHI
+                  : `${lease.startWaterReading.toLocaleString('vi-VN')} m³`
+              }
+              hint="Số đầu kỳ, không phải số hiện tại"
+            />
+            <Field
+              label="Ngày ký bàn giao"
+              value={
+                lease.handoverSignedAt === null
+                  ? KHONG_GHI
+                  : formatDate(lease.handoverSignedAt)
+              }
+            />
           </Stack>
         </Stack>
       </CardContent>

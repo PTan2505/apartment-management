@@ -61,6 +61,32 @@ export interface Lease {
   occupantCount: number
   baseRent: number
   depositMonths: number
+  /**
+   * The agreement's own identifier, e.g. `HD-P302-2026-118`.
+   *
+   * Generated, unique, and never accepted from a caller — so it is a string
+   * rather than `string | null`, and it is read-only everywhere it appears.
+   */
+  reference: string
+  /** Days of notice required to end the tenancy. Null where none was agreed. */
+  noticeDays: number | null
+  /**
+   * The day of the month rent falls due, 1–31.
+   *
+   * Not clamped to the length of a particular month: it is the day the
+   * agreement names, and February is the biller's problem, not this field's.
+   */
+  paymentDay: number | null
+  /**
+   * What the water meter read at handover.
+   *
+   * OPENING, not current. Water is billed per person in this system, so
+   * nothing computes from this yet — it is a record of what was on the meter
+   * when the keys changed hands.
+   */
+  startWaterReading: number | null
+  /** The day the handover was signed. Null where it was not recorded. */
+  handoverSignedAt: string | null
   /** `baseRent × depositMonths` — what the terms agreed. */
   depositAmount: number
   /** What is actually held, which is a different question. */

@@ -8,18 +8,43 @@ import Dialog from '@mui/material/Dialog'
 import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
+import Divider from '@mui/material/Divider'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 
 import { errorMessage } from '@/lib/error-messages'
 import { useUpdateLease } from '@/features/leases/hooks'
-import { updateLeaseFormSchema, type UpdateLeaseFormOutput } from '@/features/leases/schema'
+import {
+  updateLeaseFormSchema,
+  type UpdateLeaseFormOutput,
+  type UpdateLeaseFormValues,
+} from '@/features/leases/schema'
 import type { Lease } from '@/features/leases/types'
 
 interface EditTermsDialogProps {
   open: boolean
   lease: Lease
   onClose: () => void
+}
+
+/**
+ * What is already recorded, shown so the owner edits rather than retypes.
+ *
+ * A term the tenancy has no value for opens empty, and an empty field is not
+ * sent — see `untouched` in the schema. `reference` is absent on purpose: it is
+ * generated and never accepted, so rendering it here even as a disabled input
+ * would suggest it is a value that could be changed if something were unlocked.
+ */
+function defaults(lease: Lease) {
+  return {
+    durationMonths: lease.durationMonths,
+    occupantCount: lease.occupantCount,
+    noticeDays: lease.noticeDays ?? undefined,
+    paymentDay: lease.paymentDay ?? undefined,
+    startWaterReading: lease.startWaterReading ?? undefined,
+    // The API reports a date-time; the input takes a date.
+    handoverSignedAt: lease.handoverSignedAt?.slice(0, 10) ?? undefined,
+  }
 }
 
 /**
@@ -41,18 +66,15 @@ export function EditTermsDialog({ open, lease, onClose }: EditTermsDialogProps) 
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<UpdateLeaseFormOutput>({
+  } = useForm<UpdateLeaseFormValues, unknown, UpdateLeaseFormOutput>({
     resolver: zodResolver(updateLeaseFormSchema),
-    defaultValues: {
-      durationMonths: lease.durationMonths,
-      occupantCount: lease.occupantCount,
-    },
+    defaultValues: defaults(lease),
   })
 
   useEffect(() => {
     if (!open) return
     setFormError(null)
-    reset({ durationMonths: lease.durationMonths, occupantCount: lease.occupantCount })
+    reset(defaults(lease))
   }, [open, lease, reset])
 
   async function onSubmit(values: UpdateLeaseFormOutput) {
@@ -107,6 +129,56 @@ export function EditTermsDialog({ open, lease, onClose }: EditTermsDialogProps) 
               'Số người, dùng tính điện nước. Hoá đơn đã xuất vẫn giữ số người lúc xuất.'
             }
             {...register('occupantCount', { valueAsNumber: true })}
+          />
+
+          {/*
+            The agreement's own terms. Offered here because the detail screen
+            reports them as missing on every tenancy signed before the columns
+            existed, and a screen that names a gap without a way to close it is
+            a dead end. The API already accepts all four.
+          */}
+          <Divider />
+
+          <TextField
+            label="Báo trước khi kết thúc"
+            type="number"
+            fullWidth
+            slotProps={{ htmlInput: { min: 0, step: 1 } }}
+            error={Boolean(errors.noticeDays)}
+            helperText={errors.noticeDays?.message ?? 'Số ngày. Để trống nếu chưa thoả thuận.'}
+            {...register('noticeDays', { valueAsNumber: true })}
+          />
+          <TextField
+            label="Ngày thanh toán hàng tháng"
+            type="number"
+            fullWidth
+            slotProps={{ htmlInput: { min: 1, max: 31, step: 1 } }}
+            error={Boolean(errors.paymentDay)}
+            helperText={
+              errors.paymentDay?.message ??
+              'Ngày trong tháng, từ 1 đến 31. Là ngày hợp đồng ghi, không phụ thuộc tháng dài ngắn.'
+            }
+            {...register('paymentDay', { valueAsNumber: true })}
+          />
+          <TextField
+            label="Số nước lúc bàn giao"
+            type="number"
+            fullWidth
+            slotProps={{ htmlInput: { min: 0, step: 1 } }}
+            error={Boolean(errors.startWaterReading)}
+            helperText={
+              errors.startWaterReading?.message ?? 'Số đầu kỳ ghi trên đồng hồ khi giao phòng.'
+            }
+            {...register('startWaterReading', { valueAsNumber: true })}
+          />
+          <TextField
+            label="Ngày ký bàn giao"
+            type="date"
+            fullWidth
+            slotProps={{ inputLabel: { shrink: true } }}
+            error={Boolean(errors.handoverSignedAt)}
+            helperText={errors.handoverSignedAt?.message ?? 'Để trống nếu chưa ký.'}
+            {...register('handoverSignedAt')}
           />
         </Stack>
       </DialogContent>

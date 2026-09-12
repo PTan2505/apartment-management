@@ -70,15 +70,76 @@ export const createLeaseFormSchema = z.object({
     .optional(),
 })
 
-/** Only these two, matching what the API accepts on a running lease. */
+/**
+ * A field left alone is not sent at all.
+ *
+ * An empty number input reads back as NaN, and an empty date input as ''. Both
+ * have to become `undefined` rather than reaching the API, because the API
+ * treats every agreement term as optional and has no way to express "set this
+ * back to null" — so a blank field cannot mean "clear it" without inventing a
+ * convention the API does not have. Clearing a recorded term is therefore not
+ * offered, rather than offered and silently ignored.
+ */
+function untouched(value: unknown): unknown {
+  if (value === '' || value === null) return undefined
+  if (typeof value === 'number' && Number.isNaN(value)) return undefined
+  return value
+}
+
+const optionalDays = z.preprocess(
+  untouched,
+  z
+    .number({ message: 'Nhập số ngày' })
+    .int('Phải là số nguyên')
+    .nonnegative('Không được âm')
+    .optional(),
+)
+
+/** What the API accepts on a running lease, and nothing beyond it. */
 export const updateLeaseFormSchema = z.object({
   durationMonths: wholeMonths.min(1, 'Tối thiểu 1 tháng'),
   occupantCount: z
     .number({ message: 'Nhập số người dùng để tính tiền' })
     .int('Phải là số nguyên')
     .min(1, 'Tối thiểu là 1'),
+  noticeDays: optionalDays,
+  /*
+    1–31, matching the API. NOT clamped to the length of any particular month:
+    this records the day the agreement names, and what the biller does with a
+    payment day of 31 in February is a separate question this field must not
+    answer on its behalf.
+  */
+  paymentDay: z.preprocess(
+    untouched,
+    z
+      .number({ message: 'Nhập ngày trong tháng' })
+      .int('Phải là số nguyên')
+      .min(1, 'Phải từ 1 đến 31')
+      .max(31, 'Phải từ 1 đến 31')
+      .optional(),
+  ),
+  startWaterReading: z.preprocess(
+    untouched,
+    z
+      .number({ message: 'Nhập số nước' })
+      .int('Phải là số nguyên')
+      .nonnegative('Không được âm')
+      .optional(),
+  ),
+  handoverSignedAt: z.preprocess(
+    untouched,
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Chọn ngày hợp lệ').optional(),
+  ),
 })
 
 export type CreateLeaseFormValues = z.input<typeof createLeaseFormSchema>
 export type CreateLeaseFormOutput = z.output<typeof createLeaseFormSchema>
+/**
+ * Input and output differ here, and the form needs both.
+ *
+ * The optional terms go through `z.preprocess`, so what the inputs hand back —
+ * '' from a date, NaN from a number — is wider than what the API is sent. The
+ * form is typed on the input and `handleSubmit` hands back the output.
+ */
+export type UpdateLeaseFormValues = z.input<typeof updateLeaseFormSchema>
 export type UpdateLeaseFormOutput = z.output<typeof updateLeaseFormSchema>
