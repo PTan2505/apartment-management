@@ -32,7 +32,10 @@ export async function createLease(input: CreateLeaseFormOutput): Promise<Lease> 
 }
 
 /** Answers 409 on a lease that has recorded a move-out. */
-export async function updateLease(id: number, input: UpdateLeaseFormOutput): Promise<Lease> {
+export async function updateLease(
+  id: number,
+  input: Partial<UpdateLeaseFormOutput>,
+): Promise<Lease> {
   const { data } = await apiClient.patch<Lease>(`/leases/${id}`, input)
   return data
 }

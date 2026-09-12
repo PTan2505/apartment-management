@@ -75,7 +75,9 @@ export function useCreateLease() {
 export function useUpdateLease() {
   const invalidate = useInvalidateLeases()
   return useMutation({
-    mutationFn: ({ id, input }: { id: number; input: UpdateLeaseFormOutput }) =>
+    // Partial, as the endpoint is: the billed-count dialog sends that one field
+    // and must not send back terms it never displayed.
+    mutationFn: ({ id, input }: { id: number; input: Partial<UpdateLeaseFormOutput> }) =>
       leasesApi.updateLease(id, input),
     onSuccess: invalidate,
   })

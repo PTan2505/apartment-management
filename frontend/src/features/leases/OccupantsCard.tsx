@@ -7,8 +7,11 @@ import CardContent from '@mui/material/CardContent'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Divider from '@mui/material/Divider'
+import IconButton from '@mui/material/IconButton'
 import Stack from '@mui/material/Stack'
+import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
+import EditIcon from '@mui/icons-material/Edit'
 import PersonAddIcon from '@mui/icons-material/PersonAdd'
 
 import { errorMessage } from '@/lib/error-messages'
@@ -16,6 +19,7 @@ import { formatDate } from '@/features/leases/dates'
 import { useOccupants } from '@/features/leases/hooks'
 import { AddOccupantDialog } from '@/features/leases/AddOccupantDialog'
 import { DepartOccupantDialog } from '@/features/leases/DepartOccupantDialog'
+import { EditOccupantCountDialog } from '@/features/leases/EditOccupantCountDialog'
 import { TransferPrimaryDialog } from '@/features/leases/TransferPrimaryDialog'
 import type { Lease, Occupant } from '@/features/leases/types'
 
@@ -44,6 +48,7 @@ export function OccupantsCard({ lease }: OccupantsCardProps) {
   const [addOpen, setAddOpen] = useState(false)
   const [departing, setDeparting] = useState<Occupant | null>(null)
   const [transferOpen, setTransferOpen] = useState(false)
+  const [countOpen, setCountOpen] = useState(false)
 
   const occupants = occupantsQuery.data?.data ?? []
   const current = occupants.filter((occupant) => occupant.status === 'current')
@@ -60,11 +65,40 @@ export function OccupantsCard({ lease }: OccupantsCardProps) {
               <Typography variant="overline" color="text.secondary">
                 Tính tiền cho
               </Typography>
-              <Typography variant="h6">
-                {lease.occupantCount} người
-              </Typography>
+              {/*
+                The edit sits on the figure's own line, where the owner notices
+                the number is wrong. An icon rather than a text button: the text
+                buttons below act on PEOPLE, and this acts on the count, which is
+                a different thing on purpose.
+
+                Only while the tenancy runs — the API refuses the update on one
+                that ended or was cancelled, and a control that cannot work is
+                worse than none.
+              */}
+              <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+                <Typography variant="h6">
+                  {lease.occupantCount} người
+                </Typography>
+                {isRunning && (
+                  <Tooltip title="Sửa số người tính tiền">
+                    <IconButton
+                      size="small"
+                      aria-label="Sửa số người tính tiền"
+                      onClick={() => setCountOpen(true)}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Stack>
+              {/* A portal, so where it sits in the tree does not affect layout. */}
+              <EditOccupantCountDialog
+                open={countOpen}
+                lease={lease}
+                onClose={() => setCountOpen(false)}
+              />
               <Typography variant="caption" color="text.secondary">
-                Dùng để tính tiền điện nước. Được ghi riêng, tách khỏi danh sách
+                Dùng để tính tiền nước. Được ghi riêng, tách khỏi danh sách
                 bên dưới, và hai con số này có thể khác nhau.
               </Typography>
             </Box>
