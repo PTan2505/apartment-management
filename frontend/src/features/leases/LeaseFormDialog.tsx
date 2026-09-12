@@ -561,7 +561,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
               // Named for what it does. It drives utility billing and is NOT the
               // number of people recorded on the tenancy — the two are kept
               // apart deliberately, and may legitimately differ.
-              helperText={errors.occupantCount?.message ?? 'Số người, dùng tính điện nước'}
+              helperText={errors.occupantCount?.message ?? 'Số người, dùng tính tiền nước'}
               {...register('occupantCount', { valueAsNumber: true })}
             />
           </Stack>

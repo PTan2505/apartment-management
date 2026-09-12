@@ -126,7 +126,7 @@ export function EditTermsDialog({ open, lease, onClose }: EditTermsDialogProps) 
             error={Boolean(errors.occupantCount)}
             helperText={
               errors.occupantCount?.message ??
-              'Số người, dùng tính điện nước. Hoá đơn đã xuất vẫn giữ số người lúc xuất.'
+              'Số người, dùng tính tiền nước. Hoá đơn đã xuất vẫn giữ số người lúc xuất.'
             }
             {...register('occupantCount', { valueAsNumber: true })}
           />

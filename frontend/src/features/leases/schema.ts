@@ -143,3 +143,20 @@ export type CreateLeaseFormOutput = z.output<typeof createLeaseFormSchema>
  */
 export type UpdateLeaseFormValues = z.input<typeof updateLeaseFormSchema>
 export type UpdateLeaseFormOutput = z.output<typeof updateLeaseFormSchema>
+
+/**
+ * The billed count on its own, for the edit beside "Tính tiền cho".
+ *
+ * Not a slice of `updateLeaseFormSchema`: that one preprocesses optional terms
+ * and types its input apart from its output, none of which applies to one
+ * required whole number. Same messages, so the field reads the same in both
+ * dialogs.
+ */
+export const occupantCountFormSchema = z.object({
+  occupantCount: z
+    .number({ message: 'Nhập số người dùng để tính tiền' })
+    .int('Phải là số nguyên')
+    .min(1, 'Tối thiểu là 1'),
+})
+
+export type OccupantCountFormValues = z.infer<typeof occupantCountFormSchema>
