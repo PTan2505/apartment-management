@@ -130,6 +130,22 @@ export interface PortalInvoice {
   periodStart: string | null
   periodEnd: string | null
   roomCode: string
+  /**
+   * Which place the room is in.
+   *
+   * Non-null: the mapper reads it through a required relation, so a bill
+   * cannot exist without one. Room codes repeat across buildings, and this is
+   * the only thing on the record that tells two of them apart.
+   */
+  buildingName: string
+  /**
+   * The day the money landed, for a bill that has been settled.
+   *
+   * Null for an unpaid bill, and ALSO for a settled one whose payment carries
+   * no date — written off, or settled against a deposit before dates were
+   * recorded. Both cases reach the screen, so neither may be substituted for.
+   */
+  settledAt: string | null
   meterReadingFrom: number | null
   meterReadingTo: number | null
   charges: PortalCharge[]

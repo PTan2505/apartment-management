@@ -66,6 +66,30 @@ export function InvoiceCard({ invoice, expanded, onToggle, children }: Props) {
               color={invoice.isPaid ? 'success' : 'warning'}
               label={invoice.isPaid ? 'Đã trả' : 'Chưa trả'}
             />
+            {/*
+              When, beside whether. "Đã trả" answers whether, and when is the
+              question the portal is opened with after a transfer — without it,
+              telling this month's settled bill from last month's means opening
+              both.
+
+              Shown only where a date genuinely exists. A settled bill can carry
+              none — written off, or settled against a deposit before dates were
+              recorded — and the issue date or today would put a day in front of
+              the tenant that nothing in the system supports, on the one screen
+              they use to check a transfer. The chip alone already says the true
+              thing, so nothing is added rather than a gap being named.
+            */}
+            {invoice.isPaid && invoice.settledAt !== null && (
+              <Typography variant="caption" color="text.secondary">
+                {/*
+                  Labelled, because the card now carries two dates. The row
+                  below already ends in the issue date, and two bare dates on
+                  one card leave the tenant to guess which is the day their
+                  money arrived — the only one of the two they came to check.
+                */}
+                Trả ngày {formatDate(invoice.settledAt)}
+              </Typography>
+            )}
           </Stack>
           {/*
             An unpaid bill leads with what is owed, labelled. The amount and the
@@ -78,7 +102,14 @@ export function InvoiceCard({ invoice, expanded, onToggle, children }: Props) {
             sx={{ justifyContent: 'space-between', alignItems: 'flex-end' }}
           >
             <Typography variant="body2" color="text.secondary">
-              Phòng {invoice.roomCode} · {formatDate(invoice.issueDate)}
+              {/*
+                The building sits with the room, not after the date. Room codes
+                repeat across buildings, so a tenant renting in two places has
+                two bills a code alone cannot tell apart — and splitting "which
+                room, where" around a date separates the two halves of one fact.
+              */}
+              Phòng {invoice.roomCode} · {invoice.buildingName} ·{' '}
+              {formatDate(invoice.issueDate)}
             </Typography>
             <Box sx={{ textAlign: 'right' }}>
               {!invoice.isPaid && (
