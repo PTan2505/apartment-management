@@ -211,3 +211,40 @@ export async function fetchPaymentLink(config: GatewayConfig, orderCode: number)
   }
   return payload.data;
 }
+
+/**
+ * Asks the gateway to stop accepting money on a link.
+ *
+ * Used when the owner withdraws the invoice the link was for: a QR code the
+ * tenant already holds would otherwise keep taking payment for a debt that no
+ * longer exists. `POST /v2/payment-requests/{orderCode}/cancel`, per the
+ * provider's documentation; a link that has already been paid cannot be
+ * cancelled, which the caller answers by asking what the gateway believes.
+ *
+ * Throws on refusal or when unreachable, like `createPaymentLink`, and for the
+ * same reason the messages carry nothing from the request.
+ */
+export async function cancelPaymentLink(config: GatewayConfig, orderCode: number, reason: string): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}/${orderCode}/cancel`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-client-id": config.clientId,
+        "x-api-key": config.apiKey,
+      },
+      body: JSON.stringify({ cancellationReason: reason }),
+    });
+  } catch {
+    throw new ValidationError("GATEWAY_UNREACHABLE", "The payment gateway could not be reached");
+  }
+
+  const payload = (await response.json().catch(() => null)) as { code?: string; desc?: string } | null;
+  if (!response.ok || payload?.code !== "00") {
+    throw new ValidationError(
+      "GATEWAY_REFUSED",
+      `The payment gateway refused the request${payload?.desc ? `: ${payload.desc}` : ""}`,
+    );
+  }
+}

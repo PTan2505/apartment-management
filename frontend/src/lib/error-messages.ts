@@ -137,7 +137,7 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   INVOICE_ALREADY_VOIDED: 'Hoá đơn này đã được thu hồi.',
   INVOICE_VOID_PAYLOAD_INVALID: 'Thông tin thu hồi hoá đơn chưa hợp lệ.',
   INVOICE_VOID_AFTER_PAYMENT:
-    'Hoá đơn đã thu tiền nên không thu hồi được. Hãy đảo giao dịch thanh toán trước.',
+    'Hoá đơn đã thu tiền nên không thu hồi được. Hãy hoàn tiền cho khách trước.',
   INVOICE_SERVICE_FEE_UNKNOWN: 'Dịch vụ được chọn không tồn tại.',
   METER_BELOW_LEASE_START: 'Số điện cuối kỳ không thể thấp hơn số lúc hợp đồng bắt đầu.',
   METER_BELOW_INVOICED: 'Số điện cuối kỳ không thể thấp hơn số đã xuất hoá đơn trước đó.',
@@ -147,8 +147,8 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   PAYMENT_NOT_FOUND: 'Không tìm thấy giao dịch thanh toán.',
   PAYMENT_PAYLOAD_INVALID: 'Thông tin thanh toán chưa hợp lệ.',
   PAYMENT_ON_VOIDED_INVOICE: 'Không thể ghi nhận thanh toán cho hoá đơn đã thu hồi.',
-  PAYMENT_ALREADY_REVERSED: 'Giao dịch này đã được đảo.',
-  PAYMENT_REVERSAL_PAYLOAD_INVALID: 'Thông tin đảo giao dịch chưa hợp lệ.',
+  PAYMENT_ALREADY_REVERSED: 'Giao dịch này đã được hoàn tiền.',
+  PAYMENT_REVERSAL_PAYLOAD_INVALID: 'Thông tin hoàn tiền chưa hợp lệ.',
   PAYMENT_NOT_FROM_GATEWAY: 'Giao dịch này không thực hiện qua cổng thanh toán.',
   GATEWAY_NOT_CONFIGURED: 'Máy chủ chưa cấu hình thanh toán trực tuyến.',
   GATEWAY_UNREACHABLE: 'Không kết nối được tới cổng thanh toán. Vui lòng thử lại.',
@@ -169,7 +169,7 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   DEPOSIT_WOULD_GO_NEGATIVE: 'Thanh toán này sẽ khiến tiền cọc đang giữ bị âm.',
   DEPOSIT_TOO_SMALL_TO_SETTLE: 'Hoá đơn lớn hơn số tiền cọc đang giữ nên không trừ vào cọc được.',
   DEPOSIT_VOID_ALREADY_SPENT:
-    'Khoản cọc do hoá đơn này lập đã bị dùng một phần. Hãy đảo các lần trừ cọc trước.',
+    'Khoản cọc do hoá đơn này lập đã bị dùng một phần. Hãy hoàn lại các lần trừ cọc trước.',
   DEPOSIT_RESTORE_WOULD_GO_NEGATIVE: 'Khôi phục khoản trừ này sẽ khiến tiền cọc bị âm.',
 
   // ── Dịch vụ ──────────────────────────────────────────────────────────────

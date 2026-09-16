@@ -30,15 +30,35 @@ interface InvoiceListProps {
  * own chip rather than being shown as an outstanding bill. Reading a withdrawn
  * bill as money owed is how an owner ends up chasing a tenant for nothing.
  */
-function StatusChips({ invoice }: { invoice: Invoice }) {
-  // The chips stay on one line. `white-space` on the table cell stops the
-  // LABELS breaking, but the chips are flex items and would still wrap between
-  // themselves, which is the same broken look one level up.
+function StatusChips({ invoice, wrap = false }: { invoice: Invoice; wrap?: boolean }) {
+  // In the TABLE the chips stay on one line. `white-space` on the table cell
+  // stops the LABELS breaking, but the chips are flex items and would still wrap
+  // between themselves, which is the same broken look one level up.
+  //
+  // On a phone CARD they may wrap. A withdrawn bill with money to return carries
+  // three chips, and held on one line they pushed the card to 420px inside a
+  // 356px column — the card scrolled sideways and cut off its own period, lease
+  // and amount. Measured at 390px, not assumed.
   return (
-    <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'nowrap', gap: 0.5 }}>
+    <Stack
+      direction="row"
+      spacing={0.5}
+      useFlexGap
+      sx={{ flexWrap: wrap ? 'wrap' : 'nowrap', justifyContent: wrap ? 'flex-end' : undefined, gap: 0.5 }}
+    >
       <Chip size="small" variant="outlined" label={invoiceTypeLabel(invoice.type)} />
       {invoice.voidedAt !== null ? (
-        <Chip size="small" color="default" variant="filled" label="Đã thu hồi" />
+        <>
+          <Chip size="small" color="default" variant="filled" label="Đã thu hồi" />
+          {/*
+            A tenant paid for this after it was withdrawn. The bill reads as
+            withdrawn and the money is kept out of the revenue report, so without
+            this mark the transfer is invisible until the tenant asks for it back.
+          */}
+          {invoice.receivedAfterWithdrawal !== null && (
+            <Chip size="small" color="error" variant="filled" label="Có tiền cần trả lại" />
+          )}
+        </>
       ) : (
         <Chip
           size="small"
@@ -128,11 +148,12 @@ export function InvoiceList({ invoices, onOpen }: InvoiceListProps) {
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'flex-start',
+                      flexWrap: 'wrap',
                       gap: 1,
                     }}
                   >
                     <Typography sx={{ fontWeight: 600 }}>{periodLabel(invoice)}</Typography>
-                    <StatusChips invoice={invoice} />
+                    <StatusChips invoice={invoice} wrap />
                   </Box>
                   <Typography variant="body2" color="text.secondary">
                     Hợp đồng #{invoice.leaseId}

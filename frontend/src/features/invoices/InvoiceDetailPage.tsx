@@ -175,12 +175,12 @@ function PaymentsCard({
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
                     {payment.state === 'reversed'
-                      ? `Nhận ${formatDate(payment.paidAt)}, đảo ${formatDate(payment.reversedAt)}`
+                      ? `Nhận ${formatDate(payment.paidAt)}, hoàn ${formatDate(payment.reversedAt)}`
                       : `Nhận ${formatDate(payment.paidAt)}`}
                   </Typography>
                 </Box>
                 {payment.state === 'reversed' ? (
-                  <Chip size="small" label="Đã đảo" />
+                  <Chip size="small" label="Đã hoàn tiền" />
                 ) : (
                   <Button
                     size="small"
@@ -189,7 +189,7 @@ function PaymentsCard({
                     disabled={reversing === payment.id}
                     onClick={() => onReverse(payment)}
                   >
-                    {reversing === payment.id ? 'Đang đảo…' : 'Đảo giao dịch'}
+                    {reversing === payment.id ? 'Đang hoàn…' : 'Hoàn tiền cho khách'}
                   </Button>
                 )}
               </Box>
@@ -423,6 +423,24 @@ export function InvoiceDetailPage() {
         </Alert>
       )}
 
+      {/*
+        A tenant paid for this bill after it was withdrawn — the QR code they
+        held still worked, or they paid seconds before the withdrawal and the
+        confirmation arrived after it. The money is on record and kept out of
+        every total, and it is owed back. Its own alert rather than a line in the
+        withdrawn notice above: that notice is history, and this is a task.
+
+        The way to return it is the reversal already offered in the payments
+        card below, so this names that rather than duplicating the action.
+      */}
+      {isVoided && invoice.receivedAfterWithdrawal !== null && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          <AlertTitle>Có tiền chuyển về sau khi hoá đơn đã bị thu hồi</AlertTitle>
+          {formatMoney(invoice.receivedAfterWithdrawal)} đã về cho hoá đơn này sau khi thu hồi.
+          Khoản này phải trả lại cho khách: hoàn tiền ở mục Thanh toán bên dưới.
+        </Alert>
+      )}
+
       {actionError && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {actionError}
@@ -491,9 +509,9 @@ export function InvoiceDetailPage() {
         */}
         {!isVoided && invoice.paymentStatus === 'paid' && (
           <Alert severity="info">
-            <AlertTitle>Muốn thu hồi hoá đơn này thì phải đảo giao dịch trước</AlertTitle>
+            <AlertTitle>Muốn thu hồi hoá đơn này thì phải hoàn tiền trước</AlertTitle>
             Hoá đơn đã thanh toán thì không thu hồi được — số tiền đã trả sẽ không còn gắn
-            với khoản nào. Đảo giao dịch ở trên trước, rồi mới thu hồi được.
+            với khoản nào. Hoàn tiền ở trên trước, rồi mới thu hồi được.
           </Alert>
         )}
       </Stack>

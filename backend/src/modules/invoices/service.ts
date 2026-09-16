@@ -1,7 +1,8 @@
 import { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
-import { paginate, toSkipTake } from "@/lib/pagination.js";
+import { mapPaginated, paginate, toSkipTake } from "@/lib/pagination.js";
+import { retireLinksOfWithdrawnInvoice } from "@/modules/payment-gateway/service.js";
 import {
   buildLineItems,
   buildServiceFeeLineItems,
@@ -40,6 +41,27 @@ const invoiceInclude = {
   // taken, reversed, taken again — so they are listed rather than summarised.
   payments: { orderBy: { id: "asc" } },
 } as const;
+
+/**
+ * Every invoice this module returns goes out through here.
+ *
+ * It adds `receivedAfterWithdrawal`: the money that arrived for a withdrawn bill
+ * and has not been handed back, or null. Computed once, here, so no screen has
+ * to work it out from payment states — and so the rule that makes it safe sits
+ * next to the code that relies on it: a succeeded payment on a withdrawn invoice
+ * can only have arrived after withdrawal, because withdrawal is refused while an
+ * invoice is paid and a cancelled tenancy withdraws only unpaid invoices.
+ */
+function toInvoiceResponse<T extends { voidedAt: Date | null; payments: { state: string; amount: Prisma.Decimal }[] }>(
+  invoice: T,
+) {
+  const landed = invoice.voidedAt === null ? [] : invoice.payments.filter((payment) => payment.state === "succeeded");
+  return {
+    ...invoice,
+    receivedAfterWithdrawal:
+      landed.length === 0 ? null : landed.reduce((sum, payment) => sum.add(payment.amount), new Decimal(0)),
+  };
+}
 
 async function findInvoiceOrThrow(id: number) {
   const invoice = await prisma.invoice.findUnique({ where: { id }, include: invoiceInclude });
@@ -189,7 +211,7 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
 
   // The lines and the total are written together, in one statement, so a total
   // never exists without the charges that account for it.
-  return prisma.invoice.create({
+  return toInvoiceResponse(await prisma.invoice.create({
     data: {
       leaseId: lease.id,
       year: input.year,
@@ -208,7 +230,7 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
       lineItems: { create: [...baseLines, ...feeLines] },
     },
     include: invoiceInclude,
-  });
+  }));
 }
 
 /**
@@ -354,20 +376,23 @@ export async function listInvoices(query: ListInvoicesQuery) {
       : {}),
   };
 
-  return paginate(
-    query,
-    prisma.invoice.findMany({
-      where,
-      include: invoiceInclude,
-      orderBy: [{ year: "asc" }, { month: "asc" }, { id: "asc" }],
-      ...toSkipTake(query),
-    }),
-    prisma.invoice.count({ where }),
+  return mapPaginated(
+    await paginate(
+      query,
+      prisma.invoice.findMany({
+        where,
+        include: invoiceInclude,
+        orderBy: [{ year: "asc" }, { month: "asc" }, { id: "asc" }],
+        ...toSkipTake(query),
+      }),
+      prisma.invoice.count({ where }),
+    ),
+    toInvoiceResponse,
   );
 }
 
 export async function getInvoiceById(id: number) {
-  return findInvoiceOrThrow(id);
+  return toInvoiceResponse(await findInvoiceOrThrow(id));
 }
 
 /**
@@ -409,7 +434,7 @@ export async function issueAdhocInvoice(input: IssueAdhocInvoiceInput) {
 
   const totalAmount = lines.reduce((running, line) => running.add(line.amount), new Decimal(0));
 
-  return prisma.invoice.create({
+  return toInvoiceResponse(await prisma.invoice.create({
     data: {
       leaseId: lease.id,
       type: "adhoc",
@@ -418,7 +443,7 @@ export async function issueAdhocInvoice(input: IssueAdhocInvoiceInput) {
       lineItems: { create: lines },
     },
     include: invoiceInclude,
-  });
+  }));
 }
 
 export async function markPaid(id: number, input: MarkPaidInput) {
@@ -464,7 +489,7 @@ export async function markPaid(id: number, input: MarkPaidInput) {
       data: { paymentStatus: "paid" },
       include: invoiceInclude,
     });
-  });
+  }).then(toInvoiceResponse);
 }
 
 /**
@@ -494,11 +519,34 @@ export async function voidInvoice(id: number, input: VoidInvoiceInput) {
     );
   }
 
-  return prisma.invoice.update({
-    where: { id },
-    // Why, alongside when. A withdrawn bill carrying only a date cannot be
-    // explained months later — least of all to the tenant asking about it.
-    data: { voidedAt: new Date(), voidReason: input.reason },
-    include: invoiceInclude,
+  /*
+    A pending gateway payment on this bill is a link the tenant still holds, and
+    it keeps taking money until the gateway is told. Found before, retired inside
+    the same transaction as the withdrawal, and cancelled at the gateway only
+    after that commits — see `retireLinksOfWithdrawnInvoice`.
+  */
+  const retiring = await prisma.payment.findMany({
+    where: { invoiceId: id, method: "gateway", state: "pending", gatewayOrderCode: { not: null } },
+    select: { gatewayOrderCode: true },
   });
+
+  const withdrawn = await prisma.$transaction(async (tx) => {
+    await tx.payment.updateMany({
+      where: { invoiceId: id, method: "gateway", state: "pending" },
+      data: { state: "cancelled" },
+    });
+    return tx.invoice.update({
+      where: { id },
+      // Why, alongside when. A withdrawn bill carrying only a date cannot be
+      // explained months later — least of all to the tenant asking about it.
+      data: { voidedAt: new Date(), voidReason: input.reason },
+      include: invoiceInclude,
+    });
+  });
+
+  // Not awaited: the owner's answer does not wait on somebody else's server, and
+  // this never throws. Anything it cannot do is logged for reconciliation.
+  void retireLinksOfWithdrawnInvoice(id, retiring.map((payment) => payment.gatewayOrderCode!));
+
+  return toInvoiceResponse(withdrawn);
 }
