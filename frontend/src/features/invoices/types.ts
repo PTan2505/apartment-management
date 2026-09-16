@@ -81,6 +81,15 @@ export interface Invoice {
    * statement in front of a reader.
    */
   voidReason: string | null
+  /**
+   * Money that arrived for this bill AFTER it was withdrawn and has not been
+   * returned; null otherwise.
+   *
+   * Reported by the API rather than worked out here from payment states — the
+   * rule that makes it safe ("a succeeded payment on a withdrawn bill can only
+   * have arrived after withdrawal") lives with the code that enforces it.
+   */
+  receivedAfterWithdrawal: number | null
   lineItems: InvoiceLineItem[]
   payments: Payment[]
 }

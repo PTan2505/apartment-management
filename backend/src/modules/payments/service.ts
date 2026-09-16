@@ -68,6 +68,26 @@ export async function reversePayment(id: number, input: ReversePaymentInput) {
   });
 
   return prisma.$transaction(async (tx) => {
+    /*
+      Money that arrived for a WITHDRAWN invoice, being handed back.
+
+      It never settled the bill, so no deposit was ever held for it and none may
+      be released: doing so either refuses the refund with a message about a
+      deposit already spent, or takes money out of a holding that belongs to
+      something else. Nor does the bill's status move — it was never paid.
+
+      Only this reaches here, by the invariant stated in the gateway's `settle`:
+      a succeeded payment on a withdrawn invoice can only have arrived after
+      withdrawal.
+    */
+    if (invoice.voidedAt !== null) {
+      await tx.payment.update({
+        where: { id },
+        data: { state: "reversed", reversedAt: input.reversedAt },
+      });
+      return tx.payment.findUniqueOrThrow({ where: { id }, include: paymentInclude });
+    }
+
     // A deposit this invoice CHARGED stopped being held the moment its payment
     // was undone — the charge it rested on is no longer settled.
     await releaseFromInvoice(tx, invoice.leaseId, invoice.lineItems);

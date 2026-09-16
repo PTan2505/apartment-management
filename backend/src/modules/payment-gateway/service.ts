@@ -4,6 +4,7 @@ import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import { holdFromInvoice } from "@/modules/deposits/holding.js";
 import type { CreatedPaymentLink } from "./payos.js";
 import {
+  cancelPaymentLink,
   createPaymentLink,
   fetchPaymentLink,
   gatewayConfig,
@@ -227,7 +228,15 @@ export async function applyWebhook(body: WebhookBody) {
   // for an attempt that already succeeded, was cancelled or expired changes
   // nothing — which is what makes a retried delivery harmless without any
   // separate record of what has been seen.
-  if (payment.state !== "pending") {
+  //
+  // With one exception: an invoice that was WITHDRAWN retires its pending
+  // payments at that moment, and a tenant who paid seconds before sends a
+  // confirmation that arrives after. That money landed, so a retired payment on
+  // a withdrawn invoice is still recorded — `settle` keeps the bill withdrawn.
+  // `succeeded` stays excluded, which keeps a retried delivery harmless.
+  const landedOnWithdrawn =
+    payment.invoice.voidedAt !== null && (payment.state === "cancelled" || payment.state === "expired");
+  if (payment.state !== "pending" && !landedOnWithdrawn) {
     await prisma.payment.update({ where: { id: payment.id }, data: { gatewayPayload: raw } });
     return { applied: false as const, alreadySettled: true as const };
   }
@@ -260,6 +269,39 @@ async function settle(
   raw: Prisma.InputJsonValue | undefined,
 ) {
   await prisma.$transaction(async (tx) => {
+    /*
+      Money that arrives for a WITHDRAWN invoice is recorded, and the bill stays
+      withdrawn.
+
+      The money is real — a transfer nobody has on record is money nobody can
+      give back — so the payment becomes succeeded with the day it landed. But
+      the owner took this bill back: marking it paid would reverse that decision
+      without anyone making it, and holding its deposit would put money in the
+      ledger for a charge that no longer exists. Before this branch existed, a
+      tenant paying a withdrawn move-in bill turned it into a paid one and added
+      its deposit to the holding — reproduced on test data, not supposed.
+
+      Read inside the transaction, so a withdrawal that commits between the
+      caller's lookup and this write is still seen.
+
+      Every route that learns of money comes through here — the confirmation, and
+      catching a lost one — so neither can forget this.
+
+      THE INVARIANT this and `reversePayment` rely on: a succeeded payment on a
+      withdrawn invoice can only have arrived after withdrawal, because
+      withdrawal is refused while an invoice is paid and a cancelled tenancy
+      withdraws only unpaid invoices. A path that withdraws a paid invoice breaks
+      both places.
+    */
+    const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId }, select: { voidedAt: true } });
+    if (invoice.voidedAt !== null) {
+      await tx.payment.update({
+        where: { id: paymentId },
+        data: { state: "succeeded", paidAt, ...(raw === undefined ? {} : { gatewayPayload: raw }) },
+      });
+      return;
+    }
+
     // Whatever deposit this invoice charged becomes money held, now that it has
     // been paid — the same rule as any other way of paying it.
     await holdFromInvoice(tx, leaseId, lineItems);
@@ -271,6 +313,53 @@ async function settle(
 
     await tx.invoice.update({ where: { id: invoiceId }, data: { paymentStatus: "paid" } });
   });
+}
+
+/**
+ * Tells the gateway to stop taking money on the links of an invoice the owner
+ * has just withdrawn.
+ *
+ * Called AFTER the withdrawal commits — the payments are already recorded as
+ * cancelled by then — and it can never undo it. A transaction cannot be held
+ * open across a call to somebody else's server, and a gateway that is slow,
+ * unreachable or unconfigured does not change the owner's decision.
+ *
+ * Where the gateway refuses because the link was already paid, the money
+ * landed: it is asked what it believes, and a PAID answer goes through `settle`,
+ * which records it on the withdrawn bill without settling that bill.
+ *
+ * Never throws. The owner's request has already been answered by the time any of
+ * this matters, so a failure here is logged — with the order code, never with
+ * anything from the request's headers — and left for reconciliation.
+ */
+export async function retireLinksOfWithdrawnInvoice(invoiceId: number, orderCodes: number[]) {
+  const config = gatewayConfig();
+  if (!config || orderCodes.length === 0) {
+    return;
+  }
+
+  for (const orderCode of orderCodes) {
+    try {
+      await cancelPaymentLink(config, orderCode, "Chủ nhà đã thu hồi hoá đơn này");
+    } catch {
+      try {
+        const remote = await fetchPaymentLink(config, orderCode);
+        if (remote?.status !== "PAID") {
+          console.warn("Could not cancel the gateway link of a withdrawn invoice", { invoiceId, orderCode, gatewayStatus: remote?.status ?? null });
+          continue;
+        }
+        const payment = await prisma.payment.findUnique({
+          where: { gatewayOrderCode: orderCode },
+          include: { invoice: { include: { lineItems: { select: { kind: true, amount: true } } } } },
+        });
+        if (payment && payment.state !== "succeeded") {
+          await settle(payment.id, payment.invoiceId, payment.invoice.leaseId, payment.invoice.lineItems, new Date(), undefined);
+        }
+      } catch {
+        console.warn("Could not reach the gateway about a withdrawn invoice's link", { invoiceId, orderCode });
+      }
+    }
+  }
 }
 
 /**
