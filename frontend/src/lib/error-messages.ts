@@ -122,6 +122,17 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   CONTRACT_FILE_TOO_LARGE: 'Tệp vượt quá dung lượng cho phép.',
   CONTRACT_NONE_ON_FILE: 'Hợp đồng này chưa có bản scan nào.',
 
+  // ── Căn cước công dân ────────────────────────────────────────────────────
+  STORAGE_NOT_CONFIGURED: 'Máy chủ chưa cấu hình kho lưu trữ tệp.',
+  ID_CARD_UPLOAD_PAYLOAD_INVALID: 'Yêu cầu tải ảnh căn cước chưa hợp lệ.',
+  ID_CARD_CONFIRM_PAYLOAD_INVALID: 'Xác nhận tải ảnh căn cước chưa hợp lệ.',
+  ID_CARD_SIDE_INVALID: 'Chỉ nhận mặt trước hoặc mặt sau.',
+  ID_CARD_KEY_FOREIGN: 'Ảnh này không thuộc về khách đang xem.',
+  ID_CARD_OBJECT_MISSING:
+    'Ảnh chưa có trên kho lưu trữ. Có thể tải lên chưa xong — hãy thử lại.',
+  ID_CARD_FILE_TOO_LARGE: 'Ảnh vượt quá dung lượng cho phép (10 MB).',
+  ID_CARD_NONE_ON_FILE: 'Khách này chưa có ảnh mặt đó.',
+
   // ── Hoá đơn ──────────────────────────────────────────────────────────────
   INVOICE_NOT_FOUND: 'Không tìm thấy hoá đơn.',
   INVOICE_PAYLOAD_INVALID: 'Thông tin hoá đơn chưa hợp lệ.',

@@ -5,7 +5,11 @@ import InputAdornment from '@mui/material/InputAdornment'
 import Alert from '@mui/material/Alert'
 import Autocomplete from '@mui/material/Autocomplete'
 import AlertTitle from '@mui/material/AlertTitle'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
+import UploadFileIcon from '@mui/icons-material/UploadFile'
+import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Dialog from '@mui/material/Dialog'
 import DialogActions from '@mui/material/DialogActions'
@@ -22,9 +26,12 @@ import { MoneyField } from '@/components/MoneyField'
 import { isApiError } from '@/lib/api-error'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
 import { useBuildings } from '@/features/buildings/hooks'
+import { IdCardPicker } from '@/features/customers/IdCardPicker'
+import * as customersApi from '@/features/customers/api'
 import { useCreateCustomer, useCustomers } from '@/features/customers/hooks'
 import type { Customer } from '@/features/customers/types'
 import { useRoomMeterReading, useRooms } from '@/features/rooms/hooks'
+import { attachContract, CONTRACT_ACCEPT } from '@/features/leases/api'
 import { useCreateLease } from '@/features/leases/hooks'
 import { createLeaseFormSchema, type CreateLeaseFormValues } from '@/features/leases/schema'
 import type { Lease } from '@/features/leases/types'
@@ -51,6 +58,13 @@ function today(): string {
  * owner thinks in rooms and a ledger thinks in tenancies; both routes are how
  * the work actually arrives, and two forms would be two things to keep in step.
  */
+/** KB under a megabyte: a 60 KB scan shown as "0.1 MB" reads as an empty file. */
+function coTep(bytes: number): string {
+  return bytes < 1024 * 1024
+    ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+    : `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
 export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormDialogProps) {
   const theme = useTheme()
   const fullScreen = useMediaQuery(theme.breakpoints.down(MOBILE_BREAKPOINT))
@@ -168,6 +182,10 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
     setPickerBuildingId('')
     setMatched(null)
     createdRef.current = null
+    setIdCardFront(null)
+    setIdCardBack(null)
+    setContractFile(null)
+    setCreatedLease(null)
     reset({
       roomId: roomId ?? 0,
       signatory: { kind: 'existing', customerId: 0 },
@@ -203,6 +221,22 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
    */
   const createdRef = useRef<Customer | null>(null)
 
+  /**
+   * The two sides of the signatory's ID card, chosen here and uploaded AFTER
+   * the tenancy exists. Ordering it that way means a photograph that fails to
+   * upload cannot cost the owner the tenancy — it costs them the photograph,
+   * which the tenancy's own page can take again.
+   */
+  const [idCardFront, setIdCardFront] = useState<File | null>(null)
+  const [idCardBack, setIdCardBack] = useState<File | null>(null)
+  /** The signed contract, chosen here and attached after the tenancy exists —
+   *  same ordering as the ID card, and for the same reason. */
+  const [contractFile, setContractFile] = useState<File | null>(null)
+  const contractInput = useRef<HTMLInputElement>(null)
+
+  /** Set only when the tenancy was created but a file did not attach. */
+  const [createdLease, setCreatedLease] = useState<Lease | null>(null)
+
   async function resolveSignatoryId(
     signatory: CreateLeaseFormValues['signatory'],
   ): Promise<number | null> {
@@ -230,6 +264,37 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
 
       const input = { ...createLeaseFormSchema.parse(values), signatoryId }
       const lease = await createMutation.mutateAsync(input)
+
+      // The tenancy exists from here on. Neither of these throws for that
+      // reason: a file that fails to upload is reported as a file that failed,
+      // not as a failed signing.
+      const { failed } = await customersApi.attachIdCards(signatoryId, {
+        front: idCardFront,
+        back: idCardBack,
+      })
+      const contractOk = contractFile === null || (await attachContract(lease.id, contractFile))
+      if (failed.length > 0 || !contractOk) {
+        /*
+          The tenancy exists; the photographs do not. Both halves have to reach
+          the owner, so this does NOT navigate: calling `onCreated` here would
+          leave the tenancy's page open with the message unmounted along with
+          this dialog — which is exactly what happened the first time, and the
+          failure looked like a success.
+
+          The dialog stays, says what happened, and offers the way on.
+        */
+        const thieu = [
+          ...failed.map((side) => (side === 'front' ? 'ảnh mặt trước căn cước' : 'ảnh mặt sau căn cước')),
+          ...(contractOk ? [] : ['bản hợp đồng đã ký']),
+        ].join(', ')
+        setFormError(
+          `Đã tạo hợp đồng, nhưng chưa tải lên được: ${thieu}. ` +
+            'Mở hợp đồng để tải lại.',
+        )
+        setCreatedLease(lease)
+        return
+      }
+
       onCreated(lease)
       onClose()
     } catch (error) {
@@ -674,6 +739,77 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
             />
           </Stack>
 
+          <Divider />
+
+          {/*
+            The tenant's ID card, attached to the PERSON rather than to this
+            tenancy: somebody has one card whatever they rent. Optional — the
+            owner may not have it to hand — and for a tenant already on file,
+            choosing nothing leaves whatever they had alone.
+          */}
+          <Box>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              Căn cước công dân của người đứng tên
+            </Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <IdCardPicker
+                label="Mặt trước"
+                file={idCardFront}
+                onChange={setIdCardFront}
+                disabled={isSubmitting}
+              />
+              <IdCardPicker
+                label="Mặt sau"
+                file={idCardBack}
+                onChange={setIdCardBack}
+                disabled={isSubmitting}
+              />
+            </Stack>
+            <Typography variant="caption" color="text.secondary">
+              Không bắt buộc. Ảnh được lưu cho khách, dùng lại cho các hợp đồng sau.
+            </Typography>
+          </Box>
+
+          {/*
+            The signed contract. Optional and attached after the tenancy is
+            created, like the ID card — a scan that fails to upload must not
+            cost the owner the signing.
+          */}
+          <Box>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              Bản hợp đồng đã ký
+            </Typography>
+            {contractFile === null ? (
+              <Button
+                variant="outlined"
+                startIcon={<UploadFileIcon />}
+                disabled={isSubmitting}
+                onClick={() => contractInput.current?.click()}
+              >
+                Chọn tệp
+              </Button>
+            ) : (
+              <Chip
+                label={`${contractFile.name} · ${coTep(contractFile.size)}`}
+                onDelete={isSubmitting ? undefined : () => setContractFile(null)}
+                sx={{ maxWidth: '100%' }}
+              />
+            )}
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+              Không bắt buộc. Nhận tệp PDF hoặc ảnh (JPG, PNG, HEIC), tối đa 20 MB.
+            </Typography>
+            <input
+              ref={contractInput}
+              type="file"
+              accept={CONTRACT_ACCEPT}
+              hidden
+              onChange={(event) => {
+                setContractFile(event.target.files?.[0] ?? null)
+                event.target.value = ''
+              }}
+            />
+          </Box>
+
           {/*
             The rates this tenancy will be billed at, filled from the building
             when a room is chosen. Shown rather than left implicit: a tenancy
@@ -713,18 +849,29 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} disabled={isSubmitting}>
-          Huỷ
-        </Button>
-        <Button
-          type="submit"
-          form="lease-form"
-          variant="contained"
-          disabled={isSubmitting}
-          startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : undefined}
-        >
-          {isSubmitting ? 'Đang tạo…' : 'Tạo hợp đồng'}
-        </Button>
+        {createdLease === null ? (
+          <>
+            <Button onClick={onClose} disabled={isSubmitting}>
+              Huỷ
+            </Button>
+            <Button
+              type="submit"
+              form="lease-form"
+              variant="contained"
+              disabled={isSubmitting}
+              startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : undefined}
+            >
+              {isSubmitting ? 'Đang tạo…' : 'Tạo hợp đồng'}
+            </Button>
+          </>
+        ) : (
+          // The tenancy was created and the images were not. Signing again would
+          // make a second tenancy, so that button is gone; what is left is the
+          // way to the page where the images can be attached again.
+          <Button variant="contained" onClick={() => onCreated(createdLease)}>
+            Mở hợp đồng
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   )

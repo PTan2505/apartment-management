@@ -31,6 +31,7 @@ import {
 } from '@/features/leases/dates'
 import { useLease } from '@/features/leases/hooks'
 import { CancelLeaseDialog } from '@/features/leases/CancelLeaseDialog'
+import { IdCardCard } from '@/features/customers/IdCardCard'
 import { ContractCard } from '@/features/leases/ContractCard'
 import { EditTermsDialog } from '@/features/leases/EditTermsDialog'
 import { LeaseInvoicesPanel } from '@/features/leases/LeaseInvoicesPanel'
@@ -519,6 +520,9 @@ export function LeaseDetailPage() {
           <TermsCard lease={lease} />
           <OccupantsCard lease={lease} />
           <ContractCard lease={lease} />
+          {lease.tenant !== null && (
+            <IdCardCard customerId={lease.tenant.id} name={lease.tenant.fullName} />
+          )}
         </Stack>
         <LeaseInvoicesPanel lease={lease} />
       </Box>
