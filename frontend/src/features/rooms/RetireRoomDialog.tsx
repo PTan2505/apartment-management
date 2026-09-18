@@ -57,11 +57,11 @@ export function RetireRoomDialog({ room, onClose }: RetireRoomDialogProps) {
 
   return (
     <Dialog open={room !== null} onClose={retireMutation.isPending ? undefined : onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Ngừng sử dụng phòng</DialogTitle>
+      <DialogTitle>Ngưng hoạt động phòng</DialogTitle>
       <DialogContent>
         {conflict && (
           <Alert severity="warning" sx={{ mb: 2 }}>
-            <AlertTitle>Chưa thể ngừng phòng này</AlertTitle>
+            <AlertTitle>Chưa thể ngưng hoạt động phòng này</AlertTitle>
             {conflict}
           </Alert>
         )}
@@ -71,7 +71,7 @@ export function RetireRoomDialog({ room, onClose }: RetireRoomDialogProps) {
           </Alert>
         )}
         <DialogContentText>
-          Ngừng sử dụng <strong>{room?.roomCode}</strong> ở {room?.building.displayName}? Phòng
+          Ngưng hoạt động <strong>{room?.roomCode}</strong> ở {room?.building.displayName}? Phòng
           sẽ bị ẩn khỏi danh sách mặc định, và mã phòng được dùng lại cho
           phòng mới. Bạn có thể dùng lại sau, trừ khi mã đã bị chiếm.
         </DialogContentText>
@@ -87,7 +87,7 @@ export function RetireRoomDialog({ room, onClose }: RetireRoomDialogProps) {
           disabled={retireMutation.isPending || conflict !== null}
           startIcon={retireMutation.isPending ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
-          {retireMutation.isPending ? 'Đang ngừng…' : 'Ngừng sử dụng'}
+          {retireMutation.isPending ? 'Đang ngưng…' : 'Ngưng hoạt động'}
         </Button>
       </DialogActions>
     </Dialog>

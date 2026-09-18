@@ -1,3 +1,4 @@
+import type { ActiveStatus } from '@/lib/active-status'
 import type { PageMeta } from '@/components/Pagination'
 
 /**
@@ -54,7 +55,7 @@ export interface ListRoomsParams {
   pageSize?: number
   buildingId?: number
   search?: string
-  includeInactive?: boolean
+  status?: ActiveStatus
   /** Only rooms with no running tenancy — the ones that can be let. */
   vacant?: boolean
 }

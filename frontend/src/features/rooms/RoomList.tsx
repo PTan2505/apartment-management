@@ -31,7 +31,7 @@ interface RoomListProps {
 }
 
 function RetiredChip() {
-  return <Chip label="Đã ngừng" size="small" variant="outlined" />
+  return <Chip label="Đang ngưng hoạt động" size="small" variant="outlined" />
 }
 
 /**
@@ -111,7 +111,7 @@ export function RoomList({
                 <TableCell>
                   <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
                     {room.isActive ? (
-                      <Chip label="Đang dùng" size="small" color="success" variant="outlined" />
+                      <Chip label="Đang hoạt động" size="small" color="success" variant="outlined" />
                     ) : (
                       <RetiredChip />
                     )}

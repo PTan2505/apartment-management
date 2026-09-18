@@ -13,8 +13,8 @@ function toQuery(params: ListRoomsParams): Record<string, string | number> {
   if (params.pageSize) query.pageSize = params.pageSize
   if (params.buildingId) query.buildingId = params.buildingId
   if (params.search) query.search = params.search
-  // Absent means "in service only" to the API, so "false" would be noise.
-  if (params.includeInactive) query.includeInactive = 'true'
+  // Absent means "in service only" to the API, so that value stays out of the URL.
+  if (params.status && params.status !== 'active') query.status = params.status
   // Likewise: absent means every room, let or not.
   if (params.vacant) query.vacant = 'true'
   return query

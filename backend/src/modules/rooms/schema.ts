@@ -44,10 +44,18 @@ export const listRoomsQuerySchema = z.object({
   // scanning a list, matching the `search` parameter on /customers. Not an
   // exact-identifier fetch: searching "10" surfaces 10, 101 and 102.
   search: z.string().min(1).optional(),
-  includeInactive: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((value) => value === "true"),
+  /**
+   * Which statuses to list: in service, out of service, or both.
+   *
+   * Three-valued rather than an include-inactive flag, because "only what I
+   * have taken out of service" is a question the owner asks while tidying up
+   * and a flag that only widens the result cannot express it.
+   *
+   * Defaults to in-service, so callers that never asked about retirement —
+   * the tenancy form's room picker among them — are unaffected. An
+   * unrecognised value is a 400 rather than a silent default.
+   */
+  status: z.enum(["active", "inactive", "all"]).default("active"),
   // Rooms with no running tenancy — the ones that can be let. Combinable with
   // the filters above, so "which rooms in this building are free" is one
   // request rather than a list minus a list the caller has to work out.

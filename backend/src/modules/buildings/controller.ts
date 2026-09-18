@@ -42,7 +42,9 @@ export async function listBuildingLocationsHandler(req: Request, res: Response) 
 }
 
 export async function getBuildingHandler(req: Request, res: Response) {
-  const building = await buildingService.getBuildingById(parseIdParam(req.params.id, RESOURCE.building));
+  const building = await buildingService.getBuildingWithRoomCounts(
+    parseIdParam(req.params.id, RESOURCE.building),
+  );
   res.status(200).json(building);
 }
 

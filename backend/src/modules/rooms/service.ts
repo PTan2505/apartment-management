@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma.js";
 import { mapPaginated, paginate, toSkipTake } from "@/lib/pagination.js";
 import { findLatestKnownReading } from "@/lib/meter-history.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
+import { inServiceWhere } from "@/modules/buildings/service.js";
 import { HOLDS_ITS_ROOM } from "@/modules/leases/occupancy.js";
 import type { CreateRoomInput, ListRoomsQuery, UpdateRoomInput } from "./schema.js";
 
@@ -124,7 +125,7 @@ export async function listRooms(query: ListRoomsQuery) {
     ...(query.search
       ? { roomCode: { contains: query.search, mode: "insensitive" as const } }
       : {}),
-    ...(query.includeInactive ? {} : { isActive: true }),
+    ...inServiceWhere(query.status),
     // Rooms that can be let. Applied in the query rather than by filtering the
     // page afterwards: post-filtering would return short pages and a total that
     // counts rooms the caller was not shown.

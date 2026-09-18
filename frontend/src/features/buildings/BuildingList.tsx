@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react'
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
@@ -11,7 +12,7 @@ import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import Typography from '@mui/material/Typography'
 import Link from '@mui/material/Link'
-import { Link as RouterLink } from 'react-router'
+import { Link as RouterLink, useNavigate } from 'react-router'
 
 import { formatMoney } from '@/lib/format'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
@@ -26,7 +27,7 @@ interface BuildingListProps {
 }
 
 function RetiredChip() {
-  return <Chip label="Đã ngừng" size="small" color="default" variant="outlined" />
+  return <Chip label="Đang ngưng hoạt động" size="small" color="default" variant="outlined" />
 }
 
 /** One formatter: it shows a rate's fraction and leaves a whole value whole. */
@@ -35,9 +36,35 @@ function Rates({ building }: { building: Building }) {
     <>
       <Typography variant="body2">⚡ {formatMoney(building.electricityRate)} / kWh</Typography>
       <Typography variant="body2" color="text.secondary">
-        💧 {formatMoney(building.waterRatePerPerson)} / person
+        💧 {formatMoney(building.waterRatePerPerson)} / người / tháng
       </Typography>
     </>
+  )
+}
+
+/**
+ * How full the building is, as two figures rather than "12 of 20".
+ *
+ * The empty count is the one that costs money, and making the reader subtract
+ * to find it buries exactly the number they came for. Figures come from the
+ * API, which counts rooms in service — a retired room is in neither.
+ */
+function Occupancy({ building }: { building: Building }) {
+  return (
+    <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: 'wrap' }}>
+      <Chip
+        size="small"
+        variant="outlined"
+        color={building.roomsLet > 0 ? 'success' : 'default'}
+        label={`${building.roomsLet} đang thuê`}
+      />
+      <Chip
+        size="small"
+        variant="outlined"
+        color={building.roomsEmpty > 0 ? 'warning' : 'default'}
+        label={`${building.roomsEmpty} đang trống`}
+      />
+    </Stack>
   )
 }
 
@@ -53,6 +80,21 @@ function Rates({ building }: { building: Building }) {
  * flash the wrong layout.
  */
 export function BuildingList({ buildings, onEdit, onRetire, onRestore }: BuildingListProps) {
+  const navigate = useNavigate()
+
+  /** A left click navigates in place; middle click or a modifier opens a tab. */
+  const open = (building: Building, event: MouseEvent<HTMLElement>) => {
+    const path = `/buildings/${building.id}`
+    if (event.button === 1 || event.metaKey || event.ctrlKey || event.shiftKey) {
+      event.preventDefault()
+      window.open(path, '_blank', 'noopener')
+      return
+    }
+    if (event.button === 0) {
+      void navigate(path)
+    }
+  }
+
   const actions = (building: Building) => (
     <BuildingRowActions
       building={building}
@@ -71,6 +113,7 @@ export function BuildingList({ buildings, onEdit, onRetire, onRestore }: Buildin
             <TableRow>
               <TableCell>Toà nhà</TableCell>
               <TableCell>Vị trí</TableCell>
+              <TableCell>Phòng</TableCell>
               <TableCell>Đơn giá</TableCell>
               <TableCell>Trạng thái</TableCell>
               <TableCell align="right">Thao tác</TableCell>
@@ -78,17 +121,33 @@ export function BuildingList({ buildings, onEdit, onRetire, onRestore }: Buildin
           </TableHead>
           <TableBody>
             {buildings.map((building) => (
-              <TableRow key={building.id} hover>
+              <TableRow
+                key={building.id}
+                hover
+                /*
+                  The row IS the link now, so it carries what a link carries:
+                  the keyboard reaches it and Enter opens it, and a middle or
+                  modifier click opens a new tab instead of doing nothing. A row
+                  that navigates but silently loses "open in a new tab" is worse
+                  than the small link it replaced.
+                */
+                role="link"
+                tabIndex={0}
+                aria-label={building.displayName}
+                sx={{ cursor: 'pointer' }}
+                onClick={(event) => open(building, event)}
+                onAuxClick={(event) => open(building, event)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    void navigate(`/buildings/${building.id}`)
+                  }
+                }}
+              >
                 <TableCell>
-                  {/* The way into a building's own page, and thereby its rooms. */}
-                  <Link
-                    component={RouterLink}
-                    to={`/buildings/${building.id}`}
-                    variant="body2"
-                    sx={{ fontWeight: 500 }}
-                  >
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
                     {building.displayName}
-                  </Link>
+                  </Typography>
                   <Typography variant="body2" color="text.secondary">
                     {building.address}
                   </Typography>
@@ -100,16 +159,23 @@ export function BuildingList({ buildings, onEdit, onRetire, onRestore }: Buildin
                   </Typography>
                 </TableCell>
                 <TableCell>
+                  <Occupancy building={building} />
+                </TableCell>
+                <TableCell>
                   <Rates building={building} />
                 </TableCell>
                 <TableCell>
                   {building.isActive ? (
-                    <Chip label="Đang dùng" size="small" color="success" variant="outlined" />
+                    <Chip label="Đang hoạt động" size="small" color="success" variant="outlined" />
                   ) : (
                     <RetiredChip />
                   )}
                 </TableCell>
-                <TableCell align="right">{actions(building)}</TableCell>
+                {/* The menu and everything it opens sit inside the row; without
+                    this, using them would navigate out from under themselves. */}
+                <TableCell align="right" onClick={(event) => event.stopPropagation()}>
+                  {actions(building)}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -138,6 +204,9 @@ export function BuildingList({ buildings, onEdit, onRetire, onRestore }: Buildin
                     {building.ward} · {building.city}
                   </Typography>
                   <Rates building={building} />
+                  <Box sx={{ mt: 1 }}>
+                    <Occupancy building={building} />
+                  </Box>
                 </Box>
                 <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
                   {!building.isActive && <RetiredChip />}

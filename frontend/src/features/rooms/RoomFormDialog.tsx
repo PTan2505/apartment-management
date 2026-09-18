@@ -14,6 +14,7 @@ import TextField from '@mui/material/TextField'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
 
+import { MoneyField } from '@/components/MoneyField'
 import { isApiError } from '@/lib/api-error'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
 import { useBuildings } from '@/features/buildings/hooks'
@@ -207,14 +208,12 @@ export function RoomFormDialog({
             helperText={errors.roomCode?.message ?? 'Không trùng với phòng đang dùng trong toà nhà này'}
             {...register('roomCode')}
           />
-          <TextField
+          <MoneyField
+            control={control}
+            name="baseRent"
             label="Giá thuê hàng tháng"
-            type="number"
-            fullWidth
-            slotProps={{ htmlInput: { step: 'any', min: 0 } }}
-            error={Boolean(errors.baseRent)}
-            helperText={errors.baseRent?.message ?? 'Đồng mỗi tháng'}
-            {...register('baseRent', { valueAsNumber: true })}
+            unit="đ / tháng"
+            helperText="Đồng mỗi tháng"
           />
 
           {/*

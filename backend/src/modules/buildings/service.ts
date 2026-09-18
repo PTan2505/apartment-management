@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma.js";
-import { paginate, toSkipTake, type PageParams } from "@/lib/pagination.js";
+import { mapPaginated, paginate, toSkipTake, type PageParams } from "@/lib/pagination.js";
 import { ConflictError, NotFoundError } from "@/lib/errors.js";
+import { HOLDS_ITS_ROOM } from "@/modules/leases/occupancy.js";
 import { buildingHasActiveLease } from "@/modules/leases/service.js";
 import type {
   BuildingLocationsQuery,
@@ -9,13 +10,23 @@ import type {
   UpdateBuildingInput,
 } from "./schema.js";
 
+/**
+ * The one place a status turns into a where clause, shared by the listing and
+ * by the locations it offers as filter choices: a location that is offered must
+ * not produce an empty list, which it would if the two disagreed.
+ */
+export function inServiceWhere(status: "active" | "inactive" | "all") {
+  if (status === "all") return {};
+  return { isActive: status === "active" };
+}
+
 export async function createBuilding(input: CreateBuildingInput) {
   return prisma.building.create({ data: input });
 }
 
 export async function listBuildings(query: ListBuildingsQuery, page: PageParams) {
   const where = {
-    ...(query.includeInactive ? {} : { isActive: true }),
+    ...inServiceWhere(query.status),
     ...(query.ward
       ? { ward: { contains: query.ward, mode: "insensitive" as const } }
       : {}),
@@ -23,11 +34,91 @@ export async function listBuildings(query: ListBuildingsQuery, page: PageParams)
       ? { city: { contains: query.city, mode: "insensitive" as const } }
       : {}),
   };
-  return paginate(
+  const buildings = await paginate(
     page,
     prisma.building.findMany({ where, orderBy: { createdAt: "asc" }, ...toSkipTake(page) }),
     prisma.building.count({ where }),
   );
+
+  const counts = await roomCounts(buildings.data.map((building) => building.id));
+  return mapPaginated(buildings, (building) => ({
+    ...building,
+    ...(counts.get(building.id) ?? NO_ROOMS),
+  }));
+}
+
+/**
+ * How full each of these buildings is: rooms let, and rooms standing empty.
+ *
+ * Counted here rather than by the caller. A caller deriving it would read every
+ * room of every building on the page, and would need its own copy of what "let"
+ * means — the duplication `roomOccupiedBy` exists to prevent.
+ *
+ * Two grouped queries over the page's ids, not a room read per building: a page
+ * is twenty buildings, and twenty round trips to learn two numbers each is the
+ * shape that gets slow quietly.
+ *
+ * Rooms OUT OF SERVICE are in neither figure. A retired room cannot be offered
+ * to anybody, so counting it as empty would report work that does not exist.
+ */
+export interface RoomCounts {
+  roomsLet: number;
+  roomsEmpty: number;
+  roomsRetired: number;
+}
+
+export const NO_ROOMS: RoomCounts = { roomsLet: 0, roomsEmpty: 0, roomsRetired: 0 };
+
+async function roomCounts(buildingIds: number[]) {
+  const counts = new Map<number, RoomCounts>();
+  if (buildingIds.length === 0) return counts;
+
+  const ofThese = { buildingId: { in: buildingIds } };
+  const inService = { ...ofThese, isActive: true };
+  // One transaction: between separate reads a move-out or a retirement could
+  // land, and the parts would then not add up to the whole.
+  const [total, let_, retired] = await prisma.$transaction([
+    prisma.room.groupBy({ by: ["buildingId"], where: inService, _count: { _all: true } }),
+    prisma.room.groupBy({
+      by: ["buildingId"],
+      // The rule for "let" comes from the tenancy module, imported rather than
+      // restated: a tenancy with no move-out and no cancellation holds its room,
+      // including one that has run past its agreed term.
+      where: { ...inService, leases: { some: HOLDS_ITS_ROOM } },
+      _count: { _all: true },
+    }),
+    prisma.room.groupBy({
+      by: ["buildingId"],
+      where: { ...ofThese, isActive: false },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const letByBuilding = new Map(let_.map((row) => [row.buildingId, row._count._all]));
+  const retiredByBuilding = new Map(retired.map((row) => [row.buildingId, row._count._all]));
+  for (const id of buildingIds) {
+    const inServiceCount = total.find((row) => row.buildingId === id)?._count._all ?? 0;
+    const roomsLet = letByBuilding.get(id) ?? 0;
+    counts.set(id, {
+      roomsLet,
+      roomsEmpty: inServiceCount - roomsLet,
+      roomsRetired: retiredByBuilding.get(id) ?? 0,
+    });
+  }
+  return counts;
+}
+
+/**
+ * One building with the same counts the list carries.
+ *
+ * Separate from `getBuildingById`, which update and retire call to check the
+ * building exists: those do not need the counts, and charging three grouped
+ * queries to every write to keep one read simple is the wrong trade.
+ */
+export async function getBuildingWithRoomCounts(id: number) {
+  const building = await getBuildingById(id);
+  const counts = await roomCounts([id]);
+  return { ...building, ...(counts.get(id) ?? NO_ROOMS) };
 }
 
 /**
@@ -51,7 +142,7 @@ export async function listBuildingLocations(
   query: BuildingLocationsQuery,
 ): Promise<BuildingLocation[]> {
   const rows = await prisma.building.findMany({
-    where: query.includeInactive ? {} : { isActive: true },
+    where: inServiceWhere(query.status),
     // Deduplicated in SQL, so at most one row per pair reaches us. The count is
     // bounded by the number of buildings.
     distinct: ["city", "ward"],

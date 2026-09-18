@@ -17,6 +17,7 @@ import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 
+import { MoneyField } from "@/components/MoneyField";
 import { MOBILE_BREAKPOINT } from "@/app/theme";
 import { AddressCandidates } from "@/features/addresses/AddressCandidates";
 import { resolveAddress } from "@/features/addresses/api";
@@ -32,7 +33,6 @@ import {
 } from "@/features/buildings/schema";
 import type { Building } from "@/features/buildings/types";
 import { isApiError } from "@/lib/api-error";
-import { InputAdornment } from "@mui/material";
 import { errorMessage } from '@/lib/error-messages'
 
 interface BuildingFormDialogProps {
@@ -95,6 +95,7 @@ export function BuildingFormDialog({
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     setError,
@@ -348,56 +349,27 @@ export function BuildingFormDialog({
             }}
             {...register("city")}
           />
-          <TextField
-            label="Quốc gia"
-            fullWidth
-            error={Boolean(errors.country)}
-            helperText={errors.country?.message}
-            slotProps={{
-              input: { readOnly: locked },
-              inputLabel: { shrink: shrink("country") },
-            }}
-            {...register("country")}
-          />
+          {/* Quốc gia không có ô nhập: nó luôn là Việt Nam, và vẫn được gửi đi
+              cùng biểu mẫu — do mặc định, do toà nhà đang sửa, hoặc do tra cứu
+              địa chỉ điền vào. Giữ đăng ký để giá trị đó không rơi mất. */}
+          <input type="hidden" {...register("country")} />
 
-          <TextField
+          <MoneyField
+            control={control}
+            name="electricityRate"
             label="Giá điện"
-            type="number"
-            fullWidth
-            onFocus={(e) => e.target.select()}
-            // `any` allows the fractional rates the API records.
-            slotProps={{
-              htmlInput: { step: "any", min: 0 },
-              input: {
-                endAdornment: (
-                  <InputAdornment position="end">đ / kWh</InputAdornment>
-                ),
-              },
-            }}
-            error={Boolean(errors.electricityRate)}
-            helperText={errors.electricityRate?.message ?? "Đồng per kWh"}
-            {...register("electricityRate", { valueAsNumber: true })}
+            unit="đ / kWh"
+            // Fractional, because that is how the API records a rate.
+            decimals
+            helperText="Đồng mỗi kWh"
           />
-          <TextField
+          <MoneyField
+            control={control}
+            name="waterRatePerPerson"
             label="Giá nước"
-            type="number"
-            fullWidth
-            onFocus={(e) => e.target.select()}
-            slotProps={{
-              htmlInput: { step: "any", min: 0 },
-              input: {
-                endAdornment: (
-                  <InputAdornment position="end">
-                    VND / người / tháng
-                  </InputAdornment>
-                ),
-              },
-            }}
-            error={Boolean(errors.waterRatePerPerson)}
-            helperText={
-              errors.waterRatePerPerson?.message ?? "Đồng per person per month"
-            }
-            {...register("waterRatePerPerson", { valueAsNumber: true })}
+            unit="đ / người / tháng"
+            decimals
+            helperText="Đồng mỗi người mỗi tháng"
           />
         </Stack>
       </DialogContent>

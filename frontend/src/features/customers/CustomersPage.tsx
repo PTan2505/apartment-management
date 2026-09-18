@@ -8,6 +8,7 @@ import Snackbar from '@mui/material/Snackbar'
 import Typography from '@mui/material/Typography'
 import AddIcon from '@mui/icons-material/Add'
 
+import { ListSurface } from '@/components/ListSurface'
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
 import { useListParams } from '@/lib/useListParams'
@@ -129,30 +130,32 @@ export function CustomersPage() {
         Khách
       </Typography>
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
-        <SearchField
-          label="Tìm khách"
-          size="small"
-          value={filters.search ?? ''}
-          onDebouncedChange={(value) => setFilter('search', value || undefined)}
-          helperText="Khớp theo tên hoặc số điện thoại — không cần dấu"
-          sx={{ minWidth: 260, flexGrow: { xs: 1, sm: 0 } }}
-        />
+      <ListSurface>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
+          <SearchField
+            label="Tìm khách"
+            size="small"
+            value={filters.search ?? ''}
+            onDebouncedChange={(value) => setFilter('search', value || undefined)}
+            helperText="Khớp theo tên hoặc số điện thoại — không cần dấu"
+            sx={{ minWidth: 260, flexGrow: { xs: 1, sm: 0 } }}
+          />
 
-        {hasFilters && (
-          <Button onClick={clearFilters} size="small">
-            Xoá tìm kiếm
+          {hasFilters && (
+            <Button onClick={clearFilters} size="small">
+              Xoá tìm kiếm
+            </Button>
+          )}
+
+          <Box sx={{ flexGrow: 1 }} />
+
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+            Thêm khách
           </Button>
-        )}
+        </Box>
 
-        <Box sx={{ flexGrow: 1 }} />
-
-        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-          Thêm khách
-        </Button>
-      </Box>
-
-      {body()}
+        {body()}
+      </ListSurface>
 
       <CustomerFormDialog
         open={formOpen}

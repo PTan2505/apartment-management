@@ -1,3 +1,4 @@
+import type { ActiveStatus } from '@/lib/active-status'
 import { apiClient } from '@/lib/api-client'
 import type {
   Building,
@@ -8,9 +9,8 @@ import type {
 import type { BuildingFormOutput } from '@/features/buildings/schema'
 
 /**
- * `includeInactive` is sent as the string the API's enum expects, and omitted
- * entirely when false — the API treats absence as "active only", so sending
- * "false" would be noise in every URL.
+ * `status` is omitted when it is the API's own default ("active"), so that
+ * value is not written into every URL.
  */
 function toQuery(params: ListBuildingsParams): Record<string, string | number> {
   const query: Record<string, string | number> = {}
@@ -18,7 +18,7 @@ function toQuery(params: ListBuildingsParams): Record<string, string | number> {
   if (params.pageSize) query.pageSize = params.pageSize
   if (params.city) query.city = params.city
   if (params.ward) query.ward = params.ward
-  if (params.includeInactive) query.includeInactive = 'true'
+  if (params.status && params.status !== 'active') query.status = params.status
   return query
 }
 
@@ -34,16 +34,15 @@ export async function listBuildings(
 /**
  * The ward and city values buildings actually record, grouped by city.
  *
- * Takes the same `includeInactive` as the listing on purpose: offering a
- * location whose only buildings are filtered out would guarantee an empty
- * result.
+ * Takes the same `status` as the listing on purpose: offering a location whose
+ * only buildings are filtered out would guarantee an empty result.
  */
 export async function listBuildingLocations(
-  includeInactive: boolean,
+  status: ActiveStatus,
 ): Promise<BuildingLocation[]> {
   const { data } = await apiClient.get<{ locations: BuildingLocation[] }>(
     '/buildings/locations',
-    { params: includeInactive ? { includeInactive: 'true' } : {} },
+    { params: status === 'active' ? {} : { status } },
   )
   return data.locations
 }

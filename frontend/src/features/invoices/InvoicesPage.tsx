@@ -6,13 +6,12 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import MenuItem from '@mui/material/MenuItem'
-import Paper from '@mui/material/Paper'
 import Switch from '@mui/material/Switch'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import EventAvailableIcon from '@mui/icons-material/EventAvailable'
 
-import { MOBILE_BREAKPOINT } from '@/app/theme'
+import { ListSurface } from '@/components/ListSurface'
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
 import { useListParams } from '@/lib/useListParams'
@@ -62,7 +61,7 @@ export function InvoicesPage() {
   })
 
   const buildingsQuery = useBuildings({ pageSize: 200 })
-  const roomsQuery = useRooms({ pageSize: 200, buildingId, includeInactive: true })
+  const roomsQuery = useRooms({ pageSize: 200, buildingId, status: 'all' })
   const months = recentMonths()
 
   const invoices = invoicesQuery.data?.data
@@ -161,25 +160,7 @@ export function InvoicesPage() {
         </Button>
       </Box>
 
-      {/*
-        One surface holds the filters AND the results, because that is what
-        they are: the filters describe the table beneath them, and splitting
-        them into two cards would claim they are two unrelated things.
-
-        Below the breakpoint it turns itself off. The list is already a stack of
-        outlined cards down there, and a frame around a stack of frames reads as
-        a mistake rather than as structure.
-      */}
-      <Paper
-        variant="outlined"
-        sx={{
-          border: { xs: 0, [MOBILE_BREAKPOINT]: 1 },
-          borderStyle: 'solid',
-          borderColor: 'divider',
-          bgcolor: { xs: 'transparent', [MOBILE_BREAKPOINT]: 'background.paper' },
-          p: { xs: 0, [MOBILE_BREAKPOINT]: 2 },
-        }}
-      >
+      <ListSurface>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
           <TextField
             select
@@ -279,7 +260,7 @@ export function InvoicesPage() {
         </Box>
 
         {body()}
-      </Paper>
+      </ListSurface>
     </Box>
   )
 }

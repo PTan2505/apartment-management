@@ -50,7 +50,7 @@ export function RoomRowActions({
   return (
     <>
       <IconButton
-        aria-label={`Actions for ${room.roomCode}`}
+        aria-label={`Thao tác cho ${room.roomCode}`}
         onClick={(event) => setAnchorEl(event.currentTarget)}
       >
         <MoreVertIcon />
@@ -84,7 +84,7 @@ export function RoomRowActions({
             <ListItemIcon>
               <ArchiveIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Ngừng sử dụng</ListItemText>
+            <ListItemText>Ngưng hoạt động</ListItemText>
           </MenuItem>
         ) : (
           // Restoring can still be refused — another room may have taken this
@@ -93,7 +93,7 @@ export function RoomRowActions({
             <ListItemIcon>
               <UnarchiveIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Dùng lại</ListItemText>
+            <ListItemText>Cho hoạt động lại</ListItemText>
           </MenuItem>
         )}
       </Menu>

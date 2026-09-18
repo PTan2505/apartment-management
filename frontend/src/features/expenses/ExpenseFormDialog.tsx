@@ -13,6 +13,7 @@ import Switch from '@mui/material/Switch'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 
+import { MoneyInput } from '@/components/MoneyField'
 import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { useBuildings } from '@/features/buildings/hooks'
@@ -71,7 +72,7 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
   const roomsQuery = useRooms({
     pageSize: 200,
     buildingId: buildingId === '' ? undefined : buildingId,
-    includeInactive: true,
+    status: 'all',
   })
 
   useEffect(() => {
@@ -254,13 +255,12 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
                   onChange={(event) => setQuantity(event.target.value)}
                   slotProps={{ htmlInput: { min: 0, step: 'any' } }}
                 />
-                <TextField
+                <MoneyInput
                   label="Đơn giá"
-                  type="number"
-                  fullWidth
-                  value={unitRate}
-                  onChange={(event) => setUnitRate(event.target.value)}
-                  slotProps={{ htmlInput: { min: 0, step: 'any' } }}
+                  value={unitRate === '' ? undefined : Number(unitRate)}
+                  onChange={(value) => setUnitRate(value === undefined ? '' : String(value))}
+                  unit="đ"
+                  decimals
                 />
               </Stack>
               {/*
@@ -274,13 +274,11 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
               </Typography>
             </>
           ) : (
-            <TextField
+            <MoneyInput
               label="Số tiền"
-              type="number"
-              fullWidth
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-              slotProps={{ htmlInput: { min: 0, step: 1000 } }}
+              value={amount === '' ? undefined : Number(amount)}
+              onChange={(value) => setAmount(value === undefined ? '' : String(value))}
+              unit="đ"
             />
           )}
         </Stack>

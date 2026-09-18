@@ -1,3 +1,4 @@
+import type { ActiveStatus } from '@/lib/active-status'
 import type { PageMeta } from '@/components/Pagination'
 
 /**
@@ -19,6 +20,15 @@ export interface Building {
   placeId: string | null
   electricityRate: number
   waterRatePerPerson: number
+  /**
+   * How full the building is, counted by the API over its rooms IN SERVICE: a
+   * room is let while a tenancy holds it, and the two always sum to the rooms
+   * in service. A retired room is in neither.
+   */
+  roomsLet: number
+  roomsEmpty: number
+  /** Rooms taken out of service. In neither figure above. */
+  roomsRetired: number
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -40,5 +50,5 @@ export interface ListBuildingsParams {
   pageSize?: number
   city?: string
   ward?: string
-  includeInactive?: boolean
+  status?: ActiveStatus
 }

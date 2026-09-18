@@ -58,11 +58,11 @@ export function RetireBuildingDialog({ building, onClose }: RetireBuildingDialog
 
   return (
     <Dialog open={building !== null} onClose={retireMutation.isPending ? undefined : onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Ngừng sử dụng toà nhà</DialogTitle>
+      <DialogTitle>Ngưng hoạt động toà nhà</DialogTitle>
       <DialogContent>
         {conflict && (
           <Alert severity="warning" sx={{ mb: 2 }}>
-            <AlertTitle>Chưa thể ngừng toà nhà này</AlertTitle>
+            <AlertTitle>Chưa thể ngưng hoạt động toà nhà này</AlertTitle>
             {conflict}
           </Alert>
         )}
@@ -72,7 +72,7 @@ export function RetireBuildingDialog({ building, onClose }: RetireBuildingDialog
           </Alert>
         )}
         <DialogContentText>
-          Ngừng sử dụng <strong>{building?.displayName}</strong>? Toà nhà sẽ được ẩn khỏi
+          Ngưng hoạt động <strong>{building?.displayName}</strong>? Toà nhà sẽ được ẩn khỏi
           danh sách mặc định và khỏi bộ lọc vị trí. Các phòng bên trong không bị
           ảnh hưởng, và bạn có thể dùng lại bất cứ lúc nào.
         </DialogContentText>
@@ -88,7 +88,7 @@ export function RetireBuildingDialog({ building, onClose }: RetireBuildingDialog
           disabled={retireMutation.isPending || conflict !== null}
           startIcon={retireMutation.isPending ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
-          {retireMutation.isPending ? 'Đang ngừng…' : 'Ngừng sử dụng'}
+          {retireMutation.isPending ? 'Đang ngưng…' : 'Ngưng hoạt động'}
         </Button>
       </DialogActions>
     </Dialog>
