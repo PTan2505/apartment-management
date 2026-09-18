@@ -7,6 +7,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Typography from '@mui/material/Typography'
 import AddIcon from '@mui/icons-material/Add'
 
+import { statusFromParam } from '@/lib/active-status'
 import { ListSurface } from '@/components/ListSurface'
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
@@ -27,26 +28,28 @@ import type { Building } from '@/features/buildings/types'
 interface BuildingFilterParams extends Record<string, string | undefined> {
   city?: string
   ward?: string
-  includeInactive?: string
+  status?: string
 }
 
-const FILTER_KEYS = ['city', 'ward', 'includeInactive'] as const
+const FILTER_KEYS = ['city', 'ward', 'status'] as const
 
 export function BuildingsPage() {
   const { filters, page, setFilter, setFilters, clearFilters, setPage, hasFilters } =
     useListParams<BuildingFilterParams>(FILTER_KEYS)
 
-  const includeInactive = filters.includeInactive === 'true'
+  // No status in the address means everything: the default lives in one place
+  // rather than being written into the URL on first render.
+  const status = statusFromParam(filters.status)
 
   const buildingsQuery = useBuildings({
     page,
     city: filters.city,
     ward: filters.ward,
-    includeInactive,
+    status,
   })
-  // Same includeInactive as the listing: offering a location whose only
-  // buildings are filtered out would guarantee an empty result.
-  const locationsQuery = useBuildingLocations(includeInactive)
+  // Same status as the listing: offering a location whose only buildings are
+  // filtered out would guarantee an empty result.
+  const locationsQuery = useBuildingLocations(status)
   const restoreMutation = useRestoreBuilding()
 
   const [formOpen, setFormOpen] = useState(false)
@@ -161,16 +164,14 @@ export function BuildingsPage() {
           locations={locationsQuery.data ?? []}
           city={filters.city}
           ward={filters.ward}
-          includeInactive={includeInactive}
+          status={status}
           onCityChange={(city, wardStillValid) =>
             // One update, not two: changing the city and dropping a now-impossible
             // ward have to land together, or the second overwrites the first.
             setFilters({ city, ...(wardStillValid ? {} : { ward: undefined }) })
           }
           onWardChange={(ward) => setFilter('ward', ward)}
-          onIncludeInactiveChange={(next) =>
-            setFilter('includeInactive', next ? 'true' : undefined)
-          }
+          onStatusChange={(next) => setFilter('status', next === 'all' ? undefined : next)}
           onClear={clearFilters}
           hasFilters={hasFilters}
         />

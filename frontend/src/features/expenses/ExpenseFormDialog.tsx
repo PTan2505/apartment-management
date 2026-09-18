@@ -72,7 +72,7 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
   const roomsQuery = useRooms({
     pageSize: 200,
     buildingId: buildingId === '' ? undefined : buildingId,
-    includeInactive: true,
+    status: 'all',
   })
 
   useEffect(() => {

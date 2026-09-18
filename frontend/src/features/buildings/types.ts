@@ -1,3 +1,4 @@
+import type { ActiveStatus } from '@/lib/active-status'
 import type { PageMeta } from '@/components/Pagination'
 
 /**
@@ -26,6 +27,8 @@ export interface Building {
    */
   roomsLet: number
   roomsEmpty: number
+  /** Rooms taken out of service. In neither figure above. */
+  roomsRetired: number
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -47,5 +50,5 @@ export interface ListBuildingsParams {
   pageSize?: number
   city?: string
   ward?: string
-  includeInactive?: boolean
+  status?: ActiveStatus
 }

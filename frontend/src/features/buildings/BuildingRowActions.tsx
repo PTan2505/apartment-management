@@ -53,7 +53,7 @@ export function BuildingRowActions({
             <ListItemIcon>
               <ArchiveIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Ngừng sử dụng</ListItemText>
+            <ListItemText>Ngưng hoạt động</ListItemText>
           </MenuItem>
         ) : (
           // No confirmation: restoring is not destructive.
@@ -61,7 +61,7 @@ export function BuildingRowActions({
             <ListItemIcon>
               <UnarchiveIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Dùng lại</ListItemText>
+            <ListItemText>Cho hoạt động lại</ListItemText>
           </MenuItem>
         )}
       </Menu>

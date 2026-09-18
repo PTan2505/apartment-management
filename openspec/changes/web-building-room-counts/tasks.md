@@ -27,6 +27,19 @@
 - [x] 5.2 Clicking mid-row opens /buildings/45 and that page carries the row's name; the actions menu opens without navigating; Enter on the focused row opens it; middle-click opens a second tab on the building and leaves the current tab on the list
 - [x] 5.3 390px: both chips on the card, card 356/356, page 390 — no sideways scroll
 
-## 6. Found during verification
+## 6. Building detail
+
+- [x] 6.1 `roomCounts` also counts rooms out of service; `getBuildingWithRoomCounts` serves one building with the same three figures, kept off the internal `getBuildingById` that update and retire use
+- [x] 6.2 `Building` type gains `roomsRetired`
+- [x] 6.3 Detail page: four figures above the rooms table — Đang hoạt động, Đang cho thuê, Đang trống, Đang ngưng hoạt động — four across on desktop, two across at 390px
+- [x] 6.4 API: figures match the rooms screen on building 45, and on a purpose-made building move correctly through add room, sign, retire and restore; list and detail agree
+- [x] 6.5 Browser: on a building with all four figures non-zero (2 let, 1 empty, 1 retired) the screen matches the API, the table lists only the three in service, and at 390px the four sit in two rows inside 390px
+
+## 7. Wording of the in-service state
+
+- [x] 7.1 At the owner's request, one pair of words for this state everywhere it appears: "Đang hoạt động" and "Đang ngưng hoạt động" in place of "Đang dùng" and "Đã ngừng" — the buildings and rooms tables and cards, the building's own page and its four figures, both "Kể cả…" filters, the row menus ("Ngưng hoạt động", "Cho hoạt động lại"), both retire dialogs, and four error messages
+- [x] 7.2 Measured after the rename: the longer chip fits its table cell on both screens, the four figures still sit two-by-two inside 390px, and no screen still shows the old words
+
+## 8. Found during verification
 
 - [x] 6.1 The browser checks reported "the actions menu does not open" for two runs while the menu was fine: the middle-click check had left a second tab in front, and synthesized mouse events reach only the foreground tab — every click was landing elsewhere and the page recorded no events at all. The driver now closes stray tabs and calls `Page.bringToFront` before it starts. Caught by logging whether the events arrived, rather than trusting the failure

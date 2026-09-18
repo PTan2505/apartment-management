@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import type { ActiveStatus } from '@/lib/active-status'
 import * as buildingsApi from '@/features/buildings/api'
 import type { BuildingFormOutput } from '@/features/buildings/schema'
 import type { ListBuildingsParams } from '@/features/buildings/types'
@@ -26,10 +27,10 @@ export function useBuilding(id: number) {
   })
 }
 
-export function useBuildingLocations(includeInactive: boolean) {
+export function useBuildingLocations(status: ActiveStatus) {
   return useQuery({
-    queryKey: [...BUILDINGS_KEY, 'locations', includeInactive],
-    queryFn: () => buildingsApi.listBuildingLocations(includeInactive),
+    queryKey: [...BUILDINGS_KEY, 'locations', status],
+    queryFn: () => buildingsApi.listBuildingLocations(status),
   })
 }
 

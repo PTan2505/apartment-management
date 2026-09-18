@@ -1,47 +1,51 @@
-import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import FormControlLabel from '@mui/material/FormControlLabel'
-import MenuItem from '@mui/material/MenuItem'
-import Switch from '@mui/material/Switch'
-import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import MenuItem from "@mui/material/MenuItem";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 
-import { ListSurface } from '@/components/ListSurface'
-import { useListParams } from '@/lib/useListParams'
-import { SearchField } from '@/components/SearchField'
-import { useBuildings } from '@/features/buildings/hooks'
-import { useRooms } from '@/features/rooms/hooks'
-import { RoomsSection } from '@/features/rooms/RoomsSection'
+import { ListSurface } from "@/components/ListSurface";
+import { SearchField } from "@/components/SearchField";
+import { useBuildings } from "@/features/buildings/hooks";
+import { useRooms } from "@/features/rooms/hooks";
+import { RoomsSection } from "@/features/rooms/RoomsSection";
+import { ACTIVE_STATUS_OPTIONS, statusFromParam } from "@/lib/active-status";
+import { useListParams } from "@/lib/useListParams";
 
 interface RoomFilters extends Record<string, string | undefined> {
-  buildingId?: string
-  search?: string
-  includeInactive?: string
+  buildingId?: string;
+  search?: string;
+  status?: string;
 }
 
-const FILTER_KEYS = ['buildingId', 'search', 'includeInactive'] as const
+const FILTER_KEYS = ["buildingId", "search", "status"] as const;
 /**
  * Typing must not leave a history entry per keystroke, or back removes one
  * character at a time instead of leaving the search. Dropdowns still push:
  * choosing a building is a step worth undoing.
  */
-const REPLACE_KEYS = ['search'] as const
+const REPLACE_KEYS = ["search"] as const;
 
 export function RoomsPage() {
   const { filters, page, setFilter, clearFilters, setPage, hasFilters } =
-    useListParams<RoomFilters>(FILTER_KEYS, { replaceKeys: REPLACE_KEYS })
+    useListParams<RoomFilters>(FILTER_KEYS, { replaceKeys: REPLACE_KEYS });
 
-  const includeInactive = filters.includeInactive === 'true'
-  const buildingId = filters.buildingId ? Number(filters.buildingId) : undefined
+  // Absent from the address means everything — same rule as the buildings screen.
+  const status = statusFromParam(filters.status);
+  const buildingId = filters.buildingId
+    ? Number(filters.buildingId)
+    : undefined;
 
   const roomsQuery = useRooms({
     page,
     buildingId,
     search: filters.search,
-    includeInactive,
-  })
-  const buildingsQuery = useBuildings({ pageSize: 200, includeInactive })
-  const buildings = buildingsQuery.data?.data ?? []
+    status,
+  });
+  // The building picker follows the same status, so a building offered as a
+  // choice is one whose rooms this list would show.
+  const buildingsQuery = useBuildings({ pageSize: 200, status });
+  const buildings = buildingsQuery.data?.data ?? [];
 
   return (
     <Box>
@@ -50,14 +54,25 @@ export function RoomsPage() {
       </Typography>
 
       <ListSurface>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 2,
+            alignItems: "start",
+            mb: 2,
+          }}
+        >
           <TextField
             select
             label="Toà nhà"
             size="small"
-            value={filters.buildingId ?? ''}
+            value={filters.buildingId ?? ""}
             onChange={(event) =>
-              setFilter('buildingId', event.target.value === '' ? undefined : event.target.value)
+              setFilter(
+                "buildingId",
+                event.target.value === "" ? undefined : event.target.value,
+              )
             }
             sx={{ minWidth: 220, flexGrow: { xs: 1, sm: 0 } }}
           >
@@ -72,23 +87,33 @@ export function RoomsPage() {
           <SearchField
             label="Tìm mã phòng"
             size="small"
-            value={filters.search ?? ''}
-            onDebouncedChange={(value) => setFilter('search', value || undefined)}
+            value={filters.search ?? ""}
+            onDebouncedChange={(value) =>
+              setFilter("search", value || undefined)
+            }
             helperText="Khớp mọi mã phòng có chứa nội dung bạn gõ"
             sx={{ minWidth: 220, flexGrow: { xs: 1, sm: 0 } }}
           />
 
-          <FormControlLabel
-            control={
-              <Switch
-                checked={includeInactive}
-                onChange={(event) =>
-                  setFilter('includeInactive', event.target.checked ? 'true' : undefined)
-                }
-              />
+          <TextField
+            select
+            label="Trạng thái"
+            size="small"
+            value={status}
+            onChange={(event) =>
+              setFilter(
+                "status",
+                event.target.value === "all" ? undefined : event.target.value,
+              )
             }
-            label="Kể cả đã ngừng"
-          />
+            sx={{ minWidth: 200 }}
+          >
+            {ACTIVE_STATUS_OPTIONS.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
 
           {hasFilters && (
             <Button onClick={clearFilters} size="small">
@@ -109,5 +134,5 @@ export function RoomsPage() {
         />
       </ListSurface>
     </Box>
-  )
+  );
 }

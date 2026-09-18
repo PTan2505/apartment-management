@@ -84,7 +84,7 @@ export function ExpensesPage() {
     to: filters.to,
   })
   const buildingsQuery = useBuildings({ pageSize: 200 })
-  const roomsQuery = useRooms({ pageSize: 200, buildingId, includeInactive: true })
+  const roomsQuery = useRooms({ pageSize: 200, buildingId, status: 'all' })
   const remove = useDeleteExpense()
 
   const expenses = expensesQuery.data?.data

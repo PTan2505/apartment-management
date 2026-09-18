@@ -61,7 +61,7 @@ export function InvoicesPage() {
   })
 
   const buildingsQuery = useBuildings({ pageSize: 200 })
-  const roomsQuery = useRooms({ pageSize: 200, buildingId, includeInactive: true })
+  const roomsQuery = useRooms({ pageSize: 200, buildingId, status: 'all' })
   const months = recentMonths()
 
   const invoices = invoicesQuery.data?.data

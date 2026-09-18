@@ -1,20 +1,19 @@
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import FormControlLabel from '@mui/material/FormControlLabel'
 import MenuItem from '@mui/material/MenuItem'
-import Switch from '@mui/material/Switch'
 import TextField from '@mui/material/TextField'
 
+import { ACTIVE_STATUS_OPTIONS, type ActiveStatus } from '@/lib/active-status'
 import type { BuildingLocation } from '@/features/buildings/types'
 
 interface BuildingFiltersProps {
   locations: BuildingLocation[]
   city: string | undefined
   ward: string | undefined
-  includeInactive: boolean
+  status: ActiveStatus
   onCityChange: (city: string | undefined, wardStillValid: boolean) => void
   onWardChange: (ward: string | undefined) => void
-  onIncludeInactiveChange: (includeInactive: boolean) => void
+  onStatusChange: (status: ActiveStatus) => void
   onClear: () => void
   hasFilters: boolean
 }
@@ -31,10 +30,10 @@ export function BuildingFilters({
   locations,
   city,
   ward,
-  includeInactive,
+  status,
   onCityChange,
   onWardChange,
-  onIncludeInactiveChange,
+  onStatusChange,
   onClear,
   hasFilters,
 }: BuildingFiltersProps) {
@@ -98,15 +97,20 @@ export function BuildingFilters({
         ))}
       </TextField>
 
-      <FormControlLabel
-        control={
-          <Switch
-            checked={includeInactive}
-            onChange={(event) => onIncludeInactiveChange(event.target.checked)}
-          />
-        }
-        label="Kể cả đã ngừng"
-      />
+      <TextField
+        select
+        label="Trạng thái"
+        size="small"
+        value={status}
+        onChange={(event) => onStatusChange(event.target.value as ActiveStatus)}
+        sx={{ minWidth: 200 }}
+      >
+        {ACTIVE_STATUS_OPTIONS.map((option) => (
+          <MenuItem key={option.value} value={option.value}>
+            {option.label}
+          </MenuItem>
+        ))}
+      </TextField>
 
       {hasFilters && (
         <Button onClick={onClear} size="small">

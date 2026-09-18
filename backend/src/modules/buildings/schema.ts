@@ -40,20 +40,25 @@ export const listBuildingsQuerySchema = z.object({
   // Partial and case-insensitive, matching the room-code search convention.
   ward: z.string().min(1).optional(),
   city: z.string().min(1).optional(),
-  includeInactive: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((value) => value === "true"),
+  /**
+   * Which statuses to list: in service, out of service, or both.
+   *
+   * Three-valued rather than an include-inactive flag, because "only what I
+   * have taken out of service" is a question the owner asks while tidying up
+   * and a flag that only widens the result cannot express it.
+   *
+   * Defaults to in-service, so callers that never asked about retirement —
+   * the tenancy form's room picker among them — are unaffected. An
+   * unrecognised value is a 400 rather than a silent default.
+   */
+  status: z.enum(["active", "inactive", "all"]).default("active"),
 });
 
 // Deliberately the same shape as the listing filter above: a location offered
 // as a filter choice must not produce an empty result, so the two have to agree
 // on what counts as visible.
 export const buildingLocationsQuerySchema = z.object({
-  includeInactive: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((value) => value === "true"),
+  status: z.enum(["active", "inactive", "all"]).default("active"),
 });
 
 export type BuildingLocationsQuery = z.infer<typeof buildingLocationsQuerySchema>;

@@ -48,14 +48,14 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   BUILDING_NOT_FOUND: 'Không tìm thấy toà nhà.',
   BUILDING_PAYLOAD_INVALID: 'Thông tin toà nhà chưa hợp lệ.',
   BUILDING_RETIRE_HAS_ACTIVE_LEASE:
-    'Không thể ngừng toà nhà khi vẫn còn phòng đang có hợp đồng.',
+    'Không thể ngưng hoạt động toà nhà khi vẫn còn phòng đang có hợp đồng.',
 
   // ── Phòng ────────────────────────────────────────────────────────────────
   ROOM_NOT_FOUND: 'Không tìm thấy phòng.',
   ROOM_PAYLOAD_INVALID: 'Thông tin phòng chưa hợp lệ.',
   ROOM_CODE_TAKEN: 'Mã phòng này đã được dùng cho một phòng khác trong toà nhà.',
-  ROOM_BUILDING_RETIRED: 'Không thể thêm phòng vào toà nhà đã ngừng.',
-  ROOM_RETIRE_HAS_ACTIVE_LEASE: 'Không thể ngừng phòng đang có hợp đồng.',
+  ROOM_BUILDING_RETIRED: 'Không thể thêm phòng vào toà nhà đang ngưng hoạt động.',
+  ROOM_RETIRE_HAS_ACTIVE_LEASE: 'Không thể ngưng hoạt động phòng đang có hợp đồng.',
   ROOM_BUILDING_MISMATCH: 'Phòng này không thuộc toà nhà đã chọn.',
   ROOM_ALREADY_LET: 'Phòng này đang có hợp đồng.',
 
@@ -68,7 +68,7 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   // ── Hợp đồng ─────────────────────────────────────────────────────────────
   LEASE_NOT_FOUND: 'Không tìm thấy hợp đồng.',
   LEASE_PAYLOAD_INVALID: 'Thông tin hợp đồng chưa hợp lệ.',
-  LEASE_ROOM_RETIRED: 'Không thể lập hợp đồng cho phòng đã ngừng.',
+  LEASE_ROOM_RETIRED: 'Không thể lập hợp đồng cho phòng đang ngưng hoạt động.',
   LEASE_START_METER_REQUIRED:
     'Cần nhập số điện đầu kỳ: phòng này chưa có số cũ để lấy làm mốc.',
   LEASE_STARTS_BEFORE_PREVIOUS_END:

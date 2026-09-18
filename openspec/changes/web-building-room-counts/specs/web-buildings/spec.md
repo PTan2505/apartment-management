@@ -31,3 +31,23 @@ Controls inside the row — the actions menu and anything it opens — SHALL NOT
 #### Scenario: Keyboard
 - **WHEN** the owner moves focus to a building's row and presses Enter
 - **THEN** the building's detail page opens
+
+### Requirement: A building's own page states how its rooms stand
+The building detail screen SHALL show, above its rooms table, how many rooms are in service, how many of those are let, how many are empty, and how many have been taken out of service.
+
+The figures SHALL come from the building, not from the rooms table below them: that table is paged, so counting what is on screen would answer for the page rather than for the building.
+
+The rooms in service SHALL be stated rather than left to be added up, because it is the figure the other two are read against.
+
+#### Scenario: Owner opens a building
+- **WHEN** the owner opens a building's page
+- **THEN** the four figures appear above its rooms table, and the rooms-in-service figure equals the let and empty figures added together
+
+#### Scenario: Rooms out of service are visible as such
+- **GIVEN** a building with rooms taken out of service
+- **WHEN** the owner opens that building's page
+- **THEN** those rooms are reported in their own figure, while the table below still lists only the rooms in service
+
+#### Scenario: Phone width
+- **WHEN** the owner opens a building's page at phone width
+- **THEN** all four figures are readable without the page scrolling sideways

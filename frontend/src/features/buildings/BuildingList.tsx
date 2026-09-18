@@ -27,7 +27,7 @@ interface BuildingListProps {
 }
 
 function RetiredChip() {
-  return <Chip label="Đã ngừng" size="small" color="default" variant="outlined" />
+  return <Chip label="Đang ngưng hoạt động" size="small" color="default" variant="outlined" />
 }
 
 /** One formatter: it shows a rate's fraction and leaves a whole value whole. */
@@ -166,7 +166,7 @@ export function BuildingList({ buildings, onEdit, onRetire, onRestore }: Buildin
                 </TableCell>
                 <TableCell>
                   {building.isActive ? (
-                    <Chip label="Đang dùng" size="small" color="success" variant="outlined" />
+                    <Chip label="Đang hoạt động" size="small" color="success" variant="outlined" />
                   ) : (
                     <RetiredChip />
                   )}
