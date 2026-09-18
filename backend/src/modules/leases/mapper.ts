@@ -85,6 +85,8 @@ interface LeaseRow {
   startMeterReading: number;
   endMeterReading: number | null;
   baseRent: Prisma.Decimal;
+  electricityRate: Prisma.Decimal;
+  waterRatePerPerson: Prisma.Decimal;
   depositMonths: number;
   depositHeld: Prisma.Decimal;
   depositCarriedIn: Prisma.Decimal;
@@ -153,6 +155,11 @@ export function toLeaseResponse(lease: LeaseRow) {
     expectedEndDate: addMonths(lease.startDate, lease.durationMonths),
     occupantCount: lease.occupantCount,
     baseRent: lease.baseRent,
+    // The utility rates THIS tenancy was signed at, which are what its invoices
+    // are computed from. Reported so a screen can show what a tenant is billed
+    // at without reading the building, whose figures may since have changed.
+    electricityRate: lease.electricityRate,
+    waterRatePerPerson: lease.waterRatePerPerson,
     depositMonths: lease.depositMonths,
     /*
       Terms of the agreement, reported exactly as stored.

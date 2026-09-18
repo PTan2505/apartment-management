@@ -41,6 +41,11 @@ export const createLeaseSchema = z.object({
   // base rent. Supplying it records a rent negotiated with this tenant without
   // changing what the room asks of the next one.
   baseRent: z.coerce.number().nonnegative("must not be negative").optional(),
+  // Optional for the same reason again: the service defaults each to the
+  // building's current rate. Supplied, they record a price agreed with THIS
+  // tenant without changing what the building charges the next one.
+  electricityRate: z.coerce.number().nonnegative("must not be negative").optional(),
+  waterRatePerPerson: z.coerce.number().nonnegative("must not be negative").optional(),
   // Required, and zero is allowed. Defaulting a missing value to zero would
   // make "no deposit" and "forgot to record the deposit" the same record.
   depositMonths: z.coerce
@@ -63,6 +68,20 @@ export const updateLeaseSchema = z
   .object({
     durationMonths: z.coerce.number().int().min(1, "must be at least 1"),
     occupantCount: z.coerce.number().int().min(1, "must be at least 1"),
+    /*
+      The utility rates this tenancy is billed at.
+      
+      Editable because the alternative is worse: once a rate lives on the
+      tenancy, an owner who raises the building's rates has no way to bring an
+      existing tenant along short of renewing them early. Correcting a figure
+      that was mistyped at signing has the same shape.
+
+      It changes what this tenancy is billed FROM NOW ON. Invoices already
+      issued keep their own line items, which record the rate that produced
+      each charge, so nothing already billed moves.
+    */
+    electricityRate: z.coerce.number().nonnegative("must not be negative"),
+    waterRatePerPerson: z.coerce.number().nonnegative("must not be negative"),
     ...agreementTermFields,
   })
   .partial();

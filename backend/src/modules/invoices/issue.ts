@@ -41,8 +41,12 @@ interface LeaseForIssue {
   occupantCount: number;
   startMeterReading: number;
   baseRent: Prisma.Decimal;
+  // The tenancy's own rates, not its building's current ones: a tenant is
+  // billed what their agreement says.
+  electricityRate: Prisma.Decimal;
+  waterRatePerPerson: Prisma.Decimal;
   depositMonths: number;
-  room: { buildingId: number; building: { electricityRate: Prisma.Decimal; waterRatePerPerson: Prisma.Decimal } };
+  room: { buildingId: number };
 }
 
 /**
@@ -176,8 +180,8 @@ export async function issueFinalInvoice(
 
   const chargeInputs = {
     baseRent: lease.baseRent,
-    electricityRate: lease.room.building.electricityRate,
-    waterRatePerPerson: lease.room.building.waterRatePerPerson,
+    electricityRate: lease.electricityRate,
+    waterRatePerPerson: lease.waterRatePerPerson,
     occupantCount: lease.occupantCount,
     previousElectricityUse: previous,
     currentElectricityUse: endMeterReading,

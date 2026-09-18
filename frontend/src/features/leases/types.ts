@@ -60,6 +60,13 @@ export interface Lease {
    */
   occupantCount: number
   baseRent: number
+  /**
+   * The utility rates THIS tenancy was signed at. Copied from its building when
+   * it was signed, the way `baseRent` is copied from the room — editing the
+   * building afterwards does not reach a tenancy already agreed.
+   */
+  electricityRate: number
+  waterRatePerPerson: number
   depositMonths: number
   /**
    * The agreement's own identifier, e.g. `HD-P302-2026-118`.

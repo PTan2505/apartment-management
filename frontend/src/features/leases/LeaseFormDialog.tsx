@@ -140,8 +140,26 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
     if (chosenRoomId && reading !== undefined && filledFor.current !== chosenRoomId) {
       filledFor.current = chosenRoomId
       setValue('startMeterReading', reading ?? undefined)
+      // The rent too, rather than a note saying what an empty box would mean.
+      // A figure in the box is a figure the owner can read against the
+      // agreement in front of them and correct; a note about a default is
+      // something they have to take on trust and cannot check.
+      const chosen = vacantRooms.find((room) => room.id === chosenRoomId)
+      if (chosen) {
+        setValue('baseRent', chosen.baseRent)
+        // The utility rates too. A room reports only which building it is in —
+        // rates belong to the building's own record — so they come from the
+        // buildings already loaded for the picker above, not a second request.
+        const building = (buildingsQuery.data?.data ?? []).find(
+          (candidate) => candidate.id === chosen.buildingId,
+        )
+        if (building) {
+          setValue('electricityRate', building.electricityRate)
+          setValue('waterRatePerPerson', building.waterRatePerPerson)
+        }
+      }
     }
-  }, [open, chosenRoomId, meterQuery.data, setValue])
+  }, [open, chosenRoomId, meterQuery.data, setValue, vacantRooms, buildingsQuery.data])
 
   useEffect(() => {
     if (!open) return
@@ -594,9 +612,10 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
               name="baseRent"
               label="Giá thuê thoả thuận"
               unit="đ / tháng"
-              // Empty stays undefined rather than NaN — "leave it to the API",
-              // which is what an untouched box means here.
-              helperText="Để trống: lấy giá thuê hiện tại của phòng"
+              // Filled from the room when one is chosen, and editable from
+              // there. An empty box still means "leave it to the API", which is
+              // what an owner who clears it is asking for.
+              helperText="Điền sẵn theo giá thuê của phòng. Sửa được nếu thoả thuận khác."
             />
             <TextField
               label="Số điện đầu kỳ"
@@ -629,6 +648,32 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
               {...register('startMeterReading', {
                 setValueAs: (value) => (value === '' ? undefined : Number(value)),
               })}
+            />
+          </Stack>
+
+          {/*
+            The rates this tenancy will be billed at, filled from the building
+            when a room is chosen. Shown rather than left implicit: a tenancy
+            keeps its own copy, so this is the moment the figures are fixed, and
+            a price agreed with this tenant in particular is recorded here
+            without changing what the building charges the next one.
+          */}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <MoneyField
+              control={control}
+              name="electricityRate"
+              label="Giá điện"
+              unit="đ / kWh"
+              decimals
+              helperText="Điền sẵn theo toà nhà. Hợp đồng này giữ giá đã ghi ở đây."
+            />
+            <MoneyField
+              control={control}
+              name="waterRatePerPerson"
+              label="Giá nước"
+              unit="đ / người / tháng"
+              decimals
+              helperText="Điền sẵn theo toà nhà. Sửa được nếu thoả thuận khác."
             />
           </Stack>
 
