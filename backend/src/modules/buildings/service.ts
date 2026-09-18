@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma.js";
-import { paginate, toSkipTake, type PageParams } from "@/lib/pagination.js";
+import { mapPaginated, paginate, toSkipTake, type PageParams } from "@/lib/pagination.js";
 import { ConflictError, NotFoundError } from "@/lib/errors.js";
+import { HOLDS_ITS_ROOM } from "@/modules/leases/occupancy.js";
 import { buildingHasActiveLease } from "@/modules/leases/service.js";
 import type {
   BuildingLocationsQuery,
@@ -23,11 +24,58 @@ export async function listBuildings(query: ListBuildingsQuery, page: PageParams)
       ? { city: { contains: query.city, mode: "insensitive" as const } }
       : {}),
   };
-  return paginate(
+  const buildings = await paginate(
     page,
     prisma.building.findMany({ where, orderBy: { createdAt: "asc" }, ...toSkipTake(page) }),
     prisma.building.count({ where }),
   );
+
+  const counts = await roomCounts(buildings.data.map((building) => building.id));
+  return mapPaginated(buildings, (building) => ({
+    ...building,
+    ...(counts.get(building.id) ?? { roomsLet: 0, roomsEmpty: 0 }),
+  }));
+}
+
+/**
+ * How full each of these buildings is: rooms let, and rooms standing empty.
+ *
+ * Counted here rather than by the caller. A caller deriving it would read every
+ * room of every building on the page, and would need its own copy of what "let"
+ * means — the duplication `roomOccupiedBy` exists to prevent.
+ *
+ * Two grouped queries over the page's ids, not a room read per building: a page
+ * is twenty buildings, and twenty round trips to learn two numbers each is the
+ * shape that gets slow quietly.
+ *
+ * Rooms OUT OF SERVICE are in neither figure. A retired room cannot be offered
+ * to anybody, so counting it as empty would report work that does not exist.
+ */
+async function roomCounts(buildingIds: number[]) {
+  const counts = new Map<number, { roomsLet: number; roomsEmpty: number }>();
+  if (buildingIds.length === 0) return counts;
+
+  const inService = { buildingId: { in: buildingIds }, isActive: true };
+  // One transaction: between two separate reads a move-out could land, and the
+  // let count would then not be a subset of the in-service count.
+  const [total, let_] = await prisma.$transaction([
+    prisma.room.groupBy({ by: ["buildingId"], where: inService, _count: { _all: true } }),
+    prisma.room.groupBy({
+      by: ["buildingId"],
+      // The rule for "let" comes from the tenancy module, imported rather than
+      // restated: a tenancy with no move-out and no cancellation holds its room,
+      // including one that has run past its agreed term.
+      where: { ...inService, leases: { some: HOLDS_ITS_ROOM } },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const letByBuilding = new Map(let_.map((row) => [row.buildingId, row._count._all]));
+  for (const row of total) {
+    const roomsLet = letByBuilding.get(row.buildingId) ?? 0;
+    counts.set(row.buildingId, { roomsLet, roomsEmpty: row._count._all - roomsLet });
+  }
+  return counts;
 }
 
 /**
