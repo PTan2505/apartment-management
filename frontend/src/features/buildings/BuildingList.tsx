@@ -35,7 +35,7 @@ function Rates({ building }: { building: Building }) {
     <>
       <Typography variant="body2">⚡ {formatMoney(building.electricityRate)} / kWh</Typography>
       <Typography variant="body2" color="text.secondary">
-        💧 {formatMoney(building.waterRatePerPerson)} / person
+        💧 {formatMoney(building.waterRatePerPerson)} / người / tháng
       </Typography>
     </>
   )

@@ -17,6 +17,7 @@ import TextField from '@mui/material/TextField'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
 
+import { MoneyField } from '@/components/MoneyField'
 import { isApiError } from '@/lib/api-error'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
 import { useBuildings } from '@/features/buildings/hooks'
@@ -588,18 +589,14 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
           <Divider />
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField
+            <MoneyField
+              control={control}
+              name="baseRent"
               label="Giá thuê thoả thuận"
-              type="number"
-              fullWidth
-              slotProps={{ htmlInput: { min: 0, step: 'any' } }}
-              error={Boolean(errors.baseRent)}
-              helperText={errors.baseRent?.message ?? 'Để trống: lấy giá thuê hiện tại của phòng'}
-              {...register('baseRent', {
-                // An empty number input reads as NaN, which the schema would
-                // reject. Undefined is what "leave it to the API" looks like.
-                setValueAs: (value) => (value === '' ? undefined : Number(value)),
-              })}
+              unit="đ / tháng"
+              // Empty stays undefined rather than NaN — "leave it to the API",
+              // which is what an untouched box means here.
+              helperText="Để trống: lấy giá thuê hiện tại của phòng"
             />
             <TextField
               label="Số điện đầu kỳ"

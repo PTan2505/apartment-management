@@ -10,9 +10,9 @@ import DialogContent from '@mui/material/DialogContent'
 import DialogContentText from '@mui/material/DialogContentText'
 import DialogTitle from '@mui/material/DialogTitle'
 import Stack from '@mui/material/Stack'
-import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 
+import { MoneyInput } from '@/components/MoneyField'
 import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { useCancelLease } from '@/features/leases/hooks'
@@ -120,7 +120,7 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
         <Stack spacing={2} sx={{ mt: 1 }}>
           <DialogContentText>
             Đây là ghi nhận hợp đồng CHƯA TỪNG diễn ra — không phải là kết thúc.
-            Nobody occupied {roomLabel}, so there is no final month to bill and
+            Không ai từng ở {roomLabel}, nên không có tháng cuối để tính tiền và
             không có số điện để chốt. Phòng sẽ trống ngay lập tức.
           </DialogContentText>
 
@@ -130,29 +130,25 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
             <>
               <Alert severity="info" icon={false}>
                 <AlertTitle sx={{ mb: 0.5 }}>
-                  You are holding {formatMoney(held)}
+                  Bạn đang giữ {formatMoney(held)}
                 </AlertTitle>
                 Ghi rõ trả lại khách bao nhiêu và bạn giữ lại bao nhiêu.
-                Trả hay không là quyết định của bạn — không có gì trong
-                record settles it.
+                Trả hay không là quyết định của bạn — sổ sách không quyết
+                thay được.
               </Alert>
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                <TextField
+                <MoneyInput
                   label="Trả lại khách"
-                  type="number"
-                  fullWidth
-                  value={returned}
-                  onChange={(event) => setReturned(event.target.value)}
-                  slotProps={{ htmlInput: { min: 0, step: 1000 } }}
+                  value={returned === '' ? undefined : Number(returned)}
+                  onChange={(value) => setReturned(value === undefined ? '' : String(value))}
+                  unit="đ"
                 />
-                <TextField
+                <MoneyInput
                   label="Chủ giữ lại"
-                  type="number"
-                  fullWidth
-                  value={kept}
-                  onChange={(event) => setKept(event.target.value)}
-                  slotProps={{ htmlInput: { min: 0, step: 1000 } }}
+                  value={kept === '' ? undefined : Number(kept)}
+                  onChange={(value) => setKept(value === undefined ? '' : String(value))}
+                  unit="đ"
                 />
               </Stack>
 
@@ -168,14 +164,14 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
                     variant="body2"
                     color={accountsForHolding ? 'success.main' : 'error.main'}
                   >
-                    {formatMoney(entered)} of {formatMoney(held)} accounted for
+                    Đã ghi {formatMoney(entered)} trên {formatMoney(held)}
                     {accountsForHolding
                       ? ''
                       : bothEntered
                         ? entered > held
-                          ? ` — ${formatMoney(entered - held)} too much`
-                          : ` — ${formatMoney(held - entered)} short`
-                        : ' — fill in both amounts'}
+                          ? ` — thừa ${formatMoney(entered - held)}`
+                          : ` — thiếu ${formatMoney(held - entered)}`
+                        : ' — điền cả hai ô'}
                   </Typography>
                 </Box>
               )}
@@ -187,7 +183,7 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
               */}
               {(keptValue ?? 0) > 0 && (
                 <Alert severity="warning">
-                  {formatMoney(keptValue ?? 0)} will be recorded as revenue for
+                  {formatMoney(keptValue ?? 0)} sẽ được tính là doanh thu của
                   tháng này, dưới dạng một khoản thu của hợp đồng này.
                 </Alert>
               )}

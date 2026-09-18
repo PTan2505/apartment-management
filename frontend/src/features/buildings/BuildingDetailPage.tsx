@@ -76,7 +76,7 @@ export function BuildingDetailPage() {
       </Typography>
       <Typography variant="body2">
         ⚡ {formatMoney(building.electricityRate)} / kWh &nbsp;&nbsp; 💧{' '}
-        {formatMoney(building.waterRatePerPerson)} / person
+        {formatMoney(building.waterRatePerPerson)} / người / tháng
       </Typography>
 
       <Divider sx={{ my: 3 }} />

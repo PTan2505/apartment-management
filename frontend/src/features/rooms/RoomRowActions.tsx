@@ -50,7 +50,7 @@ export function RoomRowActions({
   return (
     <>
       <IconButton
-        aria-label={`Actions for ${room.roomCode}`}
+        aria-label={`Thao tác cho ${room.roomCode}`}
         onClick={(event) => setAnchorEl(event.currentTarget)}
       >
         <MoreVertIcon />

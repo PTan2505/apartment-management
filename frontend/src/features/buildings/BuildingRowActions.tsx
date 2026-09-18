@@ -36,7 +36,7 @@ export function BuildingRowActions({
   return (
     <>
       <IconButton
-        aria-label={`Actions for ${building.displayName}`}
+        aria-label={`Thao tác cho ${building.displayName}`}
         onClick={(event) => setAnchorEl(event.currentTarget)}
       >
         <MoreVertIcon />
