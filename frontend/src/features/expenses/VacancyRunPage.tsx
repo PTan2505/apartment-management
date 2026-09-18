@@ -18,6 +18,7 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 
+import { ListSurface } from '@/components/ListSurface'
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
@@ -314,48 +315,50 @@ export function VacancyRunPage() {
         ở đây là tiền điện bạn đã trả mà chưa ghi vào sổ.
       </Typography>
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-        <TextField
-          select
-          label="Tháng"
-          size="small"
-          value={`${period.year}-${period.month}`}
-          onChange={(event) => {
-            const [year, month] = event.target.value.split('-').map(Number)
-            setPeriod({ year: year!, month: month! })
-            // Entries belong to the month they were typed for.
-            setRows({})
-          }}
-          sx={{ minWidth: 200 }}
-        >
-          {months.map((m) => (
-            <MenuItem key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>
-              {monthLabel(m.year, m.month)}
-            </MenuItem>
-          ))}
-        </TextField>
+      <ListSurface>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+          <TextField
+            select
+            label="Tháng"
+            size="small"
+            value={`${period.year}-${period.month}`}
+            onChange={(event) => {
+              const [year, month] = event.target.value.split('-').map(Number)
+              setPeriod({ year: year!, month: month! })
+              // Entries belong to the month they were typed for.
+              setRows({})
+            }}
+            sx={{ minWidth: 200 }}
+          >
+            {months.map((m) => (
+              <MenuItem key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>
+                {monthLabel(m.year, m.month)}
+              </MenuItem>
+            ))}
+          </TextField>
 
-        <TextField
-          select
-          label="Toà nhà"
-          size="small"
-          value={buildingId === '' ? '' : String(buildingId)}
-          onChange={(event) => {
-            setBuildingId(event.target.value === '' ? '' : Number(event.target.value))
-            setRows({})
-          }}
-          sx={{ minWidth: 220 }}
-        >
-          <MenuItem value="">Tất cả toà nhà</MenuItem>
-          {(buildingsQuery.data?.data ?? []).map((building) => (
-            <MenuItem key={building.id} value={String(building.id)}>
-              {building.displayName}
-            </MenuItem>
-          ))}
-        </TextField>
-      </Box>
+          <TextField
+            select
+            label="Toà nhà"
+            size="small"
+            value={buildingId === '' ? '' : String(buildingId)}
+            onChange={(event) => {
+              setBuildingId(event.target.value === '' ? '' : Number(event.target.value))
+              setRows({})
+            }}
+            sx={{ minWidth: 220 }}
+          >
+            <MenuItem value="">Tất cả toà nhà</MenuItem>
+            {(buildingsQuery.data?.data ?? []).map((building) => (
+              <MenuItem key={building.id} value={String(building.id)}>
+                {building.displayName}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Box>
 
-      {body()}
+        {body()}
+      </ListSurface>
     </Box>
   )
 }

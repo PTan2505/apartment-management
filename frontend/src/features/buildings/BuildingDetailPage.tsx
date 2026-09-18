@@ -9,6 +9,7 @@ import Typography from '@mui/material/Typography'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { Link as RouterLink, useParams } from 'react-router'
 
+import { ListSurface } from '@/components/ListSurface'
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
@@ -83,15 +84,17 @@ export function BuildingDetailPage() {
       <Typography variant="h6" component="h3" sx={{ mb: 1 }}>
         Phòng
       </Typography>
-      <RoomsSection
-        rooms={roomsQuery.data?.data}
-        meta={roomsQuery.data?.meta}
-        isPending={roomsQuery.isPending}
-        error={roomsQuery.error}
-        onRetry={() => roomsQuery.refetch()}
-        onPageChange={setPage}
-        buildingId={building.id}
-      />
+      <ListSurface>
+        <RoomsSection
+          rooms={roomsQuery.data?.data}
+          meta={roomsQuery.data?.meta}
+          isPending={roomsQuery.isPending}
+          error={roomsQuery.error}
+          onRetry={() => roomsQuery.refetch()}
+          onPageChange={setPage}
+          buildingId={building.id}
+        />
+      </ListSurface>
     </Box>
   )
 }

@@ -7,6 +7,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Typography from '@mui/material/Typography'
 import AddIcon from '@mui/icons-material/Add'
 
+import { ListSurface } from '@/components/ListSurface'
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
 import { useListParams } from '@/lib/useListParams'
@@ -155,25 +156,27 @@ export function BuildingsPage() {
     <Box>
       {header}
 
-      <BuildingFilters
-        locations={locationsQuery.data ?? []}
-        city={filters.city}
-        ward={filters.ward}
-        includeInactive={includeInactive}
-        onCityChange={(city, wardStillValid) =>
-          // One update, not two: changing the city and dropping a now-impossible
-          // ward have to land together, or the second overwrites the first.
-          setFilters({ city, ...(wardStillValid ? {} : { ward: undefined }) })
-        }
-        onWardChange={(ward) => setFilter('ward', ward)}
-        onIncludeInactiveChange={(next) =>
-          setFilter('includeInactive', next ? 'true' : undefined)
-        }
-        onClear={clearFilters}
-        hasFilters={hasFilters}
-      />
+      <ListSurface>
+        <BuildingFilters
+          locations={locationsQuery.data ?? []}
+          city={filters.city}
+          ward={filters.ward}
+          includeInactive={includeInactive}
+          onCityChange={(city, wardStillValid) =>
+            // One update, not two: changing the city and dropping a now-impossible
+            // ward have to land together, or the second overwrites the first.
+            setFilters({ city, ...(wardStillValid ? {} : { ward: undefined }) })
+          }
+          onWardChange={(ward) => setFilter('ward', ward)}
+          onIncludeInactiveChange={(next) =>
+            setFilter('includeInactive', next ? 'true' : undefined)
+          }
+          onClear={clearFilters}
+          hasFilters={hasFilters}
+        />
 
-      {body()}
+        {body()}
+      </ListSurface>
 
       <BuildingFormDialog
         open={formOpen}

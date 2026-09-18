@@ -6,6 +6,7 @@ import Switch from '@mui/material/Switch'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 
+import { ListSurface } from '@/components/ListSurface'
 import { useListParams } from '@/lib/useListParams'
 import { SearchField } from '@/components/SearchField'
 import { useBuildings } from '@/features/buildings/hooks'
@@ -48,63 +49,65 @@ export function RoomsPage() {
         Phòng
       </Typography>
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
-        <TextField
-          select
-          label="Toà nhà"
-          size="small"
-          value={filters.buildingId ?? ''}
-          onChange={(event) =>
-            setFilter('buildingId', event.target.value === '' ? undefined : event.target.value)
-          }
-          sx={{ minWidth: 220, flexGrow: { xs: 1, sm: 0 } }}
-        >
-          <MenuItem value="">Tất cả toà nhà</MenuItem>
-          {buildings.map((building) => (
-            <MenuItem key={building.id} value={String(building.id)}>
-              {building.displayName}
-            </MenuItem>
-          ))}
-        </TextField>
+      <ListSurface>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
+          <TextField
+            select
+            label="Toà nhà"
+            size="small"
+            value={filters.buildingId ?? ''}
+            onChange={(event) =>
+              setFilter('buildingId', event.target.value === '' ? undefined : event.target.value)
+            }
+            sx={{ minWidth: 220, flexGrow: { xs: 1, sm: 0 } }}
+          >
+            <MenuItem value="">Tất cả toà nhà</MenuItem>
+            {buildings.map((building) => (
+              <MenuItem key={building.id} value={String(building.id)}>
+                {building.displayName}
+              </MenuItem>
+            ))}
+          </TextField>
 
-        <SearchField
-          label="Tìm mã phòng"
-          size="small"
-          value={filters.search ?? ''}
-          onDebouncedChange={(value) => setFilter('search', value || undefined)}
-          helperText="Khớp mọi mã phòng có chứa nội dung bạn gõ"
-          sx={{ minWidth: 220, flexGrow: { xs: 1, sm: 0 } }}
+          <SearchField
+            label="Tìm mã phòng"
+            size="small"
+            value={filters.search ?? ''}
+            onDebouncedChange={(value) => setFilter('search', value || undefined)}
+            helperText="Khớp mọi mã phòng có chứa nội dung bạn gõ"
+            sx={{ minWidth: 220, flexGrow: { xs: 1, sm: 0 } }}
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={includeInactive}
+                onChange={(event) =>
+                  setFilter('includeInactive', event.target.checked ? 'true' : undefined)
+                }
+              />
+            }
+            label="Kể cả đã ngừng"
+          />
+
+          {hasFilters && (
+            <Button onClick={clearFilters} size="small">
+              Xoá bộ lọc
+            </Button>
+          )}
+        </Box>
+
+        <RoomsSection
+          rooms={roomsQuery.data?.data}
+          meta={roomsQuery.data?.meta}
+          isPending={roomsQuery.isPending}
+          error={roomsQuery.error}
+          onRetry={() => roomsQuery.refetch()}
+          onPageChange={setPage}
+          hasFilters={hasFilters}
+          onClearFilters={clearFilters}
         />
-
-        <FormControlLabel
-          control={
-            <Switch
-              checked={includeInactive}
-              onChange={(event) =>
-                setFilter('includeInactive', event.target.checked ? 'true' : undefined)
-              }
-            />
-          }
-          label="Kể cả đã ngừng"
-        />
-
-        {hasFilters && (
-          <Button onClick={clearFilters} size="small">
-            Xoá bộ lọc
-          </Button>
-        )}
-      </Box>
-
-      <RoomsSection
-        rooms={roomsQuery.data?.data}
-        meta={roomsQuery.data?.meta}
-        isPending={roomsQuery.isPending}
-        error={roomsQuery.error}
-        onRetry={() => roomsQuery.refetch()}
-        onPageChange={setPage}
-        hasFilters={hasFilters}
-        onClearFilters={clearFilters}
-      />
+      </ListSurface>
     </Box>
   )
 }

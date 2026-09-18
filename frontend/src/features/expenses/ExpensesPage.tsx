@@ -29,6 +29,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
 import PowerOffIcon from '@mui/icons-material/PowerOff'
 
+import { ListSurface } from '@/components/ListSurface'
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
@@ -307,93 +308,95 @@ export function ExpensesPage() {
         </Stack>
       </Box>
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
-        <TextField
-          select
-          label="Toà nhà"
-          size="small"
-          value={filters.buildingId ?? ''}
-          onChange={(event) =>
-            setFilters({
-              buildingId: event.target.value === '' ? undefined : event.target.value,
-              roomId: undefined,
-            })
-          }
-          sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
-        >
-          <MenuItem value="">Tất cả toà nhà</MenuItem>
-          {(buildingsQuery.data?.data ?? []).map((building) => (
-            <MenuItem key={building.id} value={String(building.id)}>
-              {building.displayName}
-            </MenuItem>
-          ))}
-        </TextField>
+      <ListSurface>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
+          <TextField
+            select
+            label="Toà nhà"
+            size="small"
+            value={filters.buildingId ?? ''}
+            onChange={(event) =>
+              setFilters({
+                buildingId: event.target.value === '' ? undefined : event.target.value,
+                roomId: undefined,
+              })
+            }
+            sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
+          >
+            <MenuItem value="">Tất cả toà nhà</MenuItem>
+            {(buildingsQuery.data?.data ?? []).map((building) => (
+              <MenuItem key={building.id} value={String(building.id)}>
+                {building.displayName}
+              </MenuItem>
+            ))}
+          </TextField>
 
-        <TextField
-          select
-          label="Phòng"
-          size="small"
-          value={filters.roomId ?? ''}
-          onChange={(event) =>
-            setFilter('roomId', event.target.value === '' ? undefined : event.target.value)
-          }
-          sx={{ minWidth: 180, flexGrow: { xs: 1, sm: 0 } }}
-        >
-          <MenuItem value="">Tất cả phòng</MenuItem>
-          {(roomsQuery.data?.data ?? []).map((room) => (
-            <MenuItem key={room.id} value={String(room.id)}>
-              {buildingId ? room.roomCode : `${room.roomCode} · ${room.building.displayName}`}
-            </MenuItem>
-          ))}
-        </TextField>
+          <TextField
+            select
+            label="Phòng"
+            size="small"
+            value={filters.roomId ?? ''}
+            onChange={(event) =>
+              setFilter('roomId', event.target.value === '' ? undefined : event.target.value)
+            }
+            sx={{ minWidth: 180, flexGrow: { xs: 1, sm: 0 } }}
+          >
+            <MenuItem value="">Tất cả phòng</MenuItem>
+            {(roomsQuery.data?.data ?? []).map((room) => (
+              <MenuItem key={room.id} value={String(room.id)}>
+                {buildingId ? room.roomCode : `${room.roomCode} · ${room.building.displayName}`}
+              </MenuItem>
+            ))}
+          </TextField>
 
-        <TextField
-          select
-          label="Loại"
-          size="small"
-          value={filters.category ?? ''}
-          onChange={(event) =>
-            setFilter('category', event.target.value === '' ? undefined : event.target.value)
-          }
-          sx={{ minWidth: 180 }}
-        >
-          <MenuItem value="">Tất cả các loại</MenuItem>
-          {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((key) => (
-            <MenuItem key={key} value={key}>
-              {CATEGORY_LABELS[key]}
-            </MenuItem>
-          ))}
-        </TextField>
+          <TextField
+            select
+            label="Loại"
+            size="small"
+            value={filters.category ?? ''}
+            onChange={(event) =>
+              setFilter('category', event.target.value === '' ? undefined : event.target.value)
+            }
+            sx={{ minWidth: 180 }}
+          >
+            <MenuItem value="">Tất cả các loại</MenuItem>
+            {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((key) => (
+              <MenuItem key={key} value={key}>
+                {CATEGORY_LABELS[key]}
+              </MenuItem>
+            ))}
+          </TextField>
 
-        <TextField
-          label="Từ"
-          type="date"
-          size="small"
-          value={filters.from ?? ''}
-          onChange={(event) =>
-            setFilter('from', event.target.value === '' ? undefined : event.target.value)
-          }
-          slotProps={{ inputLabel: { shrink: true } }}
-        />
-        <TextField
-          label="Đến"
-          type="date"
-          size="small"
-          value={filters.to ?? ''}
-          onChange={(event) =>
-            setFilter('to', event.target.value === '' ? undefined : event.target.value)
-          }
-          slotProps={{ inputLabel: { shrink: true } }}
-        />
+          <TextField
+            label="Từ"
+            type="date"
+            size="small"
+            value={filters.from ?? ''}
+            onChange={(event) =>
+              setFilter('from', event.target.value === '' ? undefined : event.target.value)
+            }
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
+          <TextField
+            label="Đến"
+            type="date"
+            size="small"
+            value={filters.to ?? ''}
+            onChange={(event) =>
+              setFilter('to', event.target.value === '' ? undefined : event.target.value)
+            }
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
 
-        {hasFilters && (
-          <Button onClick={clearFilters} size="small">
-            Xoá bộ lọc
-          </Button>
-        )}
-      </Box>
+          {hasFilters && (
+            <Button onClick={clearFilters} size="small">
+              Xoá bộ lọc
+            </Button>
+          )}
+        </Box>
 
-      {body()}
+        {body()}
+      </ListSurface>
 
       <ExpenseFormDialog open={formOpen} expense={editing} onClose={() => setFormOpen(false)} />
 
