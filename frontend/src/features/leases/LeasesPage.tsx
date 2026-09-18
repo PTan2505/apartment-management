@@ -1,48 +1,63 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router'
-import Alert from '@mui/material/Alert'
-import AlertTitle from '@mui/material/AlertTitle'
-import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import CircularProgress from '@mui/material/CircularProgress'
-import FormControlLabel from '@mui/material/FormControlLabel'
-import MenuItem from '@mui/material/MenuItem'
-import Switch from '@mui/material/Switch'
-import TextField from '@mui/material/TextField'
-import AddIcon from '@mui/icons-material/Add'
+import AddIcon from "@mui/icons-material/Add";
+import Alert from "@mui/material/Alert";
+import AlertTitle from "@mui/material/AlertTitle";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import MenuItem from "@mui/material/MenuItem";
+import Switch from "@mui/material/Switch";
+import TextField from "@mui/material/TextField";
+import { useState } from "react";
+import { useNavigate } from "react-router";
 
-import { PageHeader } from '@/components/PageHeader'
-import { ListSurface } from '@/components/ListSurface'
-import { isApiError } from '@/lib/api-error'
-import { errorMessage } from '@/lib/error-messages'
-import { useListParams } from '@/lib/useListParams'
-import { EmptyState } from '@/components/EmptyState'
-import { Pagination } from '@/components/Pagination'
-import { useBuildings } from '@/features/buildings/hooks'
-import { useRooms } from '@/features/rooms/hooks'
-import { useCustomers } from '@/features/customers/hooks'
-import { useLeases, useOverdueLeaseCount } from '@/features/leases/hooks'
-import { LeaseList } from '@/features/leases/LeaseList'
-import { LeaseFormDialog } from '@/features/leases/LeaseFormDialog'
+import { EmptyState } from "@/components/EmptyState";
+import { ListSurface } from "@/components/ListSurface";
+import { PageHeader } from "@/components/PageHeader";
+import { Pagination } from "@/components/Pagination";
+import { useBuildings } from "@/features/buildings/hooks";
+import { useCustomers } from "@/features/customers/hooks";
+import { useLeases, useOverdueLeaseCount } from "@/features/leases/hooks";
+import { LeaseFormDialog } from "@/features/leases/LeaseFormDialog";
+import { LeaseList } from "@/features/leases/LeaseList";
+import { useRooms } from "@/features/rooms/hooks";
+import { isApiError } from "@/lib/api-error";
+import { errorMessage } from "@/lib/error-messages";
+import { useListParams } from "@/lib/useListParams";
 
 interface LeaseFilters extends Record<string, string | undefined> {
-  buildingId?: string
-  roomId?: string
-  customerId?: string
-  active?: string
-  overdue?: string
+  buildingId?: string;
+  roomId?: string;
+  customerId?: string;
+  active?: string;
+  overdue?: string;
 }
 
-const FILTER_KEYS = ['buildingId', 'roomId', 'customerId', 'active', 'overdue'] as const
+const FILTER_KEYS = [
+  "buildingId",
+  "roomId",
+  "customerId",
+  "active",
+  "overdue",
+] as const;
 
 export function LeasesPage() {
-  const navigate = useNavigate()
-  const [formOpen, setFormOpen] = useState(false)
+  const navigate = useNavigate();
+  const [formOpen, setFormOpen] = useState(false);
 
-  const { filters, page, setFilter, setFilters, clearFilters, setPage, hasFilters } =
-    useListParams<LeaseFilters>(FILTER_KEYS)
+  const {
+    filters,
+    page,
+    setFilter,
+    setFilters,
+    clearFilters,
+    setPage,
+    hasFilters,
+  } = useListParams<LeaseFilters>(FILTER_KEYS);
 
-  const buildingId = filters.buildingId ? Number(filters.buildingId) : undefined
+  const buildingId = filters.buildingId
+    ? Number(filters.buildingId)
+    : undefined;
 
   const leasesQuery = useLeases({
     page,
@@ -50,9 +65,10 @@ export function LeasesPage() {
     roomId: filters.roomId ? Number(filters.roomId) : undefined,
     customerId: filters.customerId ? Number(filters.customerId) : undefined,
     // Absent means both, so only a decided value becomes a filter.
-    active: filters.active === undefined ? undefined : filters.active === 'true',
-    overdue: filters.overdue === 'true',
-  })
+    active:
+      filters.active === undefined ? undefined : filters.active === "true",
+    overdue: filters.overdue === "true",
+  });
 
   // Every room, including let ones: the filter is for finding a room's history,
   // which is mostly the tenancies that have ended.
@@ -61,31 +77,39 @@ export function LeasesPage() {
   // list of every room across every building is unusable past a handful, and a
   // room code alone is ambiguous anyway — the same code exists in several
   // buildings.
-  const roomsQuery = useRooms({ pageSize: 200, buildingId })
-  const buildingsQuery = useBuildings({ pageSize: 200 })
-  const customersQuery = useCustomers({ pageSize: 200 })
+  const roomsQuery = useRooms({ pageSize: 200, buildingId });
+  const buildingsQuery = useBuildings({ pageSize: 200 });
+  const customersQuery = useCustomers({ pageSize: 200 });
 
-  const overdueCount = useOverdueLeaseCount().data ?? 0
-  const showingOverdue = filters.overdue === 'true'
+  const overdueCount = useOverdueLeaseCount().data ?? 0;
+  const showingOverdue = filters.overdue === "true";
 
-  const leases = leasesQuery.data?.data
-  const meta = leasesQuery.data?.meta
+  const leases = leasesQuery.data?.data;
+  const meta = leasesQuery.data?.meta;
 
   function body() {
     if (leasesQuery.isPending) {
       return (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+        <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
           <CircularProgress />
         </Box>
-      )
+      );
     }
 
     if (leasesQuery.error) {
       return (
         <Alert
-          severity={isApiError(leasesQuery.error) && leasesQuery.error.isTransport ? 'warning' : 'error'}
+          severity={
+            isApiError(leasesQuery.error) && leasesQuery.error.isTransport
+              ? "warning"
+              : "error"
+          }
           action={
-            <Button color="inherit" size="small" onClick={() => void leasesQuery.refetch()}>
+            <Button
+              color="inherit"
+              size="small"
+              onClick={() => void leasesQuery.refetch()}
+            >
               Thử lại
             </Button>
           }
@@ -93,7 +117,7 @@ export function LeasesPage() {
           <AlertTitle>Không tải được danh sách hợp đồng</AlertTitle>
           {errorMessage(leasesQuery.error)}
         </Alert>
-      )
+      );
     }
 
     if (!leases || leases.length === 0) {
@@ -112,20 +136,27 @@ export function LeasesPage() {
           title="Chưa có hợp đồng nào"
           description="Ký hợp đồng đầu tiên để bắt đầu."
           action={
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormOpen(true)}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setFormOpen(true)}
+            >
               Hợp đồng mới
             </Button>
           }
         />
-      )
+      );
     }
 
     return (
       <>
-        <LeaseList leases={leases} onOpen={(lease) => void navigate(`/leases/${lease.id}`)} />
+        <LeaseList
+          leases={leases}
+          onOpen={(lease) => void navigate(`/leases/${lease.id}`)}
+        />
         {meta && <Pagination meta={meta} onPageChange={setPage} />}
       </>
-    )
+    );
   }
 
   return (
@@ -133,26 +164,39 @@ export function LeasesPage() {
       <PageHeader
         title="Hợp đồng"
         action={
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormOpen(true)}>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setFormOpen(true)}
+          >
             Hợp đồng mới
           </Button>
         }
       />
 
       <ListSurface>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 2,
+            alignItems: "start",
+            mb: 2,
+          }}
+        >
           <TextField
             select
             label="Toà nhà"
             size="small"
-            value={filters.buildingId ?? ''}
+            value={filters.buildingId ?? ""}
             onChange={(event) =>
               // Both in one update: a room belongs to one building, so changing
               // the building leaves any chosen room pointing somewhere it is not.
               // Two `setFilter` calls would not compose — the second computes
               // from the params the first captured and discards its change.
               setFilters({
-                buildingId: event.target.value === '' ? undefined : event.target.value,
+                buildingId:
+                  event.target.value === "" ? undefined : event.target.value,
                 roomId: undefined,
               })
             }
@@ -170,9 +214,12 @@ export function LeasesPage() {
             select
             label="Phòng"
             size="small"
-            value={filters.roomId ?? ''}
+            value={filters.roomId ?? ""}
             onChange={(event) =>
-              setFilter('roomId', event.target.value === '' ? undefined : event.target.value)
+              setFilter(
+                "roomId",
+                event.target.value === "" ? undefined : event.target.value,
+              )
             }
             sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
           >
@@ -181,7 +228,9 @@ export function LeasesPage() {
               <MenuItem key={room.id} value={String(room.id)}>
                 {/* The building is established by the filter above once chosen,
                     so repeating it on every row is noise. */}
-                {buildingId ? room.roomCode : `${room.roomCode} · ${room.building.displayName}`}
+                {buildingId
+                  ? room.roomCode
+                  : `${room.roomCode} · ${room.building.displayName}`}
               </MenuItem>
             ))}
           </TextField>
@@ -190,9 +239,12 @@ export function LeasesPage() {
             select
             label="Người"
             size="small"
-            value={filters.customerId ?? ''}
+            value={filters.customerId ?? ""}
             onChange={(event) =>
-              setFilter('customerId', event.target.value === '' ? undefined : event.target.value)
+              setFilter(
+                "customerId",
+                event.target.value === "" ? undefined : event.target.value,
+              )
             }
             // Finds every tenancy this person occupied, not only the ones they
             // signed — which is what makes it a question about their history.
@@ -211,9 +263,12 @@ export function LeasesPage() {
             select
             label="Trạng thái"
             size="small"
-            value={filters.active ?? ''}
+            value={filters.active ?? ""}
             onChange={(event) =>
-              setFilter('active', event.target.value === '' ? undefined : event.target.value)
+              setFilter(
+                "active",
+                event.target.value === "" ? undefined : event.target.value,
+              )
             }
             sx={{ minWidth: 150 }}
           >
@@ -225,9 +280,12 @@ export function LeasesPage() {
           <FormControlLabel
             control={
               <Switch
-                checked={filters.overdue === 'true'}
+                checked={filters.overdue === "true"}
                 onChange={(event) =>
-                  setFilter('overdue', event.target.checked ? 'true' : undefined)
+                  setFilter(
+                    "overdue",
+                    event.target.checked ? "true" : undefined,
+                  )
                 }
               />
             }
@@ -258,18 +316,23 @@ export function LeasesPage() {
             severity="warning"
             sx={{ mb: 2 }}
             action={
-              <Button color="inherit" size="small" onClick={() => setFilter('overdue', 'true')}>
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => setFilter("overdue", "true")}
+              >
                 Xem ngay
               </Button>
             }
           >
             <AlertTitle>
               {overdueCount === 1
-                ? '1 hợp đồng cần xử lý'
+                ? "1 hợp đồng cần xử lý"
                 : `${overdueCount} hợp đồng cần xử lý`}
             </AlertTitle>
-            Đã hết hạn thoả thuận mà chưa ghi nhận trả phòng. Không xuất thêm được
-            hoá đơn nào cho chúng, và phòng vẫn bị giữ, không cho thuê lại được.
+            Đã hết hạn thoả thuận mà chưa ghi nhận trả phòng. Không xuất thêm
+            được hoá đơn nào cho chúng, và phòng vẫn bị giữ, không cho thuê lại
+            được.
           </Alert>
         )}
 
@@ -284,5 +347,5 @@ export function LeasesPage() {
         onCreated={(lease) => void navigate(`/leases/${lease.id}`)}
       />
     </Box>
-  )
+  );
 }
