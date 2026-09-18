@@ -1,9 +1,7 @@
 ## Purpose
 
 Lets an owner define and maintain the apartment buildings they manage, including the per-kWh electricity rate and per-person water rate that later billing uses to charge each room in that building.
-
 ## Requirements
-
 ### Requirement: Owner can create a building
 The system SHALL allow an authenticated `owner` to create a building with a display name, a street address, a ward, a city, an electricity rate per kWh, and a water rate per person. Rate values MUST NOT be negative. The country SHALL default to Vietnam when not supplied. Ward and city are required, because a building missing either could not be found by the filters that exist to locate it.
 
@@ -48,7 +46,11 @@ Recording that identifier SHALL NOT change how the address itself is validated. 
 - **THEN** the building is created and records no identifier, indicating an address that was not resolved from a place
 
 ### Requirement: Owner can list and retrieve buildings
-The system SHALL allow an authenticated `owner` to list buildings, filter them by ward and by city, and retrieve a single building by id. Listing SHALL return only active buildings unless retired buildings are explicitly requested. The ward and city filters SHALL match any building whose value contains the given text, SHALL ignore case, and SHALL be combinable with each other and with the other filters. Listing SHALL be paginated using the shared paginated response contract, so the response carries a `data` array and a `meta` object describing the page and totals rather than a bare array.
+The system SHALL allow an authenticated `owner` to list buildings, filter them by ward, by city, and by whether they are in service, and retrieve a single building by id.
+
+The in-service filter SHALL accept three answers — only buildings in service, only buildings taken out of service, or both — because "what have I taken out of service" is a question the owner asks while tidying up, and a flag that only widens the result cannot express it. When the filter is not given, listing SHALL return only buildings in service, so a caller that does not ask about retirement is unaffected.
+
+The ward and city filters SHALL match any building whose value contains the given text, SHALL ignore case, and SHALL be combinable with each other and with the other filters. Listing SHALL be paginated using the shared paginated response contract, so the response carries a `data` array and a `meta` object describing the page and totals rather than a bare array.
 
 #### Scenario: Listing excludes retired buildings by default
 - **WHEN** an authenticated owner lists buildings and some buildings have been retired
@@ -93,6 +95,46 @@ The system SHALL allow an authenticated `owner` to list buildings, filter them b
 #### Scenario: Location filter with no match
 - **WHEN** an authenticated owner filters by a city or ward that no building matches
 - **THEN** the system responds with HTTP 200 and an empty list
+
+#### Scenario: Listing can include retired buildings
+- **WHEN** an authenticated owner lists buildings asking for both statuses
+- **THEN** the response contains both buildings in service and buildings out of service
+
+#### Scenario: Listing excludes retired buildings by default
+- **WHEN** an authenticated owner lists buildings without naming a status and some buildings have been retired
+- **THEN** the response contains only buildings in service
+
+#### Scenario: Listing everything
+- **WHEN** an authenticated owner lists buildings asking for both
+- **THEN** the response contains buildings in service and buildings out of service
+
+#### Scenario: Listing only what is out of service
+- **WHEN** an authenticated owner lists buildings asking only for those out of service
+- **THEN** the response contains only retired buildings, and none that are in service
+
+#### Scenario: An unknown status is refused
+- **WHEN** an authenticated owner lists buildings naming a status that is not one of the three
+- **THEN** the system responds with HTTP 400 rather than silently listing a default
+
+#### Scenario: Retrieving a building that does not exist
+- **WHEN** an authenticated owner requests a building id that does not exist
+- **THEN** the system responds with HTTP 404
+
+#### Scenario: Building listing is paginated
+- **WHEN** an authenticated owner lists buildings
+- **THEN** the response is the shared paginated shape, with the buildings in `data` and the page, page size, and totals in `meta`
+
+#### Scenario: Paging applies to the filtered set
+- **WHEN** an authenticated owner lists buildings asking for both statuses and asks for a specific page
+- **THEN** the items and totals describe the combined set, not the in-service-only set
+
+#### Scenario: Filtering by city
+- **WHEN** an authenticated owner lists buildings filtered by a city
+- **THEN** the response contains only buildings whose city contains that text
+
+#### Scenario: Filtering by ward
+- **WHEN** an authenticated owner lists buildings filtered by a ward
+- **THEN** the response contains only buildings whose ward contains that text
 
 ### Requirement: Owner can update a building
 The system SHALL allow an authenticated `owner` to update a building's display name, street address, ward, city, country, and utility rates. Changing a rate SHALL NOT alter any invoice already issued, because each invoice records the rate that was applied at the time it was created.
@@ -145,6 +187,7 @@ The system SHALL allow an authenticated `owner` to retire a building by marking 
 #### Scenario: Retiring a building does not retire its rooms
 - **WHEN** an authenticated owner retires a building that contains active rooms
 - **THEN** those rooms remain individually active, and retiring the building does not change their state
+
 ### Requirement: Building endpoints require an authenticated owner
 The system SHALL reject any building request that is unauthenticated or made by a user whose role is not `owner`.
 
@@ -157,18 +200,11 @@ The system SHALL reject any building request that is unauthenticated or made by 
 - **THEN** the system responds with HTTP 403 and does not process the request
 
 ### Requirement: Owner can retrieve the locations buildings are in
+The system SHALL allow an authenticated `owner` to retrieve the distinct cities, each with the distinct wards recorded for buildings in that city, so a location filter can offer real choices rather than free text.
 
-The system SHALL allow an authenticated `owner` to retrieve the ward and city values that buildings currently record, so that a caller can offer them as choices instead of asking for free text.
+The result SHALL be filtered by the same in-service statuses the listing accepts, and SHALL be taken over exactly the set the listing would return for that status, because a location offered as a filter choice must not produce an empty result.
 
-Each city SHALL be reported once, together with the wards recorded for buildings in that city. A ward SHALL appear under every city it is recorded with, because the same ward name may exist in more than one city and the pairing is what makes a narrowed choice correct.
-
-Values SHALL be reported exactly as stored, with no normalisation, so that a value returned here matches the building it came from when used as a filter. Two spellings of the same place are therefore reported as two values.
-
-Results SHALL be ordered as Vietnamese text rather than by character code, because ordering by character code places letters such as `Đ` outside their alphabetical position and produces a list that reads as unordered.
-
-By default only the locations of active buildings SHALL be reported. Retired buildings' locations SHALL be included only when explicitly requested, matching the behaviour of building listing — a location offered as a filter choice must not return an empty result.
-
-This response SHALL NOT be paginated. It is a bounded summary rather than a listing, so it carries no page or total information.
+Cities and wards SHALL be ordered as Vietnamese rather than by character code.
 
 #### Scenario: Retrieving locations in use
 
@@ -229,3 +265,70 @@ This response SHALL NOT be paginated. It is a bounded summary rather than a list
 
 - **WHEN** a request for the locations carries a valid access token for a user whose role is not `owner`
 - **THEN** the system responds with HTTP 403 and does not process the request
+
+#### Scenario: Retired buildings are excluded by default
+- **WHEN** an authenticated owner retrieves locations without naming a status
+- **THEN** cities and wards are taken only from buildings in service
+
+#### Scenario: Retired buildings can be included
+- **WHEN** an authenticated owner retrieves locations asking for both statuses
+- **THEN** cities and wards are taken from buildings in service and out of service alike
+
+#### Scenario: Locations follow the status asked for
+- **WHEN** an authenticated owner retrieves locations for a given in-service status
+- **THEN** the cities and wards are exactly those of the buildings that status would list
+
+#### Scenario: Vietnamese ordering
+- **WHEN** an authenticated owner retrieves locations
+- **THEN** cities and wards are ordered alphabetically as Vietnamese
+
+### Requirement: A listed building reports how many of its rooms are let and empty
+The system SHALL include, with every building in the list response, a count of the rooms that are currently let and a count of the rooms that are currently empty.
+
+Both counts SHALL be taken over the building's rooms that are in service, and a room SHALL count as let on exactly the rule the rooms list uses: it has a tenancy with no move-out recorded and no cancellation. A room in service that is not let counts as empty, so the two SHALL always sum to the rooms in service.
+
+A retired room SHALL be counted in neither, because it cannot be offered to anyone and counting it as empty would report work that does not exist. It SHALL instead be reported as its own count, so a building that has taken rooms out of service says so rather than appearing smaller than it is.
+
+The counts SHALL be computed by the API rather than derived by a caller, because deriving them requires reading every room of every building on the page and the rule for "let" already lives in one place.
+
+#### Scenario: Counts accompany each listed building
+- **WHEN** an authenticated owner lists buildings
+- **THEN** each building in the response carries the number of its in-service rooms that are let and the number that are empty
+
+#### Scenario: A tenancy past its agreed term still holds its room
+- **GIVEN** a room whose tenancy has run past its agreed end date with no move-out recorded
+- **WHEN** an authenticated owner lists buildings
+- **THEN** that room counts as let, not as empty
+
+#### Scenario: A cancelled tenancy frees its room
+- **GIVEN** a room whose only tenancy was cancelled
+- **WHEN** an authenticated owner lists buildings
+- **THEN** that room counts as empty
+
+#### Scenario: A retired room is counted in neither
+- **GIVEN** a building with a retired room
+- **WHEN** an authenticated owner lists buildings
+- **THEN** the retired room is absent from the let and empty counts, those two sum to the building's rooms that are in service, and the room appears in the retired count
+
+#### Scenario: A room returned to service moves between the counts
+- **GIVEN** a building with a retired room
+- **WHEN** the owner restores that room and lists buildings again
+- **THEN** the retired count falls by one and the empty count rises by one
+
+#### Scenario: A building with no rooms
+- **WHEN** an authenticated owner lists a building that has no rooms
+- **THEN** both counts are zero
+
+### Requirement: Retrieving one building reports the same counts
+The system SHALL include the let, empty and retired room counts when a single building is retrieved, computed exactly as they are for the list, so a screen showing one building need not fetch its rooms to say how full it is.
+
+The counts SHALL NOT be attached to the building record that the update and retire operations read internally, because those operations do not use them and would pay for them on every write.
+
+#### Scenario: Counts accompany a retrieved building
+- **WHEN** an authenticated owner retrieves one building
+- **THEN** the response carries its let, empty and retired room counts
+
+#### Scenario: The same building reads the same in both places
+- **WHEN** an authenticated owner retrieves a building and also lists it
+- **THEN** the counts are identical in both responses
+

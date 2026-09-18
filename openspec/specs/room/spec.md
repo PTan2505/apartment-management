@@ -1,9 +1,7 @@
 ## Purpose
 
 Lets an owner define and maintain the individual rooms inside a building — each identified by a room code and carrying the base monthly rent that later leases and invoices bill against.
-
 ## Requirements
-
 ### Requirement: Owner can create a room in a building
 The system SHALL allow an authenticated `owner` to create a room belonging to an existing building, with a room code, a base monthly rent, and OPTIONALLY the electricity meter reading the room stands at. Base rent MUST NOT be negative, and neither MUST the meter reading.
 
@@ -64,7 +62,11 @@ The system SHALL reject a room whose code duplicates that of another active room
 - **THEN** the system creates the room successfully
 
 ### Requirement: Owner can list and retrieve rooms
-The system SHALL allow an authenticated `owner` to list rooms, filter them by building, search them by room code, and retrieve a single room by id. Listing SHALL return only active rooms unless retired rooms are explicitly requested. The room-code search SHALL match any room whose code contains the given text, SHALL ignore case, and SHALL be combinable with the other filters. Room codes SHALL NOT be usable in place of a room id, because the same code may exist in several buildings and may be reused after a room is retired. Listing SHALL be paginated using the shared paginated response contract, so the response carries a `data` array and a `meta` object describing the page and totals rather than a bare array.
+The system SHALL allow an authenticated `owner` to list rooms, filter them by building, by whether they are in service, search them by room code, and retrieve a single room by id.
+
+The in-service filter SHALL accept three answers — only rooms in service, only rooms taken out of service, or both. When it is not given, listing SHALL return only rooms in service, so a caller that does not ask about retirement is unaffected.
+
+The room-code search SHALL match any room whose code contains the given text, SHALL ignore case, and SHALL be combinable with the other filters. Room codes SHALL NOT be usable in place of a room id, because the same code may exist in several buildings and may be reused after a room is retired. Listing SHALL be paginated using the shared paginated response contract, so the response carries a `data` array and a `meta` object describing the page and totals rather than a bare array.
 
 Every room SHALL report the building it belongs to, identifying that building by both id and display name, so a room can be shown and understood without a further request. A room code identifies a room only within its building, so a room reported without its building is ambiguous. The building SHALL be reported identically wherever a room is returned, whether listed or retrieved singly.
 
@@ -140,6 +142,42 @@ The reported building SHALL be limited to what identifies it. Its rates, address
 - **WHEN** an authenticated owner searches rooms by code within a building and asks for a specific page
 - **THEN** the items and totals describe only the rooms matching that building and search
 
+#### Scenario: Listing can include retired rooms
+- **WHEN** an authenticated owner lists rooms asking for both statuses
+- **THEN** the response contains both rooms in service and rooms out of service
+
+#### Scenario: Listing rooms in a building
+- **WHEN** an authenticated owner lists rooms filtered by a building id
+- **THEN** the response contains only that building's rooms that are in service
+
+#### Scenario: Listing everything
+- **WHEN** an authenticated owner lists rooms asking for both statuses
+- **THEN** the response contains rooms in service and rooms out of service
+
+#### Scenario: Listing only what is out of service
+- **WHEN** an authenticated owner lists rooms asking only for those out of service
+- **THEN** the response contains only retired rooms, and none that are in service
+
+#### Scenario: An unknown status is refused
+- **WHEN** an authenticated owner lists rooms naming a status that is not one of the three
+- **THEN** the system responds with HTTP 400
+
+#### Scenario: Retrieving a room that does not exist
+- **WHEN** an authenticated owner requests a room id that does not exist
+- **THEN** the system responds with HTTP 404
+
+#### Scenario: A listed room reports its building
+- **WHEN** an authenticated owner lists rooms
+- **THEN** each room reports the building it belongs to, by id and display name
+
+#### Scenario: A retrieved room reports its building
+- **WHEN** an authenticated owner retrieves a single room by id
+- **THEN** it reports its building in the same form as a listed room does
+
+#### Scenario: The reported building is limited to what identifies it
+- **WHEN** a room reports its building
+- **THEN** that building carries its id and display name, and does not carry its rates, address, or active state
+
 ### Requirement: Owner can update a room
 The system SHALL allow an authenticated `owner` to update a room's code and base monthly rent. A room's base rent is what the room asks of a prospective tenant; it is not what any current tenant pays, because a lease records its own agreed rent when it is created.
 
@@ -187,6 +225,7 @@ The system SHALL allow an authenticated `owner` to retire a room by marking it i
 #### Scenario: Restoring a room whose code was reused
 - **WHEN** an authenticated owner restores a retired room whose code is now used by another active room in the same building
 - **THEN** the system responds with HTTP 409 and the room remains retired
+
 ### Requirement: Room endpoints require an authenticated owner
 The system SHALL reject any room request that is unauthenticated or made by a user whose role is not `owner`.
 
@@ -275,3 +314,4 @@ A room with no recorded opening reading and no tenancy history SHALL continue to
 
 - **WHEN** an authenticated owner creates the first lease for a room that has an opening reading, without supplying a starting reading
 - **THEN** the lease starts from the room's recorded reading, rather than being refused for having nothing to fall back on
+
