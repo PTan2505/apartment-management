@@ -158,8 +158,10 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
     // is billed what their agreement says, so editing the room after a lease
     // was signed must not change what that lease is charged.
     baseRent: lease.baseRent,
-    electricityRate: lease.room.building.electricityRate,
-    waterRatePerPerson: lease.room.building.waterRatePerPerson,
+    // Likewise the utility rates: copied onto the tenancy when it was signed,
+    // so raising a building's rates does not re-price tenancies already in it.
+    electricityRate: lease.electricityRate,
+    waterRatePerPerson: lease.waterRatePerPerson,
     occupantCount: lease.occupantCount,
     previousElectricityUse,
     currentElectricityUse: input.currentElectricityUse,
@@ -275,26 +277,21 @@ export async function listDueForMonth(query: ListDueQuery) {
       cancelledAt: true,
       startMeterReading: true,
       baseRent: true,
+      // The multiplier the reading is about to meet. A reading alone is half a
+      // figure — what gets billed is the difference times this — so an owner
+      // shown only the difference cannot tell a plausible number from a wrong
+      // one until the invoice already exists.
+      //
+      // Taken from the TENANCY, which is what its invoice will be computed
+      // from. Reading the building's current rate here would show a figure the
+      // bill is not going to use.
+      electricityRate: true,
       occupantCount: true,
       room: {
         select: {
           id: true,
           roomCode: true,
-          building: {
-            select: {
-              id: true,
-              displayName: true,
-              // The multiplier the reading is about to meet. A reading alone is
-              // half a figure — what gets billed is the difference times this —
-              // so an owner shown only the difference cannot tell a plausible
-              // number from a wrong one until the invoice already exists.
-              //
-              // Selected here rather than fetched per building by the caller:
-              // that would be a request per row for something this query
-              // already holds, and a second place deciding which rate applies.
-              electricityRate: true,
-            },
-          },
+          building: { select: { id: true, displayName: true } },
         },
       },
       // Who to name on the row. A room code alone is not enough to act on when
@@ -347,7 +344,7 @@ export async function listDueForMonth(query: ListDueQuery) {
       },
       // Alongside the reading, not inside the building: it is a fact about what
       // this tenancy's invoice would charge, which is what the row is for.
-      electricityRate: lease.room.building.electricityRate,
+      electricityRate: lease.electricityRate,
       tenant: lease.occupants[0]?.user ?? null,
       baseRent: lease.baseRent,
       occupantCount: lease.occupantCount,

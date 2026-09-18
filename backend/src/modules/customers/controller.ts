@@ -2,6 +2,9 @@ import type { Request, Response } from "express";
 import { ValidationError } from "@/lib/errors.js";
 import { parseIdParam, RESOURCE } from "@/lib/parse-id.js";
 import {
+  idCardConfirmSchema,
+  idCardSideSchema,
+  idCardUploadSchema,
   registerCustomerSchema,
   updateCustomerSchema,
   listCustomersQuerySchema,
@@ -44,6 +47,65 @@ export async function updateCustomerHandler(req: Request, res: Response) {
   const customer = await customerService.updateCustomer(
     parseIdParam(req.params.id, RESOURCE.customer),
     parsed.data,
+  );
+  res.status(200).json(customer);
+}
+
+export async function idCardUploadUrlHandler(req: Request, res: Response) {
+  const parsed = idCardUploadSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    throw new ValidationError(
+      "ID_CARD_UPLOAD_PAYLOAD_INVALID",
+      "Invalid ID card upload request",
+      parsed.error.flatten(),
+    );
+  }
+
+  const signed = await customerService.signIdCardUpload(
+    parseIdParam(req.params.id, RESOURCE.customer),
+    parsed.data,
+  );
+  res.status(200).json(signed);
+}
+
+export async function idCardConfirmHandler(req: Request, res: Response) {
+  const parsed = idCardConfirmSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    throw new ValidationError(
+      "ID_CARD_CONFIRM_PAYLOAD_INVALID",
+      "Invalid confirmation",
+      parsed.error.flatten(),
+    );
+  }
+
+  const customer = await customerService.confirmIdCardUpload(
+    parseIdParam(req.params.id, RESOURCE.customer),
+    parsed.data,
+  );
+  res.status(200).json(customer);
+}
+
+/** The side comes from the path here, so it is parsed the same way an id is. */
+function parseSide(value: unknown) {
+  const parsed = idCardSideSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new ValidationError("ID_CARD_SIDE_INVALID", "Side must be front or back");
+  }
+  return parsed.data;
+}
+
+export async function idCardDownloadHandler(req: Request, res: Response) {
+  const link = await customerService.getIdCardDownload(
+    parseIdParam(req.params.id, RESOURCE.customer),
+    parseSide(req.params.side),
+  );
+  res.status(200).json(link);
+}
+
+export async function idCardRemoveHandler(req: Request, res: Response) {
+  const customer = await customerService.removeIdCard(
+    parseIdParam(req.params.id, RESOURCE.customer),
+    parseSide(req.params.side),
   );
   res.status(200).json(customer);
 }

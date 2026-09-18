@@ -6,6 +6,13 @@ export interface Customer {
   phone: string | null
   fullName: string
   role: 'customer'
+  /**
+   * Whether each side of this person's ID card is on file. Two facts, not two
+   * addresses: the key is a location in the owner's bucket and the API never
+   * returns it — a screen only needs to know there is something to show.
+   */
+  hasIdCardFront: boolean
+  hasIdCardBack: boolean
   createdAt: string
   updatedAt: string
 }

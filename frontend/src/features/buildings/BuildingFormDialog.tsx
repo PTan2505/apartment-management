@@ -371,6 +371,18 @@ export function BuildingFormDialog({
             decimals
             helperText="Đồng mỗi người mỗi tháng"
           />
+
+          {/*
+            Only when editing. A new building has nothing already signed, so the
+            reassurance would be noise; on an existing one it answers the
+            question the owner is actually holding while they change a figure.
+          */}
+          {isEdit && (
+            <Alert severity="info" icon={false}>
+              Giá mới chỉ áp dụng cho hợp đồng ký từ nay về sau, và hoá đơn của
+              những hợp đồng đó. Hợp đồng đã ký vẫn giữ giá đã thoả thuận.
+            </Alert>
+          )}
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>

@@ -12,6 +12,7 @@ import Divider from '@mui/material/Divider'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 
+import { MoneyField } from '@/components/MoneyField'
 import { errorMessage } from '@/lib/error-messages'
 import { useUpdateLease } from '@/features/leases/hooks'
 import {
@@ -39,6 +40,8 @@ function defaults(lease: Lease) {
   return {
     durationMonths: lease.durationMonths,
     occupantCount: lease.occupantCount,
+    electricityRate: lease.electricityRate,
+    waterRatePerPerson: lease.waterRatePerPerson,
     noticeDays: lease.noticeDays ?? undefined,
     paymentDay: lease.paymentDay ?? undefined,
     startWaterReading: lease.startWaterReading ?? undefined,
@@ -48,11 +51,16 @@ function defaults(lease: Lease) {
 }
 
 /**
- * The two terms the API allows changing on a running tenancy.
+ * The terms the API allows changing on a running tenancy.
  *
  * Not the rent, the start date, the deposit or the room: those were agreed when
  * the tenancy was signed, and money already charged was computed from them.
  * Offering a control that cannot do anything is worse than not offering it.
+ *
+ * The utility rates ARE here. A tenancy is billed at its own copies, so without
+ * this the only way to bring a running tenancy onto a new rate would be to
+ * renew it early. Changing them moves what is billed from now on; invoices
+ * already issued keep the rates recorded on their own line items.
  *
  * A tenancy that has recorded a move-out cannot be edited at all — the screen
  * withholds the action rather than presenting it and reporting the refusal.
@@ -63,6 +71,7 @@ export function EditTermsDialog({ open, lease, onClose }: EditTermsDialogProps) 
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     formState: { errors },
@@ -129,6 +138,23 @@ export function EditTermsDialog({ open, lease, onClose }: EditTermsDialogProps) 
               'Số người, dùng tính tiền nước. Hoá đơn đã xuất vẫn giữ số người lúc xuất.'
             }
             {...register('occupantCount', { valueAsNumber: true })}
+          />
+
+          <MoneyField
+            control={control}
+            name="electricityRate"
+            label="Giá điện"
+            unit="đ / kWh"
+            decimals
+            helperText="Giá của riêng hợp đồng này. Hoá đơn đã xuất giữ giá lúc xuất."
+          />
+          <MoneyField
+            control={control}
+            name="waterRatePerPerson"
+            label="Giá nước"
+            unit="đ / người / tháng"
+            decimals
+            helperText="Đổi giá ở đây không đụng tới toà nhà hay hợp đồng khác."
           />
 
           {/*

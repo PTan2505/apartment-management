@@ -137,6 +137,45 @@ export function newContractKey(leaseId: number, contentType: ContractContentType
   return `${contractPrefix(leaseId)}${randomUUID()}.${EXTENSIONS[contentType]}`;
 }
 
+/** The sides of an ID card. Two objects, kept apart. */
+export const ID_CARD_SIDES = ["front", "back"] as const;
+export type IdCardSide = (typeof ID_CARD_SIDES)[number];
+
+/** A card is photographed, not scanned to PDF — so no PDF here. */
+export const ID_CARD_CONTENT_TYPES = ["image/jpeg", "image/png", "image/heic"] as const;
+
+export type IdCardContentType = (typeof ID_CARD_CONTENT_TYPES)[number];
+
+/** 10 MB. A phone photograph with room to spare, and half a contract's
+ *  allowance: a contract may be many pages, a card is one side of one card. */
+export const MAX_ID_CARD_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Where ONE SIDE of a customer's card lives.
+ *
+ * Scoped to the side rather than the customer, because replacing a front must
+ * not disturb the back. The contract's prefix covers a whole tenancy, which is
+ * right there and wrong here.
+ */
+export function idCardPrefix(customerId: number, side: IdCardSide): string {
+  return `customers/${customerId}/id-card/${side}/`;
+}
+
+const ID_CARD_EXTENSIONS: Record<IdCardContentType, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/heic": "heic",
+};
+
+/** Derived, never accepted: the caller names a side, not a destination. */
+export function newIdCardKey(
+  customerId: number,
+  side: IdCardSide,
+  contentType: IdCardContentType,
+): string {
+  return `${idCardPrefix(customerId, side)}${randomUUID()}.${ID_CARD_EXTENSIONS[contentType]}`;
+}
+
 export interface SignedUpload {
   url: string;
   key: string;
@@ -183,8 +222,34 @@ export async function signContractUpload(
   };
 }
 
+/**
+ * The same signature as a contract upload, for one side of one card.
+ *
+ * Shares every reason the contract version gives: the content type is bound
+ * into the signature, the size is not bindable and is enforced at confirmation,
+ * and the key is derived here rather than taken from the caller.
+ */
+export async function signIdCardUpload(
+  customerId: number,
+  side: IdCardSide,
+  contentType: IdCardContentType,
+): Promise<SignedUpload> {
+  const key = newIdCardKey(customerId, side, contentType);
+  const url = await getSignedUrl(
+    s3(),
+    new PutObjectCommand({ Bucket: env.R2_BUCKET!, Key: key, ContentType: contentType }),
+    { expiresIn: UPLOAD_URL_TTL_SECONDS, signableHeaders: new Set(["content-type"]) },
+  );
+  return {
+    url,
+    key,
+    expiresAt: new Date(Date.now() + UPLOAD_URL_TTL_SECONDS * 1000),
+    maxBytes: MAX_ID_CARD_BYTES,
+  };
+}
+
 /** A short-lived URL for reading. The stored object is never public. */
-export async function signContractDownload(key: string): Promise<{ url: string; expiresAt: Date }> {
+export async function signDownload(key: string): Promise<{ url: string; expiresAt: Date }> {
   const url = await getSignedUrl(
     s3(),
     new GetObjectCommand({ Bucket: env.R2_BUCKET!, Key: key }),
@@ -192,6 +257,9 @@ export async function signContractDownload(key: string): Promise<{ url: string; 
   );
   return { url, expiresAt: new Date(Date.now() + DOWNLOAD_URL_TTL_SECONDS * 1000) };
 }
+
+/** The old name, kept so the contract endpoints read as they did. */
+export const signContractDownload = signDownload;
 
 /**
  * What storage says about an object, or null where there is none.

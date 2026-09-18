@@ -150,6 +150,25 @@ export async function confirmContract(leaseId: number, key: string): Promise<Lea
   return data
 }
 
+/**
+ * Attaches a signed contract, and says whether it worked.
+ *
+ * Never throws, for the same reason `attachIdCards` does not: it is called
+ * AFTER the tenancy exists, and a tenancy that exists must not be reported as a
+ * failure because a scan did not upload.
+ */
+export async function attachContract(leaseId: number, file: File): Promise<boolean> {
+  try {
+    const signed = await signContractUpload(leaseId, file.type)
+    if (file.size > signed.maxBytes) return false
+    await uploadToStorage(signed, file)
+    await confirmContract(leaseId, signed.key)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** A short-lived link for reading. Answers 404 where there is no contract. */
 export async function getContractUrl(leaseId: number): Promise<{ url: string }> {
   const { data } = await apiClient.get<{ url: string }>(`/leases/${leaseId}/contract`)

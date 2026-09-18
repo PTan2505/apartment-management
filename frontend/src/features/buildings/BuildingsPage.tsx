@@ -4,9 +4,9 @@ import AlertTitle from '@mui/material/AlertTitle'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
-import Typography from '@mui/material/Typography'
 import AddIcon from '@mui/icons-material/Add'
 
+import { PageHeader } from '@/components/PageHeader'
 import { statusFromParam } from '@/lib/active-status'
 import { ListSurface } from '@/components/ListSurface'
 import { isApiError } from '@/lib/api-error'
@@ -67,23 +67,14 @@ export function BuildingsPage() {
   }
 
   const header = (
-    <Box
-      sx={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 2,
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        mb: 2,
-      }}
-    >
-      <Typography variant="h5" component="h2">
-        Toà nhà
-      </Typography>
-      <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-        Thêm toà nhà
-      </Button>
-    </Box>
+    <PageHeader
+      title="Toà nhà"
+      action={
+        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+          Thêm toà nhà
+        </Button>
+      }
+    />
   )
 
   function body() {

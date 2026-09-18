@@ -29,6 +29,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
 import PowerOffIcon from '@mui/icons-material/PowerOff'
 
+import { PageHeader } from '@/components/PageHeader'
 import { ListSurface } from '@/components/ListSurface'
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
@@ -280,33 +281,24 @@ export function ExpensesPage() {
 
   return (
     <Box>
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 1,
-          flexWrap: 'wrap',
-          mb: 2,
-        }}
-      >
-        <Typography variant="h5" component="h2">
-          Chi phí
-        </Typography>
-        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-          <Button
-            variant="outlined"
-            startIcon={<PowerOffIcon />}
-            component={RouterLink}
-            to="/expenses/empty-rooms"
-          >
-            Phòng trống
-          </Button>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
-            Ghi chi phí
-          </Button>
-        </Stack>
-      </Box>
+      <PageHeader
+        title="Chi phí"
+        action={
+          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+            <Button
+              variant="outlined"
+              startIcon={<PowerOffIcon />}
+              component={RouterLink}
+              to="/expenses/empty-rooms"
+            >
+              Phòng trống
+            </Button>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
+              Ghi chi phí
+            </Button>
+          </Stack>
+        }
+      />
 
       <ListSurface>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>

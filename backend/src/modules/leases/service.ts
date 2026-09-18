@@ -239,6 +239,13 @@ export async function createLease(input: CreateLeaseInput) {
   // must not reach back into an agreement already made.
   const baseRent = input.baseRent ?? room.baseRent;
 
+  // The building's rates, copied for the same reason and read the same once:
+  // this tenancy is fixing what IT pays for electricity and water, and a later
+  // edit to the building must not reach back into an agreement already made.
+  // Either may be given, for a price agreed with this tenant in particular.
+  const electricityRate = input.electricityRate ?? room.building.electricityRate;
+  const waterRatePerPerson = input.waterRatePerPerson ?? room.building.waterRatePerPerson;
+
   // Any advance beyond the room's last known reading happened while nobody
   // lived there, so the owner absorbs it. A lower reading means the meter was
   // replaced — a new baseline, not a credit.
@@ -258,6 +265,8 @@ export async function createLease(input: CreateLeaseInput) {
         occupantCount: input.occupantCount,
         startMeterReading,
         baseRent,
+        electricityRate,
+        waterRatePerPerson,
         depositMonths: input.depositMonths,
         // Terms of the agreement. Absent stays absent — undefined leaves the
         // column null, which is what "not agreed" means here.
@@ -303,8 +312,10 @@ export async function createLease(input: CreateLeaseInput) {
         occupantCount: created.occupantCount,
         startMeterReading: created.startMeterReading,
         baseRent: created.baseRent,
+        electricityRate: created.electricityRate,
+        waterRatePerPerson: created.waterRatePerPerson,
         depositMonths: created.depositMonths,
-        room: { buildingId: room.buildingId, building: room.building },
+        room: { buildingId: room.buildingId },
       },
       new Date(),
     );
@@ -539,8 +550,10 @@ export async function extendLease(id: number, input: ExtendLeaseInput) {
         occupantCount: lease.occupantCount,
         startMeterReading: lease.startMeterReading,
         baseRent: lease.baseRent,
+        electricityRate: lease.electricityRate,
+        waterRatePerPerson: lease.waterRatePerPerson,
         depositMonths: lease.depositMonths,
-        room: { buildingId: room.buildingId, building: room.building },
+        room: { buildingId: room.buildingId },
       },
       handover,
       input.endMeterReading,
@@ -562,6 +575,10 @@ export async function extendLease(id: number, input: ExtendLeaseInput) {
         // no vacancy for anyone to absorb.
         startMeterReading: input.endMeterReading,
         baseRent,
+        // A renewal is a NEW agreement, so it takes today's figures — the same
+        // rule the rent above follows by defaulting to the room's current rent.
+        electricityRate: room.building.electricityRate,
+        waterRatePerPerson: room.building.waterRatePerPerson,
         depositMonths,
       },
     });
@@ -607,8 +624,10 @@ export async function extendLease(id: number, input: ExtendLeaseInput) {
         occupantCount: successor.occupantCount,
         startMeterReading: successor.startMeterReading,
         baseRent: successor.baseRent,
+        electricityRate: successor.electricityRate,
+        waterRatePerPerson: successor.waterRatePerPerson,
         depositMonths: successor.depositMonths,
-        room: { buildingId: room.buildingId, building: room.building },
+        room: { buildingId: room.buildingId },
       },
       new Date(),
       input.settleDepositOnInvoice
@@ -683,7 +702,9 @@ export async function recordMoveOut(
     startMeterReading: lease.startMeterReading,
     baseRent: lease.baseRent,
     depositMonths: lease.depositMonths,
-    room: { buildingId: room.buildingId, building: room.building },
+    electricityRate: lease.electricityRate,
+    waterRatePerPerson: lease.waterRatePerPerson,
+    room: { buildingId: room.buildingId },
   };
 
   // Finalizing the lease also closes its occupancy records, so nobody is left

@@ -62,6 +62,10 @@ export const createLeaseFormSchema = z.object({
   depositMonths: wholeMonths.nonnegative('Không được là số âm'),
   /** Absent means the room's current rent. */
   baseRent: z.number().nonnegative('Không được là số âm').optional(),
+  /** Absent means the building's current rates. Both are filled from the
+   *  chosen room's building, and either can be agreed differently here. */
+  electricityRate: z.number().nonnegative('Không được là số âm').optional(),
+  waterRatePerPerson: z.number().nonnegative('Không được là số âm').optional(),
   /** Absent means the previous tenancy's closing reading. */
   startMeterReading: z
     .number()
@@ -102,6 +106,17 @@ export const updateLeaseFormSchema = z.object({
     .number({ message: 'Nhập số người dùng để tính tiền' })
     .int('Phải là số nguyên')
     .min(1, 'Tối thiểu là 1'),
+  /*
+    The rates this tenancy is billed at. Required in this form, because both
+    are always present on a tenancy — every one carries the figures it was
+    signed at, and a blank here would mean "bill nothing", not "leave alone".
+  */
+  electricityRate: z
+    .number({ message: 'Nhập giá điện' })
+    .nonnegative('Không được âm'),
+  waterRatePerPerson: z
+    .number({ message: 'Nhập giá nước' })
+    .nonnegative('Không được âm'),
   noticeDays: optionalDays,
   /*
     1–31, matching the API. NOT clamped to the length of any particular month:

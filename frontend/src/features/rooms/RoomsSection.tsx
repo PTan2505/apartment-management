@@ -5,13 +5,13 @@ import AlertTitle from '@mui/material/AlertTitle'
 import Button from '@mui/material/Button'
 import Box from '@mui/material/Box'
 import CircularProgress from '@mui/material/CircularProgress'
-import AddIcon from '@mui/icons-material/Add'
 
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
 import { EmptyState } from '@/components/EmptyState'
 import { Pagination, type PageMeta } from '@/components/Pagination'
 import { RoomList } from '@/features/rooms/RoomList'
+import { CreateRoomButton } from '@/features/rooms/CreateRoomButton'
 import { RoomFormDialog } from '@/features/rooms/RoomFormDialog'
 import { RetireRoomDialog } from '@/features/rooms/RetireRoomDialog'
 import { useRestoreRoom } from '@/features/rooms/hooks'
@@ -60,11 +60,6 @@ export function RoomsSection({
   // The room a tenancy is being signed for, or null. The dialog is the same one
   // the leases screen opens — it simply arrives with the room already chosen.
   const [lettingRoom, setLettingRoom] = useState<Room | null>(null)
-
-  function openCreate() {
-    setEditing(null)
-    setFormOpen(true)
-  }
 
   async function handleRestore(room: Room) {
     setRestoreError(null)
@@ -123,14 +118,10 @@ export function RoomsSection({
           title="Chưa có phòng nào"
           description={
             buildingId
-              ? 'Add the first room in this building.'
-              : 'Add the first room you manage to get started.'
+              ? 'Thêm phòng đầu tiên cho toà nhà này.'
+              : 'Thêm phòng đầu tiên để bắt đầu.'
           }
-          action={
-            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-              Thêm phòng
-            </Button>
-          }
+          action={<CreateRoomButton buildingId={buildingId} />}
         />
       )
     }
@@ -155,12 +146,6 @@ export function RoomsSection({
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-          Thêm phòng
-        </Button>
-      </Box>
-
       {restoreError && (
         <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setRestoreError(null)}>
           <AlertTitle>Chưa thể dùng lại phòng này</AlertTitle>
@@ -170,18 +155,14 @@ export function RoomsSection({
 
       {body()}
 
+      {/* Editing only. Adding a room lives beside each screen's title, in
+          `CreateRoomButton`, so the action sits where every other screen puts
+          it rather than above this frame. */}
       <RoomFormDialog
         open={formOpen}
         room={editing}
         buildingId={buildingId}
         onClose={() => setFormOpen(false)}
-        onCreated={() => {
-          // Rooms are ordered by creation, so a new one lands last — often on a
-          // page the owner is not on.
-          const total = meta?.total ?? 0
-          const pageSize = meta?.pageSize ?? 20
-          onPageChange(Math.ceil((total + 1) / pageSize))
-        }}
       />
       <RetireRoomDialog room={retiring} onClose={() => setRetiring(null)} />
       <LeaseFormDialog

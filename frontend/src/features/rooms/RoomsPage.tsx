@@ -2,8 +2,9 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
 
+import { PageHeader } from "@/components/PageHeader";
+import { CreateRoomButton } from "@/features/rooms/CreateRoomButton";
 import { ListSurface } from "@/components/ListSurface";
 import { SearchField } from "@/components/SearchField";
 import { useBuildings } from "@/features/buildings/hooks";
@@ -49,9 +50,19 @@ export function RoomsPage() {
 
   return (
     <Box>
-      <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-        Phòng
-      </Typography>
+      <PageHeader
+        title="Phòng"
+        action={
+          <CreateRoomButton
+            onCreated={() => {
+              // Rooms are ordered by creation, so a new one lands last — often
+              // on a page the owner is not looking at.
+              const meta = roomsQuery.data?.meta;
+              setPage(Math.ceil(((meta?.total ?? 0) + 1) / (meta?.pageSize ?? 20)));
+            }}
+          />
+        }
+      />
 
       <ListSurface>
         <Box
