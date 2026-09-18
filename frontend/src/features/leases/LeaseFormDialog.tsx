@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import InputAdornment from '@mui/material/InputAdornment'
 import Alert from '@mui/material/Alert'
 import Autocomplete from '@mui/material/Autocomplete'
 import AlertTitle from '@mui/material/AlertTitle'
@@ -566,7 +567,14 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
               label="Thời hạn"
               type="number"
               fullWidth
-              slotProps={{ htmlInput: { min: 1, step: 1 } }}
+              slotProps={{
+                htmlInput: { min: 1, step: 1 },
+                // The unit belongs in the field, not only in the hint below it:
+                // the hint is read once and the box is read every time.
+                input: {
+                  endAdornment: <InputAdornment position="end">tháng</InputAdornment>,
+                },
+              }}
               error={Boolean(errors.durationMonths)}
               helperText={errors.durationMonths?.message ?? 'Số tháng'}
               {...register('durationMonths', { valueAsNumber: true })}
@@ -575,7 +583,12 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
               label="Tính cho"
               type="number"
               fullWidth
-              slotProps={{ htmlInput: { min: 1, step: 1 } }}
+              slotProps={{
+                htmlInput: { min: 1, step: 1 },
+                input: {
+                  endAdornment: <InputAdornment position="end">người</InputAdornment>,
+                },
+              }}
               error={Boolean(errors.occupantCount)}
               // Named for what it does. It drives utility billing and is NOT the
               // number of people recorded on the tenancy — the two are kept
@@ -589,7 +602,14 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
             label="Tiền cọc"
             type="number"
             fullWidth
-            slotProps={{ htmlInput: { min: 0, step: 1 } }}
+            slotProps={{
+              htmlInput: { min: 0, step: 1 },
+              // Months of rent, not currency — the unit is what keeps the field
+              // from reading as an amount in đồng.
+              input: {
+                endAdornment: <InputAdornment position="end">tháng</InputAdornment>,
+              },
+            }}
             error={Boolean(errors.depositMonths)}
             /**
              * Required, and 0 is a valid answer.
@@ -623,6 +643,9 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
               fullWidth
               slotProps={{
                 htmlInput: { min: 0, step: 1 },
+                input: {
+                  endAdornment: <InputAdornment position="end">kWh</InputAdornment>,
+                },
                 /**
                  * Forced up, because this field is filled programmatically.
                  *
