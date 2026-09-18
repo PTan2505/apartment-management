@@ -9,9 +9,9 @@ import FormControlLabel from '@mui/material/FormControlLabel'
 import MenuItem from '@mui/material/MenuItem'
 import Switch from '@mui/material/Switch'
 import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
 import AddIcon from '@mui/icons-material/Add'
 
+import { PageHeader } from '@/components/PageHeader'
 import { ListSurface } from '@/components/ListSurface'
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
@@ -130,9 +130,14 @@ export function LeasesPage() {
 
   return (
     <Box>
-      <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-        Hợp đồng
-      </Typography>
+      <PageHeader
+        title="Hợp đồng"
+        action={
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormOpen(true)}>
+            Hợp đồng mới
+          </Button>
+        }
+      />
 
       <ListSurface>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
@@ -267,12 +272,6 @@ export function LeasesPage() {
             hoá đơn nào cho chúng, và phòng vẫn bị giữ, không cho thuê lại được.
           </Alert>
         )}
-
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormOpen(true)}>
-            Hợp đồng mới
-          </Button>
-        </Box>
 
         {body()}
       </ListSurface>

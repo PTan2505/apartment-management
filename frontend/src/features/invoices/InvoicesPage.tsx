@@ -8,9 +8,9 @@ import FormControlLabel from '@mui/material/FormControlLabel'
 import MenuItem from '@mui/material/MenuItem'
 import Switch from '@mui/material/Switch'
 import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
 import EventAvailableIcon from '@mui/icons-material/EventAvailable'
 
+import { PageHeader } from '@/components/PageHeader'
 import { ListSurface } from '@/components/ListSurface'
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
@@ -137,28 +137,19 @@ export function InvoicesPage() {
 
   return (
     <Box>
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 1,
-          flexWrap: 'wrap',
-          mb: 2,
-        }}
-      >
-        <Typography variant="h5" component="h2">
-          Hoá đơn
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<EventAvailableIcon />}
-          component={RouterLink}
-          to="/invoices/billing-run"
-        >
-          Chốt sổ tháng
-        </Button>
-      </Box>
+      <PageHeader
+        title="Hoá đơn"
+        action={
+          <Button
+            variant="contained"
+            startIcon={<EventAvailableIcon />}
+            component={RouterLink}
+            to="/invoices/billing-run"
+          >
+            Chốt sổ tháng
+          </Button>
+        }
+      />
 
       <ListSurface>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>

@@ -5,9 +5,9 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Snackbar from '@mui/material/Snackbar'
-import Typography from '@mui/material/Typography'
 import AddIcon from '@mui/icons-material/Add'
 
+import { PageHeader } from '@/components/PageHeader'
 import { ListSurface } from '@/components/ListSurface'
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
@@ -126,9 +126,14 @@ export function CustomersPage() {
 
   return (
     <Box>
-      <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-        Khách
-      </Typography>
+      <PageHeader
+        title="Khách"
+        action={
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+            Thêm khách
+          </Button>
+        }
+      />
 
       <ListSurface>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
@@ -146,12 +151,6 @@ export function CustomersPage() {
               Xoá tìm kiếm
             </Button>
           )}
-
-          <Box sx={{ flexGrow: 1 }} />
-
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-            Thêm khách
-          </Button>
         </Box>
 
         {body()}

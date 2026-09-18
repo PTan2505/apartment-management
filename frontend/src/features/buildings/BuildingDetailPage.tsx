@@ -10,6 +10,8 @@ import Typography from '@mui/material/Typography'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { Link as RouterLink, useParams } from 'react-router'
 
+import { CreateRoomButton } from '@/features/rooms/CreateRoomButton'
+import { PageHeader } from '@/components/PageHeader'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
 import type { Building } from '@/features/buildings/types'
 import { ListSurface } from '@/components/ListSurface'
@@ -121,9 +123,11 @@ export function BuildingDetailPage() {
 
       <Divider sx={{ my: 3 }} />
 
-      <Typography variant="h6" component="h3" sx={{ mb: 1 }}>
-        Phòng
-      </Typography>
+      <PageHeader
+        title="Phòng"
+        level="h3"
+        action={<CreateRoomButton buildingId={building.id} />}
+      />
 
       {/*
         The four figures an owner opens a building for, above the table rather
