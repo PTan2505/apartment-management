@@ -9,6 +9,7 @@ import { healthRouter } from "@/routes/health.js";
 import { authRouter } from "@/modules/auth/router.js";
 import { buildingsRouter } from "@/modules/buildings/router.js";
 import { roomsRouter } from "@/modules/rooms/router.js";
+import { contractTemplateRouter } from "@/modules/contract-template/router.js";
 import { customersRouter } from "@/modules/customers/router.js";
 import { leasesRouter } from "@/modules/leases/router.js";
 import { invoicesRouter } from "@/modules/invoices/router.js";
@@ -66,6 +67,9 @@ app.use("/auth", authRouter);
 app.use("/buildings", buildingsRouter);
 app.use("/rooms", roomsRouter);
 app.use("/customers", customersRouter);
+// The one blank contract the owner prints. Not under /leases: it belongs to no
+// tenancy — it is what a tenancy is signed ON.
+app.use("/contract-template", contractTemplateRouter);
 app.use("/leases", leasesRouter);
 app.use("/invoices", invoicesRouter);
 app.use("/expenses", expensesRouter);

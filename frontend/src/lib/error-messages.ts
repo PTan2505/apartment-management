@@ -133,6 +133,15 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   ID_CARD_FILE_TOO_LARGE: 'Ảnh vượt quá dung lượng cho phép (10 MB).',
   ID_CARD_NONE_ON_FILE: 'Khách này chưa có ảnh mặt đó.',
 
+  // ── Hợp đồng mẫu ─────────────────────────────────────────────────────────
+  TEMPLATE_UPLOAD_PAYLOAD_INVALID: 'Yêu cầu tải hợp đồng mẫu chưa hợp lệ.',
+  TEMPLATE_CONFIRM_PAYLOAD_INVALID: 'Xác nhận tải hợp đồng mẫu chưa hợp lệ.',
+  TEMPLATE_KEY_FOREIGN: 'Tệp này không phải hợp đồng mẫu vừa tải lên.',
+  TEMPLATE_OBJECT_MISSING:
+    'Tệp chưa có trên kho lưu trữ. Có thể tải lên chưa xong — hãy thử lại.',
+  TEMPLATE_FILE_TOO_LARGE: 'Tệp vượt quá dung lượng cho phép (20 MB).',
+  TEMPLATE_NONE_ON_FILE: 'Chưa có hợp đồng mẫu nào được tải lên.',
+
   // ── Hoá đơn ──────────────────────────────────────────────────────────────
   INVOICE_NOT_FOUND: 'Không tìm thấy hoá đơn.',
   INVOICE_PAYLOAD_INVALID: 'Thông tin hoá đơn chưa hợp lệ.',
