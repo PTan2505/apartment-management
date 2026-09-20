@@ -17,6 +17,7 @@ import { RetireRoomDialog } from '@/features/rooms/RetireRoomDialog'
 import { useRestoreRoom } from '@/features/rooms/hooks'
 import { LeaseFormDialog } from '@/features/leases/LeaseFormDialog'
 import type { Room } from '@/features/rooms/types'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 interface RoomsSectionProps {
   rooms: Room[] | undefined
@@ -55,6 +56,9 @@ export function RoomsSection({
   const [editing, setEditing] = useState<Room | null>(null)
   const [retiring, setRetiring] = useState<Room | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
+  // Restoring puts the room back in the lists and makes it available to sign a
+  // tenancy against — reversible, but not something to do by brushing a menu.
+  const [restoring, setRestoring] = useState<Room | null>(null)
   const restoreMutation = useRestoreRoom()
   const navigate = useNavigate()
   // The room a tenancy is being signed for, or null. The dialog is the same one
@@ -65,6 +69,7 @@ export function RoomsSection({
     setRestoreError(null)
     try {
       await restoreMutation.mutateAsync(room.id)
+      setRestoring(null)
     } catch (err) {
       // Restoring is refused when another room in service has taken this code
       // since it was retired. The owner did nothing wrong and the reason is not
@@ -136,7 +141,10 @@ export function RoomsSection({
             setFormOpen(true)
           }}
           onRetire={setRetiring}
-          onRestore={handleRestore}
+          onRestore={(room) => {
+            setRestoreError(null)
+            setRestoring(room)
+          }}
           onStartLease={setLettingRoom}
         />
         {meta && <Pagination meta={meta} onPageChange={onPageChange} />}
@@ -146,13 +154,11 @@ export function RoomsSection({
 
   return (
     <Box>
-      {restoreError && (
-        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setRestoreError(null)}>
-          <AlertTitle>Chưa thể dùng lại phòng này</AlertTitle>
-          {restoreError}
-        </Alert>
-      )}
-
+      {/*
+        A refusal used to be reported here, behind where the owner was looking.
+        Now that restoring is asked about first, it belongs in that dialog: the
+        owner is reading it when the answer comes back.
+      */}
       {body()}
 
       {/* Editing only. Adding a room lives beside each screen's title, in
@@ -165,6 +171,26 @@ export function RoomsSection({
         onClose={() => setFormOpen(false)}
       />
       <RetireRoomDialog room={retiring} onClose={() => setRetiring(null)} />
+
+      <ConfirmDialog
+        open={restoring !== null}
+        title="Cho phòng hoạt động lại?"
+        description={
+          restoring && (
+            <>
+              Phòng <strong>{restoring.roomCode}</strong> sẽ hiện lại trong danh sách và có thể ký
+              hợp đồng cho khách.
+            </>
+          )
+        }
+        confirmLabel="Cho hoạt động lại"
+        busy={restoreMutation.isPending}
+        error={restoreError}
+        onConfirm={() => {
+          if (restoring) void handleRestore(restoring)
+        }}
+        onClose={() => setRestoring(null)}
+      />
       <LeaseFormDialog
         open={lettingRoom !== null}
         roomId={lettingRoom?.id}

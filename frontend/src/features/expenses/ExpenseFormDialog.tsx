@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react'
+
+import { ChangedAmounts, changed, type AmountChange } from '@/components/ChangedAmounts'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
@@ -67,6 +70,8 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
   const [unitRate, setUnitRate] = useState('')
   const [amount, setAmount] = useState('')
   const [error, setError] = useState<string | null>(null)
+  /** A correction held while the owner is shown what it does to the amount. */
+  const [pending, setPending] = useState<AmountChange[] | null>(null)
 
   const buildingsQuery = useBuildings({ pageSize: 200 })
   const roomsQuery = useRooms({
@@ -112,7 +117,21 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
       description.trim() !== '' &&
       (measured ? derived !== null && derived > 0 : Number(amount) > 0)
 
-  async function handleSubmit() {
+  function handleSubmit() {
+    // Only a correction can change what a cost is worth; creating one is not a
+    // change to anything a month's spending was already built from.
+    const doi = isEditing
+      ? changed([{ label: 'Số tiền', before: expense.amount, after: Number(amount) }])
+      : []
+    if (doi.length > 0) {
+      setError(null)
+      setPending(doi)
+      return
+    }
+    void send()
+  }
+
+  async function send() {
     setError(null)
     try {
       if (isEditing) {
@@ -138,15 +157,20 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
             : { amount: Number(amount) }),
         })
       }
+      setPending(null)
       onClose()
     } catch (cause) {
+      // Into the confirmation while one is open, so the refusal is not reported
+      // behind it.
       setError(errorMessage(cause))
+      setPending(null)
     }
   }
 
   const isSubmitting = create.isPending || update.isPending
 
   return (
+    <>
     <Dialog open={open} onClose={isSubmitting ? undefined : onClose} fullWidth maxWidth="sm">
       <DialogTitle>{isEditing ? 'Sửa chi phí' : 'Ghi chi phí'}</DialogTitle>
       <DialogContent>
@@ -289,7 +313,7 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
         </Button>
         <Button
           variant="contained"
-          onClick={() => void handleSubmit()}
+          onClick={handleSubmit}
           disabled={isSubmitting || !ready}
           startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
@@ -297,5 +321,19 @@ export function ExpenseFormDialog({ open, expense, onClose }: ExpenseFormDialogP
         </Button>
       </DialogActions>
     </Dialog>
+
+      <ConfirmDialog
+        open={pending !== null}
+        title="Lưu số tiền mới?"
+        description="Chi phí này đã được tính vào chi tiêu của tháng ghi trên nó. Sửa số tiền sẽ đổi con số đó."
+        confirmLabel="Lưu số tiền"
+        busyLabel="Đang lưu…"
+        busy={isSubmitting}
+        onConfirm={() => void send()}
+        onClose={() => setPending(null)}
+      >
+        {pending && <ChangedAmounts entries={pending} />}
+      </ConfirmDialog>
+    </>
   )
 }

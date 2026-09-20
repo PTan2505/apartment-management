@@ -24,6 +24,7 @@ import {
   useRestoreBuilding,
 } from '@/features/buildings/hooks'
 import type { Building } from '@/features/buildings/types'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 interface BuildingFilterParams extends Record<string, string | undefined> {
   city?: string
@@ -55,6 +56,11 @@ export function BuildingsPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Building | null>(null)
   const [retiring, setRetiring] = useState<Building | null>(null)
+  // Restoring returns a building to the lists, the filters and the places a
+  // tenancy can be signed, from a menu item sitting beside ordinary ones.
+  // Reversible is not the same as harmless.
+  const [restoring, setRestoring] = useState<Building | null>(null)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
 
   function openCreate() {
     setEditing(null)
@@ -139,7 +145,10 @@ export function BuildingsPage() {
           buildings={data}
           onEdit={openEdit}
           onRetire={setRetiring}
-          onRestore={(building) => restoreMutation.mutate(building.id)}
+          onRestore={(building) => {
+            setRestoreError(null)
+            setRestoring(building)
+          }}
         />
         <Pagination meta={meta} onPageChange={setPage} />
       </>
@@ -184,6 +193,32 @@ export function BuildingsPage() {
         }}
       />
       <RetireBuildingDialog building={retiring} onClose={() => setRetiring(null)} />
+
+      <ConfirmDialog
+        open={restoring !== null}
+        title="Cho toà nhà hoạt động lại?"
+        description={
+          restoring && (
+            <>
+              <strong>{restoring.displayName}</strong> sẽ hiện lại trong danh sách, trong bộ lọc, và có
+              thể ký hợp đồng cho các phòng của toà nhà này.
+            </>
+          )
+        }
+        confirmLabel="Cho hoạt động lại"
+        busyLabel="Đang xử lý…"
+        busy={restoreMutation.isPending}
+        error={restoreError}
+        onConfirm={() => {
+          if (!restoring) return
+          setRestoreError(null)
+          restoreMutation.mutate(restoring.id, {
+            onSuccess: () => setRestoring(null),
+            onError: (cause) => setRestoreError(errorMessage(cause)),
+          })
+        }}
+        onClose={() => setRestoring(null)}
+      />
     </Box>
   )
 }

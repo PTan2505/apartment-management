@@ -20,6 +20,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 
 import { isApiError } from '@/lib/api-error'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage } from '@/lib/error-messages'
 import { useQueryClient } from '@tanstack/react-query'
 import * as leasesApi from '@/features/leases/api'
@@ -47,12 +48,15 @@ export function ContractCard({ lease }: { lease: Lease }) {
   const [busy, setBusy] = useState<'uploading' | 'opening' | 'removing' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirmRemove, setConfirmRemove] = useState(false)
+  // Held while the owner is asked. Replacing deletes the scan being replaced,
+  // so it destroys exactly as removing does — the button just does not say so.
+  const [replacing, setReplacing] = useState<File | null>(null)
 
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: ['leases'] })
   }
 
-  async function handleFile(file: File) {
+  async function handleFile(file: File): Promise<boolean> {
     setError(null)
     setBusy('uploading')
     try {
@@ -75,6 +79,7 @@ export function ContractCard({ lease }: { lease: Lease }) {
       //    object is really there rather than believing us.
       await leasesApi.confirmContract(lease.id, signed.key)
       refresh()
+      return true
     } catch (cause) {
       setError(
         isApiError(cause) ? errorMessage(cause)
@@ -82,6 +87,7 @@ export function ContractCard({ lease }: { lease: Lease }) {
             ? cause.message
             : 'Không tải lên được tệp này.',
       )
+      return false
     } finally {
       setBusy(null)
       // Cleared so choosing the same file again still fires a change event.
@@ -253,11 +259,38 @@ export function ContractCard({ lease }: { lease: Lease }) {
             hidden
             onChange={(event) => {
               const file = event.target.files?.[0]
-              if (file) void handleFile(file)
+              if (!file) return
+              if (lease.hasContract) setReplacing(file)
+              else void handleFile(file)
             }}
           />
         </Stack>
       </CardContent>
+
+      <ConfirmDialog
+        open={replacing !== null}
+        title="Thay bản hợp đồng?"
+        description={
+          replacing && (
+            <>
+              Bản scan đang lưu sẽ bị xoá và thay bằng <strong>{replacing.name}</strong>. Bản cũ
+              không lấy lại được.
+            </>
+          )
+        }
+        confirmLabel="Thay bản khác"
+        busyLabel="Đang tải lên…"
+        destructive
+        busy={busy === 'uploading'}
+        error={error}
+        onConfirm={() => {
+          // Closed only when it worked: a refusal stays in this dialog, with
+          // the file still chosen, rather than appearing behind a dialog that
+          // dismissed itself as though it had succeeded.
+          if (replacing) void handleFile(replacing).then((ok) => { if (ok) setReplacing(null) })
+        }}
+        onClose={() => setReplacing(null)}
+      />
 
       <Dialog open={confirmRemove} onClose={() => setConfirmRemove(false)} fullWidth maxWidth="xs">
         <DialogTitle>Xoá bản hợp đồng?</DialogTitle>

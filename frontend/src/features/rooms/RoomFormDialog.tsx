@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react'
+
+import { ChangedAmounts, changed, type AmountChange } from '@/components/ChangedAmounts'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import Alert from '@mui/material/Alert'
@@ -59,6 +62,11 @@ export function RoomFormDialog({
   const createMutation = useCreateRoom()
   const updateMutation = useUpdateRoom()
   const [formError, setFormError] = useState<string | null>(null)
+  /** A save held while the owner is shown the rent it moves. */
+  const [pending, setPending] = useState<{
+    values: CreateRoomFormValues
+    changes: AmountChange[]
+  } | null>(null)
   const isSubmitting = createMutation.isPending || updateMutation.isPending
 
   // Only buildings in service may take a new room — the API rejects a retired
@@ -97,6 +105,20 @@ export function RoomFormDialog({
   }, [open, room, buildingId, reset])
 
   async function onSubmit(values: CreateRoomFormValues) {
+    // Only on an edit, and only when the figure actually moved: a room whose
+    // code was corrected is saved without a question.
+    const doi = room
+      ? changed([{ label: 'Giá thuê', before: room.baseRent, after: Number(values.baseRent) }])
+      : []
+    if (doi.length > 0) {
+      setFormError(null)
+      setPending({ values, changes: doi })
+      return
+    }
+    await send(values)
+  }
+
+  async function send(values: CreateRoomFormValues) {
     setFormError(null)
     try {
       if (room) {
@@ -107,8 +129,12 @@ export function RoomFormDialog({
         await createMutation.mutateAsync(input)
         onCreated?.()
       }
+      setPending(null)
       onClose()
     } catch (error) {
+      // The confirmation steps aside so the form's own report is what the owner
+      // is looking at.
+      setPending(null)
       if (!isApiError(error)) {
         setFormError('Có lỗi xảy ra. Vui lòng thử lại.')
         return
@@ -135,6 +161,7 @@ export function RoomFormDialog({
       : undefined
 
   return (
+    <>
     <Dialog
       open={open}
       onClose={isSubmitting ? undefined : onClose}
@@ -259,5 +286,21 @@ export function RoomFormDialog({
         </Button>
       </DialogActions>
     </Dialog>
+
+      <ConfirmDialog
+        open={pending !== null}
+        title="Lưu giá thuê mới?"
+        description="Giá mới áp dụng cho hợp đồng ký từ nay về sau. Hợp đồng đang chạy vẫn giữ giá đã ghi trên chính nó."
+        confirmLabel="Lưu giá mới"
+        busyLabel="Đang lưu…"
+        busy={isSubmitting}
+        onConfirm={() => {
+          if (pending) void send(pending.values)
+        }}
+        onClose={() => setPending(null)}
+      >
+        {pending && <ChangedAmounts entries={pending.changes} />}
+      </ConfirmDialog>
+    </>
   )
 }

@@ -12,6 +12,8 @@ import Divider from '@mui/material/Divider'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 
+import { ChangedAmounts, changed, type AmountChange } from '@/components/ChangedAmounts'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { MoneyField } from '@/components/MoneyField'
 import { errorMessage } from '@/lib/error-messages'
 import { useUpdateLease } from '@/features/leases/hooks'
@@ -68,6 +70,11 @@ function defaults(lease: Lease) {
 export function EditTermsDialog({ open, lease, onClose }: EditTermsDialogProps) {
   const updateMutation = useUpdateLease()
   const [formError, setFormError] = useState<string | null>(null)
+  /** A save held while the owner is shown which rates it moves. */
+  const [pending, setPending] = useState<{
+    values: UpdateLeaseFormOutput
+    changes: AmountChange[]
+  } | null>(null)
 
   const {
     register,
@@ -87,11 +94,30 @@ export function EditTermsDialog({ open, lease, onClose }: EditTermsDialogProps) 
   }, [open, lease, reset])
 
   async function onSubmit(values: UpdateLeaseFormOutput) {
+    // This is the one place a running tenancy's rates can move, so it is the
+    // one place worth asking. The other terms here change nothing already billed.
+    const doi = changed([
+      { label: 'Giá điện', before: lease.electricityRate, after: values.electricityRate },
+      { label: 'Giá nước', before: lease.waterRatePerPerson, after: values.waterRatePerPerson },
+    ])
+    if (doi.length > 0) {
+      setFormError(null)
+      setPending({ values, changes: doi })
+      return
+    }
+    await send(values)
+  }
+
+  async function send(values: UpdateLeaseFormOutput) {
     setFormError(null)
     try {
       await updateMutation.mutateAsync({ id: lease.id, input: values })
+      setPending(null)
       onClose()
     } catch (error) {
+      // The confirmation steps aside so the form's own report is what the owner
+      // is looking at.
+      setPending(null)
       setFormError(errorMessage(error))
     }
   }
@@ -99,6 +125,7 @@ export function EditTermsDialog({ open, lease, onClose }: EditTermsDialogProps) 
   const isSubmitting = updateMutation.isPending
 
   return (
+    <>
     <Dialog open={open} onClose={isSubmitting ? undefined : onClose} fullWidth maxWidth="xs">
       <DialogTitle>Sửa điều khoản</DialogTitle>
       <DialogContent>
@@ -223,5 +250,21 @@ export function EditTermsDialog({ open, lease, onClose }: EditTermsDialogProps) 
         </Button>
       </DialogActions>
     </Dialog>
+
+      <ConfirmDialog
+        open={pending !== null}
+        title="Lưu giá mới cho hợp đồng này?"
+        description="Giá mới tính từ hoá đơn tiếp theo. Hoá đơn đã xuất giữ nguyên giá đã ghi trên chính nó, và toà nhà không bị đổi theo."
+        confirmLabel="Lưu giá mới"
+        busyLabel="Đang lưu…"
+        busy={isSubmitting}
+        onConfirm={() => {
+          if (pending) void send(pending.values)
+        }}
+        onClose={() => setPending(null)}
+      >
+        {pending && <ChangedAmounts entries={pending.changes} />}
+      </ConfirmDialog>
+    </>
   )
 }
