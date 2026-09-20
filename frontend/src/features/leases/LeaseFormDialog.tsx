@@ -617,15 +617,37 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
             </Alert>
           )}
 
-          <TextField
-            label="Ngày bắt đầu"
-            type="date"
-            fullWidth
-            slotProps={{ inputLabel: { shrink: true } }}
-            error={Boolean(errors.startDate)}
-            helperText={errors.startDate?.message}
-            {...register('startDate')}
-          />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField
+              label="Ngày bắt đầu"
+              type="date"
+              fullWidth
+              slotProps={{ inputLabel: { shrink: true } }}
+              error={Boolean(errors.startDate)}
+              helperText={errors.startDate?.message ?? 'Ngày khách bắt đầu ở'}
+              {...register('startDate')}
+            />
+            {/*
+              Asked for here because this is the moment the paper is in the
+              owner's hand. It was previously only in the correction dialog —
+              a moment that rarely comes, so the date was recorded rarely.
+
+              Optional: a tenancy entered from an old paper file may have no
+              date anyone remembers, and demanding one turns missing history
+              into an obstacle.
+            */}
+            <TextField
+              label="Ngày ký hợp đồng"
+              type="date"
+              fullWidth
+              slotProps={{ inputLabel: { shrink: true } }}
+              error={Boolean(errors.handoverSignedAt)}
+              helperText={
+                errors.handoverSignedAt?.message ?? 'Ngày ký hợp đồng giấy. Để trống nếu chưa ký'
+              }
+              {...register('handoverSignedAt')}
+            />
+          </Stack>
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField

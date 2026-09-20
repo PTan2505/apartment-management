@@ -44,9 +44,6 @@ function defaults(lease: Lease) {
     occupantCount: lease.occupantCount,
     electricityRate: lease.electricityRate,
     waterRatePerPerson: lease.waterRatePerPerson,
-    noticeDays: lease.noticeDays ?? undefined,
-    paymentDay: lease.paymentDay ?? undefined,
-    startWaterReading: lease.startWaterReading ?? undefined,
     // The API reports a date-time; the input takes a date.
     handoverSignedAt: lease.handoverSignedAt?.slice(0, 10) ?? undefined,
   }
@@ -185,52 +182,25 @@ export function EditTermsDialog({ open, lease, onClose }: EditTermsDialogProps) 
           />
 
           {/*
-            The agreement's own terms. Offered here because the detail screen
-            reports them as missing on every tenancy signed before the columns
-            existed, and a screen that names a gap without a way to close it is
-            a dead end. The API already accepts all four.
+            The agreement's own term. Offered here as well as on the signing
+            form, because a tenancy recorded from an old paper file gets its
+            date later or not at all.
+
+            Three fields used to sit here — notice period, payment day, opening
+            water reading. They are gone from the system: each was stored and
+            read by nothing.
           */}
           <Divider />
 
           <TextField
-            label="Báo trước khi kết thúc"
-            type="number"
-            fullWidth
-            slotProps={{ htmlInput: { min: 0, step: 1 } }}
-            error={Boolean(errors.noticeDays)}
-            helperText={errors.noticeDays?.message ?? 'Số ngày. Để trống nếu chưa thoả thuận.'}
-            {...register('noticeDays', { valueAsNumber: true })}
-          />
-          <TextField
-            label="Ngày thanh toán hàng tháng"
-            type="number"
-            fullWidth
-            slotProps={{ htmlInput: { min: 1, max: 31, step: 1 } }}
-            error={Boolean(errors.paymentDay)}
-            helperText={
-              errors.paymentDay?.message ??
-              'Ngày trong tháng, từ 1 đến 31. Là ngày hợp đồng ghi, không phụ thuộc tháng dài ngắn.'
-            }
-            {...register('paymentDay', { valueAsNumber: true })}
-          />
-          <TextField
-            label="Số nước lúc bàn giao"
-            type="number"
-            fullWidth
-            slotProps={{ htmlInput: { min: 0, step: 1 } }}
-            error={Boolean(errors.startWaterReading)}
-            helperText={
-              errors.startWaterReading?.message ?? 'Số đầu kỳ ghi trên đồng hồ khi giao phòng.'
-            }
-            {...register('startWaterReading', { valueAsNumber: true })}
-          />
-          <TextField
-            label="Ngày ký bàn giao"
+            label="Ngày ký hợp đồng"
             type="date"
             fullWidth
             slotProps={{ inputLabel: { shrink: true } }}
             error={Boolean(errors.handoverSignedAt)}
-            helperText={errors.handoverSignedAt?.message ?? 'Để trống nếu chưa ký.'}
+            helperText={
+              errors.handoverSignedAt?.message ?? 'Ngày ký hợp đồng giấy với khách. Để trống nếu chưa ký.'
+            }
             {...register('handoverSignedAt')}
           />
         </Stack>

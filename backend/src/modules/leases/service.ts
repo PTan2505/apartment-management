@@ -88,6 +88,15 @@ const leaseInclude = {
     select: { id: true },
     take: 1,
   },
+  /**
+   * Both ends of the renewal chain, by name rather than by id.
+   *
+   * A screen showing "renewed from #266" makes the owner open #266 to find out
+   * which agreement that was. The reference is the thing they recognise, and
+   * fetching it here costs one join rather than a request per row.
+   */
+  renewedFrom: { select: { id: true, reference: true } },
+  renewedTo: { select: { id: true, reference: true } },
 } as const;
 
 /**
@@ -268,11 +277,8 @@ export async function createLease(input: CreateLeaseInput) {
         electricityRate,
         waterRatePerPerson,
         depositMonths: input.depositMonths,
-        // Terms of the agreement. Absent stays absent — undefined leaves the
-        // column null, which is what "not agreed" means here.
-        noticeDays: input.noticeDays,
-        paymentDay: input.paymentDay,
-        startWaterReading: input.startWaterReading,
+        // A term of the agreement. Absent stays absent — undefined leaves the
+        // column null, which is what "not recorded" means here.
         handoverSignedAt: input.handoverSignedAt,
       },
     });
@@ -580,7 +586,24 @@ export async function extendLease(id: number, input: ExtendLeaseInput) {
         electricityRate: room.building.electricityRate,
         waterRatePerPerson: room.building.waterRatePerPerson,
         depositMonths,
+        // The link, written at the only moment it is a fact. Afterwards it
+        // could only be guessed from a room and two dates, and a tenant moving
+        // in on changeover day produces exactly the same pattern.
+        renewedFromId: lease.id,
       },
+    });
+
+    /*
+      The successor's own reference, set the same two-step way signing sets one:
+      the id is part of it and does not exist until the row does.
+
+      This was missing. A renewal opened a lease that could not be named out
+      loud at all — the gap showed up only as a label with nothing under it on
+      the tenancy screen, months after the code was written.
+    */
+    await tx.lease.update({
+      where: { id: successor.id },
+      data: { reference: buildLeaseReference(room.roomCode, successor.startDate, successor.id) },
     });
 
     for (const occupant of continuingOccupants) {

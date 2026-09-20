@@ -216,33 +216,37 @@ model Lease {
 
   // --- terms of the agreement, as distinct from what it takes to bill it ---
   //
-  // Every one NULLABLE, and null means NOT AGREED rather than zero or a
-  // default. Every lease predating these columns has none of them and never
-  // will retroactively, and a `NOT NULL DEFAULT` would state a term for
-  // tenancies whose paper agreements say something else — or say nothing.
-  // Thirty days is the common notice period; it is not the notice period of a
-  // tenancy nobody asked.
+  // Nullable, and null means NOT AGREED rather than zero or a default. A
+  // tenancy recorded from an old paper file may have none of this, and a
+  // `NOT NULL DEFAULT` would state a term for an agreement that says something
+  // else — or says nothing.
   //
-  /// How much notice a departure requires, in days.
-  noticeDays        Int?
-  /// The day of the month rent falls due, 1–31.
+  // Three terms once lived here and were removed: how much notice a departure
+  // requires, the day of the month rent falls due, and the opening WATER meter
+  // reading. Each was written and read by nothing. Notice in particular cannot
+  // be checked without a fact this system has never held — the date the tenant
+  // gave notice — so the column was not a head start on enforcing it. The water
+  // reading was the worst of the three: water is billed per occupant, never by
+  // meter, and a second meter-looking number beside the electricity reading
+  // invited someone to reconcile a bill against a figure nothing had ever
+  // added. Do not reintroduce one without the thing that reads it.
+  //
+  /// The lease this one renewed, where it renewed one.
   ///
-  /// RECORDED here and acted on nowhere. Making the biller honour it has real
-  /// consequences for proration and belongs to its own change; conflating the
-  /// two would hide a billing change inside a field addition.
-  paymentDay        Int?
-  /// The WATER meter reading this tenancy starts from.
+  /// Written at the moment of renewal, because that is the only moment the link
+  /// is a fact rather than an inference. Without it the chain is unrecoverable:
+  /// a successor looks exactly like a fresh tenancy that happens to start the
+  /// day the previous one ended — which is also what a different tenant moving
+  /// in on changeover day looks like.
   ///
-  /// Water is billed on metered consumption exactly as electricity is, and the
-  /// start of one was recorded while the start of the other was not — so a
-  /// water dispute has no agreed starting point to appeal to.
-  ///
-  /// Nullable rather than `DEFAULT 0` because ZERO IS A LEGITIMATE READING.
-  /// A default would make "no reading recorded" and "the meter read zero" the
-  /// same value, and the difference between them is the whole substance of the
-  /// dispute this exists to settle.
-  startWaterReading Int?
-  /// When the handover record was signed.
+  /// UNIQUE, so a lease can be renewed at most once. A predecessor closes when
+  /// it is renewed, and a closed lease cannot be renewed again; the index says
+  /// so in the one place that cannot be bypassed.
+  renewedFromId     Int?      @unique
+  renewedFrom       Lease?    @relation("LeaseRenewal", fields: [renewedFromId], references: [id])
+  /// The lease that renewed this one. At most one, by the index above.
+  renewedTo         Lease?    @relation("LeaseRenewal")
+  /// The day the paper contract was signed with the tenant.
   ///
   /// A timestamp rather than a boolean: "whether" is the question and "when" is
   /// the useful answer, and a boolean that later needs a date is a migration

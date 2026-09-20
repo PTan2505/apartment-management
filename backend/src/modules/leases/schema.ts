@@ -6,25 +6,19 @@ const isoDate = z.coerce.date();
 /**
  * Terms of the agreement, as distinct from what it takes to bill it.
  *
- * All optional, on creation and on correction alike. An owner recording a
- * tenancy signed years ago may not have any of them, and demanding one would
- * turn missing history into an obstacle.
+ * Optional, on creation and on correction alike. An owner recording a tenancy
+ * signed years ago may not have the date, and demanding it would turn missing
+ * history into an obstacle.
  *
  * `reference` is absent on purpose: it is generated, never accepted. A typed
  * reference drifts — two leases get the same one, a typo makes one unfindable,
  * and the field becomes a place people write notes.
+ *
+ * Three fields were removed from here — `noticeDays`, `paymentDay` and
+ * `startWaterReading` — along with their columns. Every one was accepted,
+ * stored, reported, and read by nothing.
  */
 const agreementTermFields = {
-  noticeDays: z.coerce.number().int().nonnegative("must not be negative").optional(),
-  // 1–31 rather than the length of a particular month: it is the day an
-  // agreement names, and February is the biller's problem rather than this
-  // field's.
-  paymentDay: z.coerce.number().int().min(1, "must be between 1 and 31")
-    .max(31, "must be between 1 and 31").optional(),
-  // Zero is a legitimate reading, so this accepts it and the column stays
-  // nullable — "the meter read zero" and "no reading recorded" are different
-  // facts and stay different values.
-  startWaterReading: z.coerce.number().int().nonnegative("must not be negative").optional(),
   handoverSignedAt: isoDate.optional(),
 } as const;
 

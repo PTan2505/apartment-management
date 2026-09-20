@@ -75,25 +75,17 @@ export interface Lease {
    * rather than `string | null`, and it is read-only everywhere it appears.
    */
   reference: string
-  /** Days of notice required to end the tenancy. Null where none was agreed. */
-  noticeDays: number | null
-  /**
-   * The day of the month rent falls due, 1–31.
-   *
-   * Not clamped to the length of a particular month: it is the day the
-   * agreement names, and February is the biller's problem, not this field's.
-   */
-  paymentDay: number | null
-  /**
-   * What the water meter read at handover.
-   *
-   * OPENING, not current. Water is billed per person in this system, so
-   * nothing computes from this yet — it is a record of what was on the meter
-   * when the keys changed hands.
-   */
-  startWaterReading: number | null
-  /** The day the handover was signed. Null where it was not recorded. */
+  /** The day the paper contract was signed. Null where it was not recorded. */
   handoverSignedAt: string | null
+  /**
+   * Where this tenancy came from, and what it became.
+   *
+   * Null on one that was signed rather than renewed, and on one that has not
+   * been renewed. Named rather than numbered: the reference is what the owner
+   * recognises, and an id would send them to look it up.
+   */
+  renewedFrom: { id: number; reference: string | null } | null
+  renewedTo: { id: number; reference: string | null } | null
   /** `baseRent × depositMonths` — what the terms agreed. */
   depositAmount: number
   /** What is actually held, which is a different question. */
