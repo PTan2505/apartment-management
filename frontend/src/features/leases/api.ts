@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client'
+import { storageFetch } from '@/lib/storage-fetch'
 import type { CreateLeaseFormOutput, UpdateLeaseFormOutput } from '@/features/leases/schema'
 import type { Lease, ListLeasesParams, Occupant, Paginated } from '@/features/leases/types'
 
@@ -134,7 +135,7 @@ export async function signContractUpload(
  * was bound into the signature — anything else and storage refuses it.
  */
 export async function uploadToStorage(signed: SignedUpload, file: File): Promise<void> {
-  const response = await fetch(signed.url, {
+  const response = await storageFetch(signed.url, {
     method: 'PUT',
     headers: { 'Content-Type': file.type },
     body: file,
