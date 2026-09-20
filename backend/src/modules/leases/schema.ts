@@ -147,7 +147,10 @@ export const cancelLeaseSchema = z.object({
  * value nobody vetted would let a URL issued for a document store anything.
  */
 export const contractUploadSchema = z.object({
-  contentType: z.enum(["application/pdf", "image/jpeg", "image/png", "image/heic"]),
+  // Photographs only. PDF was accepted and is not any more: a contract is kept
+  // as the pages it has, and a mixture of pages that display and files that
+  // download makes a screen that shows neither well.
+  contentType: z.enum(["image/jpeg", "image/png", "image/heic"]),
 });
 
 /** Confirming that an upload reached storage. */
@@ -183,6 +186,16 @@ export const addOccupantSchema = z.object({
 
 export const departOccupantSchema = z.object({
   leftAt: isoDate,
+  /**
+   * Who takes over the agreement, where the person leaving is the one holding
+   * it and others remain.
+   *
+   * Carried on the departure rather than left to a separate transfer call: two
+   * requests can half-succeed, and the half that lands — a handover to somebody
+   * who never took it over, while the previous holder still lives there — is
+   * invisible unless a reader compares the occupant list against the signatory.
+   */
+  successorId: z.coerce.number().int().positive("successorId must be a customer id").optional(),
 });
 
 export const transferPrimarySchema = z.object({

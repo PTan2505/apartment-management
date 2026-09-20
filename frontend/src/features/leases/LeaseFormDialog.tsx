@@ -8,7 +8,7 @@ import AlertTitle from '@mui/material/AlertTitle'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
-import UploadFileIcon from '@mui/icons-material/UploadFile'
+import PhotoCameraIcon from '@mui/icons-material/PhotoCamera'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Dialog from '@mui/material/Dialog'
@@ -31,7 +31,7 @@ import * as customersApi from '@/features/customers/api'
 import { useCreateCustomer, useCustomers } from '@/features/customers/hooks'
 import type { Customer } from '@/features/customers/types'
 import { useRoomMeterReading, useRooms } from '@/features/rooms/hooks'
-import { attachContract, CONTRACT_ACCEPT } from '@/features/leases/api'
+import { attachContractPages, CONTRACT_ACCEPT } from '@/features/leases/api'
 import { useCreateLease } from '@/features/leases/hooks'
 import { createLeaseFormSchema, type CreateLeaseFormValues } from '@/features/leases/schema'
 import type { Lease } from '@/features/leases/types'
@@ -184,7 +184,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
     createdRef.current = null
     setIdCardFront(null)
     setIdCardBack(null)
-    setContractFile(null)
+    setContractFiles([])
     setCreatedLease(null)
     reset({
       roomId: roomId ?? 0,
@@ -231,7 +231,9 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
   const [idCardBack, setIdCardBack] = useState<File | null>(null)
   /** The signed contract, chosen here and attached after the tenancy exists —
    *  same ordering as the ID card, and for the same reason. */
-  const [contractFile, setContractFile] = useState<File | null>(null)
+  // The photographed pages of the signed contract. Several, because a contract
+  // is several pages of paper.
+  const [contractFiles, setContractFiles] = useState<File[]>([])
   const contractInput = useRef<HTMLInputElement>(null)
 
   /** Set only when the tenancy was created but a file did not attach. */
@@ -272,7 +274,9 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
         front: idCardFront,
         back: idCardBack,
       })
-      const contractOk = contractFile === null || (await attachContract(lease.id, contractFile))
+      const contractFailed =
+        contractFiles.length === 0 ? 0 : await attachContractPages(lease.id, contractFiles)
+      const contractOk = contractFailed === 0
       if (failed.length > 0 || !contractOk) {
         /*
           The tenancy exists; the photographs do not. Both halves have to reach
@@ -285,7 +289,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
         */
         const thieu = [
           ...failed.map((side) => (side === 'front' ? 'ảnh mặt trước căn cước' : 'ảnh mặt sau căn cước')),
-          ...(contractOk ? [] : ['bản hợp đồng đã ký']),
+          ...(contractOk ? [] : [`${contractFailed} ảnh hợp đồng`]),
         ].join(', ')
         setFormError(
           `Đã tạo hợp đồng, nhưng chưa tải lên được: ${thieu}. ` +
@@ -801,32 +805,49 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
             <Typography variant="body2" sx={{ mb: 1 }}>
               Bản hợp đồng đã ký
             </Typography>
-            {contractFile === null ? (
+            {contractFiles.length === 0 ? (
               <Button
                 variant="outlined"
-                startIcon={<UploadFileIcon />}
+                startIcon={<PhotoCameraIcon />}
                 disabled={isSubmitting}
                 onClick={() => contractInput.current?.click()}
               >
-                Chọn tệp
+                Chọn ảnh
               </Button>
             ) : (
-              <Chip
-                label={`${contractFile.name} · ${coTep(contractFile.size)}`}
-                onDelete={isSubmitting ? undefined : () => setContractFile(null)}
-                sx={{ maxWidth: '100%' }}
-              />
+              <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
+                {contractFiles.map((file, index) => (
+                  <Chip
+                    key={`${file.name}-${index}`}
+                    label={`Trang ${index + 1} · ${coTep(file.size)}`}
+                    onDelete={
+                      isSubmitting
+                        ? undefined
+                        : () => setContractFiles((cu) => cu.filter((_, i) => i !== index))
+                    }
+                    sx={{ maxWidth: '100%' }}
+                  />
+                ))}
+                <Chip
+                  label="Thêm ảnh"
+                  variant="outlined"
+                  onClick={isSubmitting ? undefined : () => contractInput.current?.click()}
+                />
+              </Stack>
             )}
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-              Không bắt buộc. Nhận tệp PDF hoặc ảnh (JPG, PNG, HEIC), tối đa 20 MB.
+              Không bắt buộc. Chụp từng trang hợp đồng đã ký, chọn được nhiều ảnh một lần. JPG,
+              PNG hoặc HEIC, mỗi ảnh tối đa 20 MB.
             </Typography>
             <input
               ref={contractInput}
               type="file"
               accept={CONTRACT_ACCEPT}
+              multiple
               hidden
               onChange={(event) => {
-                setContractFile(event.target.files?.[0] ?? null)
+                const them = [...(event.target.files ?? [])]
+                if (them.length > 0) setContractFiles((cu) => [...cu, ...them])
                 event.target.value = ''
               }}
             />

@@ -38,9 +38,15 @@ import { env } from "@/config/env.js";
  * credentials fails when somebody tries to use it, which is the worst time.
  */
 
-/** Documents an owner would plausibly scan a contract as. */
+/**
+ * What a contract page is: a photograph.
+ *
+ * PDF was accepted here and is not any more. A tenancy carries several pages
+ * now, and a mixture of pages that display and files that download makes a
+ * screen that handles both and shows neither well. What an owner has is a phone
+ * and a piece of paper.
+ */
 export const CONTRACT_CONTENT_TYPES = [
-  "application/pdf",
   "image/jpeg",
   "image/png",
   "image/heic",
@@ -117,7 +123,6 @@ export function contractPrefix(leaseId: number): string {
 }
 
 const EXTENSIONS: Record<ContractContentType, string> = {
-  "application/pdf": "pdf",
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/heic": "heic",
@@ -430,14 +435,19 @@ export async function deleteObject(key: string): Promise<void> {
  * the file and the confirmation then fails, so nothing is recorded and the
  * object remains, unreachable through the application and invisible in it.
  *
- * The prefix holds at most one object the application references, so everything
- * else is litter by construction. That is why the rule is "not the current key"
- * rather than an age: it needs no clock and no guess about how long an upload
- * might take.
+ * WHAT IS KEPT IS A SET, not one key. A tenancy's contract is now several
+ * pages, every one of them a legitimate object under the same prefix, so a
+ * sweep that kept only the newest would delete the rest of the contract. The
+ * caller passes the keys its records point at; everything else is litter by
+ * construction — no clock, no guess about how long an upload might take.
  *
- * Pass `null` to keep nothing, which is what removing a contract wants.
+ * Pass an empty set to keep nothing, which is what removing everything wants.
  */
-export async function clearPrefixExcept(prefix: string, keep: string | null): Promise<void> {
+export async function clearPrefixExcept(
+  prefix: string,
+  keep: string | null | readonly string[],
+): Promise<void> {
+  const kept = new Set(keep === null ? [] : typeof keep === "string" ? [keep] : keep);
   let token: string | undefined;
   do {
     const page = await s3().send(
@@ -449,7 +459,7 @@ export async function clearPrefixExcept(prefix: string, keep: string | null): Pr
     );
 
     for (const object of page.Contents ?? []) {
-      if (object.Key && object.Key !== keep) {
+      if (object.Key && !kept.has(object.Key)) {
         await deleteObject(object.Key);
       }
     }

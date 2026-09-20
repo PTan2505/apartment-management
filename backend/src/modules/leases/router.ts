@@ -16,8 +16,8 @@ import {
   cancelLeaseHandler,
   contractUploadUrlHandler,
   contractConfirmHandler,
-  contractDownloadHandler,
-  contractRemoveHandler,
+  contractPagesHandler,
+  contractPageRemoveHandler,
   extendLeaseHandler,
   listOccupantsHandler,
   addOccupantHandler,
@@ -53,8 +53,8 @@ leasesRouter.post("/:id/deposit-adjustment", adjustDepositHandler);
 // megabytes and this process has nothing to do with the bytes.
 leasesRouter.post("/:id/contract-upload-url", contractUploadUrlHandler);
 leasesRouter.post("/:id/contract", contractConfirmHandler);
-leasesRouter.get("/:id/contract", contractDownloadHandler);
-leasesRouter.delete("/:id/contract", contractRemoveHandler);
+leasesRouter.get("/:id/contract", contractPagesHandler);
+leasesRouter.delete("/:id/contract/:pageId", contractPageRemoveHandler);
 
 leasesRouter.get("/:id/occupants", listOccupantsHandler);
 leasesRouter.post("/:id/occupants", addOccupantHandler);

@@ -105,6 +105,8 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   OCCUPANT_ALREADY_DEPARTED: 'Người này đã rời đi.',
   OCCUPANT_DEPARTURE_PAYLOAD_INVALID: 'Thông tin rời đi chưa hợp lệ.',
   DEPARTURE_BEFORE_JOIN: 'Ngày rời đi không thể trước ngày vào ở.',
+  LAST_OCCUPANT_CANNOT_DEPART:
+    'Đây là người duy nhất đang ở. Muốn kết thúc hợp đồng thì dùng "Ghi nhận rời đi" của cả hợp đồng.',
   PRIMARY_OCCUPANT_MUST_TRANSFER:
     'Hãy chuyển vai trò người đứng tên cho người khác trước khi ghi nhận rời đi.',
   OCCUPANT_TRANSFER_PAYLOAD_INVALID: 'Thông tin chuyển vai trò chưa hợp lệ.',
@@ -118,9 +120,10 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   CONTRACT_UPLOAD_PAYLOAD_INVALID: 'Yêu cầu tải lên chưa hợp lệ.',
   CONTRACT_CONFIRM_PAYLOAD_INVALID: 'Xác nhận tải lên chưa hợp lệ.',
   CONTRACT_KEY_FOREIGN: 'Tệp này không thuộc về hợp đồng đang xem.',
-  CONTRACT_OBJECT_MISSING: 'Tệp chưa có trên kho lưu trữ. Có thể tải lên chưa xong — hãy thử lại.',
-  CONTRACT_FILE_TOO_LARGE: 'Tệp vượt quá dung lượng cho phép.',
-  CONTRACT_NONE_ON_FILE: 'Hợp đồng này chưa có bản scan nào.',
+  CONTRACT_OBJECT_MISSING: 'Ảnh chưa có trên kho lưu trữ. Có thể tải lên chưa xong — hãy thử lại.',
+  CONTRACT_FILE_TOO_LARGE: 'Ảnh vượt quá dung lượng cho phép.',
+  CONTRACT_PAGE_NOT_FOUND: 'Không tìm thấy trang hợp đồng này.',
+  CONTRACT_PAGE_NOT_ON_LEASE: 'Trang này không thuộc hợp đồng đang xem.',
 
   // ── Căn cước công dân ────────────────────────────────────────────────────
   STORAGE_NOT_CONFIGURED: 'Máy chủ chưa cấu hình kho lưu trữ tệp.',

@@ -110,7 +110,14 @@ export interface Lease {
    * the moment it is asked for, so a key on screen would be an address with no
    * way to open it and one more thing to leak.
    */
-  hasContract: boolean
+  /**
+   * How many photographed pages of the signed contract are on file.
+   *
+   * A count rather than a flag: a contract is several pages, and the listing
+   * screens ask this per row while the pages themselves are fetched only when
+   * one tenancy is opened.
+   */
+  contractPageCount: number
   /**
    * Whether this deployment can keep contracts at all.
    *

@@ -297,21 +297,12 @@ model Lease {
   // with it.
   depositRefunded   Decimal?  @db.Decimal(14, 0)
   depositRefundedAt DateTime?
-
-  // Where the signed contract for this tenancy is kept, as a storage key.
-  //
-  // Evidence attached to the record, not part of it: no rule reads it and no
-  // reported value derives from it. A tenancy with none behaves in every other
-  // way like one that has it.
-  //
-  // The key rather than a URL, because a URL to this file is short-lived by
-  // design — the file is not public, and every link to it is signed at the
-  // moment it is asked for. Storing one would be storing something already
-  // expired.
-  //
-  // Nullable with no backfill: tenancies predating this have no contract, and
-  // an empty column says exactly that.
-  contractKey       String?
+  /// The photographed pages of the signed contract, oldest first.
+  ///
+  /// A contract is several pages of paper. This was one nullable key on the
+  /// lease, which meant an owner with a four-page agreement had to assemble a
+  /// document elsewhere before the system would take it.
+  pages             LeaseContractPage[]
 
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -327,6 +318,28 @@ model Lease {
   // the service guard could be fixed and re-letting would still fail on a
   // constraint violation.
   @@index([roomId])
+}
+
+/// One photographed page of a tenancy's signed contract.
+///
+/// A row per page rather than an array of keys on the lease: a page has to be
+/// removable by identity, and the storage cleanup needs something to compare
+/// the bucket against. The order pages are read in is the order they arrived.
+///
+/// The key is unique because two rows pointing at one object would let removing
+/// either delete the bytes the other still claims.
+model LeaseContractPage {
+  id          Int      @id @default(autoincrement())
+  leaseId     Int
+  lease       Lease    @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  /// Where the bytes are. Never leaves the server: every read is a signed URL.
+  key         String   @unique
+  /// What was uploaded, so the screen knows how to show it without guessing
+  /// from the file extension.
+  contentType String
+  uploadedAt  DateTime @default(now())
+
+  @@index([leaseId, uploadedAt])
 }
 
 model LeaseOccupant {

@@ -93,7 +93,10 @@ interface LeaseRow {
   depositCarriedOut: Prisma.Decimal;
   depositRefunded: Prisma.Decimal | null;
   depositRefundedAt: Date | null;
-  contractKey: string | null;
+  // How many pages of the signed contract are on file. Counted rather than
+  // listed: a listing screen asks this per row, and the pages themselves are
+  // fetched only when one tenancy is opened.
+  pages?: { id: number }[];
   // A term of the agreement. Nullable, and null means NOT RECORDED.
   handoverSignedAt: Date | null;
   // Both ends of the renewal chain, present only where one exists.
@@ -250,7 +253,7 @@ export function toLeaseResponse(lease: LeaseRow) {
      * screen would be an address with no way to open it and one more thing to
      * leak.
      */
-    hasContract: lease.contractKey !== null,
+    contractPageCount: lease.pages?.length ?? 0,
     /**
      * Whether this deployment can keep contracts at all.
      *

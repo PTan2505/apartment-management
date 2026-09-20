@@ -59,9 +59,12 @@ function earliestDeparture(joinedAt: string): string {
  * who the other occupants are, so a refusal here would be a screen that knows
  * exactly what to do and declines to do it.
  *
- * Where nobody else remains there is nobody to pass it to, and the departure is
- * simply accepted — leaving a tenancy that reports no tenant until a move-out
- * is recorded. That is a real state, not an error.
+ * Both facts travel in ONE request. They used to be two — transfer, then depart
+ * — which could half-succeed: the agreement in the successor's name with the
+ * previous holder still living there, each request having done what it said.
+ *
+ * This dialog is never opened for the only occupant: the API refuses that, and
+ * the card withholds the action rather than offering one that cannot work.
  */
 export function DepartOccupantDialog({
   occupant,

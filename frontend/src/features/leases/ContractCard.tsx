@@ -1,126 +1,121 @@
-import { useRef, useState } from 'react'
-import Alert from '@mui/material/Alert'
-import AlertTitle from '@mui/material/AlertTitle'
-import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import Card from '@mui/material/Card'
-import CardContent from '@mui/material/CardContent'
-import CircularProgress from '@mui/material/CircularProgress'
-import Dialog from '@mui/material/Dialog'
-import DialogActions from '@mui/material/DialogActions'
-import DialogContent from '@mui/material/DialogContent'
-import DialogContentText from '@mui/material/DialogContentText'
-import DialogTitle from '@mui/material/DialogTitle'
-import Stack from '@mui/material/Stack'
-import Typography from '@mui/material/Typography'
-import CloudUploadIcon from '@mui/icons-material/CloudUpload'
-import DeleteIcon from '@mui/icons-material/Delete'
-import DescriptionIcon from '@mui/icons-material/Description'
-import OpenInNewIcon from '@mui/icons-material/OpenInNew'
-import UploadFileIcon from '@mui/icons-material/UploadFile'
+import DeleteIcon from "@mui/icons-material/Delete";
+import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import Alert from "@mui/material/Alert";
+import AlertTitle from "@mui/material/AlertTitle";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import CircularProgress from "@mui/material/CircularProgress";
+import IconButton from "@mui/material/IconButton";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
+import { useQueryClient } from "@tanstack/react-query";
+import { useRef, useState } from "react";
 
-import { isApiError } from '@/lib/api-error'
-import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { errorMessage } from '@/lib/error-messages'
-import { useQueryClient } from '@tanstack/react-query'
-import * as leasesApi from '@/features/leases/api'
-import { CONTRACT_ACCEPT } from '@/features/leases/api'
-import type { Lease } from '@/features/leases/types'
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import * as leasesApi from "@/features/leases/api";
+import { CONTRACT_ACCEPT, type ContractPage } from "@/features/leases/api";
+import { formatDate } from "@/features/leases/dates";
+import { useContractPages } from "@/features/leases/hooks";
+import type { Lease } from "@/features/leases/types";
+import { isApiError } from "@/lib/api-error";
+import { errorMessage } from "@/lib/error-messages";
+
+/** 20 MB per page, stated before a photograph is chosen rather than after. */
+const MAX_MB = 20;
 
 /**
- * The signed contract for a tenancy.
+ * The signed contract, as the pages it is.
  *
- * ── Why the file does not go through the API ───────────────────────────────
+ * ── Why the pages are shown rather than reported ────────────────────────────
  *
- * A scan is megabytes uploaded from a phone. The API signs a URL, the BROWSER
- * sends the bytes straight to storage, and only then does the API record it —
- * so no request is held open for the length of an upload.
+ * This card used to say "Đã có bản scan trên hệ thống" beside a button. That
+ * asks the owner to take the contract on trust and click to find out what it
+ * says — and what settles an argument with a tenant is the page itself, not the
+ * assurance that one exists. So the pages are the card, exactly as the ID card
+ * shows the card.
  *
- * That is three steps, and the middle one can fail on its own: the connection
- * drops, the tab closes, storage refuses the file. Nothing is recorded until
- * the third step confirms the object really arrived, which is why a failure
- * here leaves the tenancy exactly as it was rather than claiming a contract
- * that is not there.
+ * ── Why several ────────────────────────────────────────────────────────────
+ *
+ * A contract is several pages of paper. One file per tenancy meant an owner
+ * photographing a four-page agreement had to assemble a document elsewhere
+ * first, or keep one page and lose the rest.
+ *
+ * Uploads run ONE AT A TIME. A phone on a weak connection sending four 8 MB
+ * photographs at once fails all four; in sequence, progress is reportable and a
+ * failure costs one page rather than the set.
+ *
+ * Every link is signed and expires in minutes, which is why they come from a
+ * query that refreshes rather than being held in state.
  */
 export function ContractCard({ lease }: { lease: Lease }) {
-  const queryClient = useQueryClient()
-  const fileInput = useRef<HTMLInputElement>(null)
-  const [busy, setBusy] = useState<'uploading' | 'opening' | 'removing' | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [confirmRemove, setConfirmRemove] = useState(false)
-  // Held while the owner is asked. Replacing deletes the scan being replaced,
-  // so it destroys exactly as removing does — the button just does not say so.
-  const [replacing, setReplacing] = useState<File | null>(null)
+  const queryClient = useQueryClient();
+  const input = useRef<HTMLInputElement>(null);
+  const pagesQuery = useContractPages(lease.id, lease.contractStorageAvailable);
+  const [busy, setBusy] = useState<"uploading" | "removing" | null>(null);
+  const [progress, setProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  /** The page the owner asked to remove, held until they say they meant it. */
+  const [removing, setRemoving] = useState<ContractPage | null>(null);
+
+  const pages = pagesQuery.data ?? [];
 
   function refresh() {
-    void queryClient.invalidateQueries({ queryKey: ['leases'] })
+    void queryClient.invalidateQueries({ queryKey: ["leases"] });
   }
 
-  async function handleFile(file: File): Promise<boolean> {
-    setError(null)
-    setBusy('uploading')
+  async function upload(files: File[]) {
+    setError(null);
+    setBusy("uploading");
+    setProgress({ done: 0, total: files.length });
     try {
-      // 1. The API signs a URL. It chooses the destination; we name only a kind
-      //    of file.
-      const signed = await leasesApi.signContractUpload(lease.id, file.type)
-
-      // Checked here as well as at confirmation, so a large file is refused
-      // before it is uploaded rather than after — the upload is the slow part.
-      if (file.size > signed.maxBytes) {
-        throw new Error(
-          `Tệp vượt quá ${Math.round(signed.maxBytes / 1024 / 1024)} MB`,
-        )
+      const failed = await leasesApi.attachContractPages(
+        lease.id,
+        files,
+        (done, total) => setProgress({ done, total }),
+      );
+      await pagesQuery.refetch();
+      refresh();
+      // The pages that worked are attached; this names what did not, rather
+      // than reporting the whole batch as a failure or as a success.
+      if (failed > 0) {
+        setError(
+          failed === files.length
+            ? `Không tải lên được ${failed} ảnh. Mỗi ảnh tối đa ${MAX_MB} MB.`
+            : `${files.length - failed} ảnh đã lên, ${failed} ảnh không lên được. Thử lại ảnh còn thiếu.`,
+        );
       }
-
-      // 2. The bytes go straight to storage.
-      await leasesApi.uploadToStorage(signed, file)
-
-      // 3. Only now is anything recorded, and the API asks storage whether the
-      //    object is really there rather than believing us.
-      await leasesApi.confirmContract(lease.id, signed.key)
-      refresh()
-      return true
     } catch (cause) {
       setError(
-        isApiError(cause) ? errorMessage(cause)
+        isApiError(cause)
+          ? errorMessage(cause)
           : cause instanceof Error
             ? cause.message
-            : 'Không tải lên được tệp này.',
-      )
-      return false
+            : "Không tải lên được ảnh.",
+      );
     } finally {
-      setBusy(null)
-      // Cleared so choosing the same file again still fires a change event.
-      if (fileInput.current) fileInput.current.value = ''
+      setBusy(null);
+      setProgress(null);
+      if (input.current) input.current.value = "";
     }
   }
 
-  async function open() {
-    setError(null)
-    setBusy('opening')
+  async function remove(page: ContractPage) {
+    setError(null);
+    setBusy("removing");
     try {
-      const { url } = await leasesApi.getContractUrl(lease.id)
-      // A new tab rather than a download: the link is short-lived and the
-      // owner is usually only checking what it says.
-      window.open(url, '_blank', 'noopener')
+      await leasesApi.removeContractPage(lease.id, page.id);
+      await pagesQuery.refetch();
+      refresh();
+      setRemoving(null);
     } catch (cause) {
-      setError(errorMessage(cause))
+      setError(errorMessage(cause));
     } finally {
-      setBusy(null)
-    }
-  }
-
-  async function remove() {
-    setError(null)
-    setBusy('removing')
-    try {
-      await leasesApi.removeContract(lease.id)
-      setConfirmRemove(false)
-      refresh()
-    } catch (cause) {
-      setError(errorMessage(cause))
-    } finally {
-      setBusy(null)
+      setBusy(null);
     }
   }
 
@@ -128,9 +123,37 @@ export function ContractCard({ lease }: { lease: Lease }) {
     <Card variant="outlined">
       <CardContent>
         <Stack spacing={2}>
-          <Typography variant="h6">Bản hợp đồng đã ký</Typography>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1}
+            sx={{
+              alignItems: { sm: "center" },
+              justifyContent: "space-between",
+            }}
+          >
+            <Typography variant="h6">Bản hợp đồng đã ký</Typography>
+            {lease.contractStorageAvailable && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<PhotoCameraIcon />}
+                disabled={busy !== null}
+                onClick={() => input.current?.click()}
+              >
+                {busy === "uploading"
+                  ? `Đang tải lên ${progress?.done ?? 0}/${progress?.total ?? 0}…`
+                  : pages.length > 0
+                    ? "Thêm ảnh"
+                    : "Tải ảnh lên"}
+              </Button>
+            )}
+          </Stack>
 
-          {error && <Alert severity="error">{error}</Alert>}
+          {error && (
+            <Alert severity="error" onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
 
           {/*
             Said out loud rather than shown as a failed action. Storage being
@@ -140,180 +163,153 @@ export function ContractCard({ lease }: { lease: Lease }) {
           {!lease.contractStorageAvailable ? (
             <Alert severity="info">
               <AlertTitle>Máy chủ chưa cấu hình nơi lưu trữ</AlertTitle>
-              Chưa thể lưu bản scan hợp đồng ở đây. Mọi chức năng khác vẫn hoạt
-              động bình thường.
+              Chưa thể lưu ảnh hợp đồng ở đây. Mọi chức năng khác vẫn hoạt động
+              bình thường.
             </Alert>
-          ) : lease.hasContract ? (
-            /*
-              A bordered row standing for the file — NOT a file listing. The
-              name, the size and the upload time are not shown because the API
-              does not report them, and it does not report them on purpose: the
-              storage key never reaches the browser, and every link is signed at
-              the moment it is asked for. So the row says what is true — a scan
-              is on file — and offers what can be done with it.
-            */
-            <Box
-              sx={{
-                border: 1,
-                borderColor: 'divider',
-                borderRadius: 2,
-                p: 2,
-              }}
-            >
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={2}
-                sx={{ alignItems: { sm: 'center' } }}
-              >
-                <DescriptionIcon color="action" />
-                <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                    Đã có bản scan trên hệ thống
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Đường dẫn xem chỉ có hiệu lực vài phút, nên không thể chia sẻ
-                    lâu dài.
-                  </Typography>
-                </Box>
-                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    startIcon={<OpenInNewIcon />}
-                    disabled={busy !== null}
-                    onClick={() => void open()}
-                  >
-                    {busy === 'opening' ? 'Đang mở…' : 'Xem hợp đồng'}
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    startIcon={<UploadFileIcon />}
-                    disabled={busy !== null}
-                    onClick={() => fileInput.current?.click()}
-                  >
-                    {busy === 'uploading' ? 'Đang tải lên…' : 'Thay bản khác'}
-                  </Button>
-                  <Button
-                    size="small"
-                    color="error"
-                    startIcon={<DeleteIcon />}
-                    disabled={busy !== null}
-                    onClick={() => setConfirmRemove(true)}
-                  >
-                    Xoá
-                  </Button>
-                </Stack>
-              </Stack>
+          ) : pagesQuery.isPending ? (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+              <CircularProgress size={22} />
             </Box>
+          ) : pages.length > 0 ? (
+            <>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(3, 1fr)" },
+                  gap: 1.5,
+                }}
+              >
+                {pages.map((page, index) => (
+                  <MotTrang
+                    key={page.id}
+                    page={page}
+                    index={index}
+                    disabled={busy !== null}
+                    onRemove={() => setRemoving(page)}
+                  />
+                ))}
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                {pages.length} trang · bấm vào ảnh để xem cỡ đầy đủ. Đường dẫn
+                xem chỉ có hiệu lực vài phút, nên không thể chia sẻ lâu dài.
+              </Typography>
+            </>
           ) : (
             /*
-              The empty case, as a place a file goes rather than a sentence
-              about one. The limits are stated BEFORE a file is chosen: learning
-              them by having a file rejected after it uploaded is learning them
-              at the most expensive moment.
+              The empty case, as a place photographs go rather than a sentence
+              about them. The limits are stated BEFORE a file is chosen:
+              learning them by having one rejected after it uploaded is learning
+              them at the most expensive moment.
             */
             <Box
               sx={{
                 border: 1,
-                borderStyle: 'dashed',
-                borderColor: 'divider',
+                borderStyle: "dashed",
+                borderColor: "divider",
                 borderRadius: 2,
-                px: 2,
-                py: 4,
-                textAlign: 'center',
+                p: 3,
+                textAlign: "center",
               }}
             >
-              <CloudUploadIcon sx={{ color: 'text.disabled', fontSize: 36 }} />
-              <Typography variant="body2" sx={{ fontWeight: 500, mt: 1 }}>
-                Chưa có bản scan nào
+              <PhotoCameraIcon color="disabled" />
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                Chưa có ảnh hợp đồng nào
               </Typography>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: 'block', mb: 2 }}
-              >
-                Nhận tệp PDF hoặc ảnh (JPG, PNG, HEIC), tối đa 20 MB.
+              <Typography variant="caption" color="text.secondary">
+                Chụp từng trang hợp đồng đã ký. Chọn được nhiều ảnh một lần.
+                JPG, PNG hoặc HEIC, mỗi ảnh tối đa {MAX_MB} MB.
               </Typography>
-              <Button
-                variant="contained"
-                startIcon={
-                  busy === 'uploading' ? (
-                    <CircularProgress size={18} color="inherit" />
-                  ) : (
-                    <UploadFileIcon />
-                  )
-                }
-                disabled={busy !== null}
-                onClick={() => fileInput.current?.click()}
-              >
-                {busy === 'uploading' ? 'Đang tải lên…' : 'Tải hợp đồng lên'}
-              </Button>
             </Box>
           )}
-
-          <input
-            ref={fileInput}
-            type="file"
-            accept={CONTRACT_ACCEPT}
-            hidden
-            onChange={(event) => {
-              const file = event.target.files?.[0]
-              if (!file) return
-              if (lease.hasContract) setReplacing(file)
-              else void handleFile(file)
-            }}
-          />
         </Stack>
       </CardContent>
 
       <ConfirmDialog
-        open={replacing !== null}
-        title="Thay bản hợp đồng?"
-        description={
-          replacing && (
-            <>
-              Bản scan đang lưu sẽ bị xoá và thay bằng <strong>{replacing.name}</strong>. Bản cũ
-              không lấy lại được.
-            </>
-          )
-        }
-        confirmLabel="Thay bản khác"
-        busyLabel="Đang tải lên…"
+        open={removing !== null}
+        title="Xoá trang hợp đồng này?"
+        description="Ảnh sẽ bị xoá khỏi kho lưu trữ và không lấy lại được."
+        confirmLabel="Xoá trang"
+        busyLabel="Đang xoá…"
         destructive
-        busy={busy === 'uploading'}
+        busy={busy === "removing"}
         error={error}
         onConfirm={() => {
-          // Closed only when it worked: a refusal stays in this dialog, with
-          // the file still chosen, rather than appearing behind a dialog that
-          // dismissed itself as though it had succeeded.
-          if (replacing) void handleFile(replacing).then((ok) => { if (ok) setReplacing(null) })
+          if (removing) void remove(removing);
         }}
-        onClose={() => setReplacing(null)}
+        onClose={() => setRemoving(null)}
       />
 
-      <Dialog open={confirmRemove} onClose={() => setConfirmRemove(false)} fullWidth maxWidth="xs">
-        <DialogTitle>Xoá bản hợp đồng?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Tệp sẽ bị xoá khỏi kho lưu trữ. Không hoàn tác được — nếu cần, bạn
-            phải tải lên lại từ bản gốc.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setConfirmRemove(false)} disabled={busy === 'removing'}>
-            Giữ lại
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={() => void remove()}
-            disabled={busy === 'removing'}
-          >
-            {busy === 'removing' ? 'Đang xoá…' : 'Xoá'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <input
+        ref={input}
+        type="file"
+        accept={CONTRACT_ACCEPT}
+        multiple
+        hidden
+        onChange={(event) => {
+          const files = [...(event.target.files ?? [])];
+          if (files.length > 0) void upload(files);
+        }}
+      />
     </Card>
-  )
+  );
+}
+
+/** One page: the photograph itself, numbered, with the way to remove it. */
+function MotTrang({
+  page,
+  index,
+  disabled,
+  onRemove,
+}: {
+  page: ContractPage;
+  index: number;
+  disabled: boolean;
+  onRemove: () => void;
+}) {
+  return (
+    <Box sx={{ position: "relative" }}>
+      <Box
+        component="a"
+        href={page.url}
+        target="_blank"
+        rel="noopener"
+        title="Mở ảnh kích thước đầy đủ"
+        sx={{ display: "block" }}
+      >
+        <Box
+          component="img"
+          src={page.url}
+          alt={`Trang ${index + 1} của hợp đồng`}
+          sx={{
+            display: "block",
+            width: "100%",
+            aspectRatio: "3 / 4",
+            objectFit: "cover",
+            borderRadius: 1,
+            border: 1,
+            borderColor: "divider",
+            bgcolor: "action.hover",
+          }}
+        />
+      </Box>
+      <IconButton
+        size="small"
+        aria-label={`Xoá trang ${index + 1}`}
+        disabled={disabled}
+        onClick={onRemove}
+        sx={{
+          position: "absolute",
+          top: 4,
+          right: 4,
+          bgcolor: "background.paper",
+          "&:hover": { bgcolor: "background.paper" },
+        }}
+      >
+        <DeleteIcon fontSize="small" color="error" />
+      </IconButton>
+      <Typography variant="caption" color="text.secondary">
+        Trang {index + 1} · {formatDate(page.uploadedAt)}
+      </Typography>
+    </Box>
+  );
 }
