@@ -15,7 +15,9 @@ import Link from '@mui/material/Link'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import EditIcon from '@mui/icons-material/Edit'
+import AutorenewIcon from '@mui/icons-material/Autorenew'
 import EventBusyIcon from '@mui/icons-material/EventBusy'
+import LogoutIcon from '@mui/icons-material/Logout'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 
 import { isApiError } from '@/lib/api-error'
@@ -32,6 +34,9 @@ import {
 } from '@/features/leases/dates'
 import { useLease } from '@/features/leases/hooks'
 import { CancelLeaseDialog } from '@/features/leases/CancelLeaseDialog'
+import { DepositSettlementCard } from '@/features/leases/DepositSettlementCard'
+import { MoveOutDialog } from '@/features/leases/MoveOutDialog'
+import { RenewLeaseDialog } from '@/features/leases/RenewLeaseDialog'
 import { IdCardCard } from '@/features/customers/IdCardCard'
 import { ContractCard } from '@/features/leases/ContractCard'
 import { EditTermsDialog } from '@/features/leases/EditTermsDialog'
@@ -462,6 +467,8 @@ export function LeaseDetailPage() {
   const leaseQuery = useLease(leaseId)
   const [editOpen, setEditOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
+  const [renewOpen, setRenewOpen] = useState(false)
+  const [moveOutOpen, setMoveOutOpen] = useState(false)
 
   if (leaseQuery.isPending) {
     return (
@@ -559,6 +566,7 @@ export function LeaseDetailPage() {
             <IdCardCard customerId={lease.tenant.id} name={lease.tenant.fullName} />
           )}
         </Stack>
+        <DepositSettlementCard lease={lease} />
         <LeaseInvoicesPanel lease={lease} />
       </Box>
 
@@ -568,6 +576,55 @@ export function LeaseDetailPage() {
           `cancellable` carries the rule so this screen does not keep a second
           copy of it that could drift.
         */}
+        {/*
+          The most ordinary thing that happens to a tenancy: the tenant stays.
+          It existed only in the API — an owner reaching the same outcome by
+          hand would re-enter the occupants, settle and re-collect the deposit,
+          re-choose the fees, leave a gap between the two agreements, and record
+          no link between them.
+
+          Offered while the tenancy is running. A closed or cancelled one has
+          nothing to renew, and the API refuses both.
+        */}
+        {lease.status === 'active' && (
+          <Box>
+            <Button
+              variant="outlined"
+              startIcon={<AutorenewIcon />}
+              onClick={() => setRenewOpen(true)}
+            >
+              Gia hạn hợp đồng
+            </Button>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+              Khách ở tiếp sau khi hết hạn. Đóng hợp đồng này đúng ngày kết thúc và mở hợp đồng
+              mới ngay hôm đó, giữ nguyên người ở và tiền cọc.
+            </Typography>
+          </Box>
+        )}
+
+        {/*
+          How a tenancy actually ends. It existed only in the API, so the only
+          ending an owner could reach was cancelling — which records a tenancy
+          as never having happened, and on a tenant who lived here for a year
+          would erase the year.
+        */}
+        {lease.status === 'active' && (
+          <Box>
+            <Button
+              color="error"
+              variant="outlined"
+              startIcon={<LogoutIcon />}
+              onClick={() => setMoveOutOpen(true)}
+            >
+              Kết thúc hợp đồng
+            </Button>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+              Khách đã dọn đi thật. Chốt số điện, xuất hoá đơn tháng cuối, và trả phòng về trạng
+              thái trống.
+            </Typography>
+          </Box>
+        )}
+
         {lease.cancellable && (
           <Box>
             <Button
@@ -601,6 +658,20 @@ export function LeaseDetailPage() {
       </Stack>
 
       <EditTermsDialog open={editOpen} lease={lease} onClose={() => setEditOpen(false)} />
+      <MoveOutDialog open={moveOutOpen} lease={lease} onClose={() => setMoveOutOpen(false)} />
+
+      <RenewLeaseDialog
+        open={renewOpen}
+        lease={lease}
+        onRenewed={(successorId) => {
+          setRenewOpen(false)
+          // Straight to the successor: it is the tenancy that now exists, and
+          // it already names the one it renewed.
+          navigate(`/leases/${successorId}`)
+        }}
+        onClose={() => setRenewOpen(false)}
+      />
+
       <CancelLeaseDialog open={cancelOpen} lease={lease} onClose={() => setCancelOpen(false)} />
     </Box>
   )

@@ -1,9 +1,7 @@
 ## Purpose
 
 Turns a tenancy into a monthly bill: metered electricity, per-person water, and rent for the days occupied, recorded with the rates that were applied so the bill stays a faithful record of what was charged.
-
 ## Requirements
-
 ### Requirement: Owner can generate an invoice for a lease and month
 The system SHALL allow an authenticated `owner` to generate a monthly invoice for a lease and a calendar month, supplying the closing electricity meter reading for that period. The invoice SHALL record the meter readings it spans, the period it covers, its line items, and the total. Each rate and count applied — the electricity rate, the water rate, the base rent, and the occupant count — SHALL be recorded on the line item it produced, so that a charge and the figures behind it are read together.
 
@@ -670,6 +668,7 @@ A lease SHALL have at most one overdue invoice.
 
 - **WHEN** an authenticated owner names a charge referring to a service fee belonging to a different building
 - **THEN** the system responds with HTTP 400 and neither invoice is issued
+
 ### Requirement: Owner can issue an ad-hoc invoice for charges they decide
 
 The system SHALL allow an authenticated `owner` to issue an invoice against a lease carrying charges the owner names, prices and categorises. This is for what cannot be calculated: a lost key, a room left dirty, a broken window, a penalty, a late-payment fee. Every other charge in this system follows from an agreement and a measurement; these follow from a judgement, and the system SHALL make it rather than pretend to derive it.
@@ -838,3 +837,33 @@ The alternative — a caller fetching each building to assemble it — is a requ
 
 - **WHEN** an invoice is issued for a tenancy that appeared in the report
 - **THEN** the rate the invoice records is the one the report gave for it
+
+### Requirement: A tenancy's charges use the rates that tenancy was signed at
+Every charge raised against a tenancy SHALL be computed from the rates recorded on that tenancy — its rent, its electricity rate and its water rate — and SHALL NOT read the building's current rates.
+
+This SHALL hold for every invoice a tenancy can carry: its move-in invoice, its monthly invoices, and any invoice issued for it after its building's rates were changed.
+
+The rate applied SHALL continue to be recorded on the line item it produced, so a bill remains readable as what was charged and why.
+
+Electricity for a room standing EMPTY SHALL keep using the building's current rate, because no tenancy exists to have agreed anything and the cost is the owner's own.
+
+#### Scenario: A monthly invoice after a rate change
+- **GIVEN** a tenancy signed at one electricity rate, and a building whose electricity rate was raised afterwards
+- **WHEN** the owner generates a monthly invoice for that tenancy
+- **THEN** the electricity charge uses the rate the tenancy was signed at, and the line item records that rate
+
+#### Scenario: Water after a rate change
+- **GIVEN** a tenancy signed at one water rate, and a building whose water rate was changed afterwards
+- **WHEN** the owner generates a monthly invoice for that tenancy
+- **THEN** the water charge uses the rate the tenancy was signed at
+
+#### Scenario: A tenancy signed after the change
+- **GIVEN** a building whose rates were changed
+- **WHEN** a tenancy is signed afterwards and billed
+- **THEN** its charges use the changed rates
+
+#### Scenario: Vacancy electricity follows the building
+- **GIVEN** a room with no tenancy running
+- **WHEN** the owner records a vacancy meter reading for it
+- **THEN** the cost is computed from the building's current electricity rate
+

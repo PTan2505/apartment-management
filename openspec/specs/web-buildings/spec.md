@@ -299,41 +299,6 @@ On success the list SHALL reflect the change without the owner reloading the scr
 - **WHEN** an owner opens the form on a narrow viewport
 - **THEN** it is usable at that width, with every field reachable and the form dismissible
 
-### Requirement: The owner can take a building out of service and back
-
-The application SHALL let the owner retire a building and restore a retired one.
-
-Retiring SHALL require confirmation, because a retired building disappears from the default list and from the location choices. Restoring SHALL NOT, because it is not destructive and is immediately visible.
-
-When the API refuses to retire a building because one of its rooms still has an active lease, the screen SHALL report the reason the API gave, rather than a generic failure. This is an expected outcome of a reasonable action, not a fault.
-
-The screen SHALL NOT suggest that retiring a building also retires its rooms, because it does not.
-
-#### Scenario: Retiring a building
-
-- **WHEN** an owner retires a building and confirms
-- **THEN** the building is marked retired and leaves the default list
-
-#### Scenario: Retiring is confirmed first
-
-- **WHEN** an owner starts to retire a building and does not confirm
-- **THEN** the building remains in service
-
-#### Scenario: Retiring a building that still has a tenant
-
-- **WHEN** an owner confirms retiring a building whose room still has an active lease
-- **THEN** the screen reports the reason the API gave, and the building remains in service
-
-#### Scenario: Restoring a retired building
-
-- **WHEN** an owner restores a retired building
-- **THEN** it is marked in service again and reappears in the default list
-
-#### Scenario: Restore needs no confirmation
-
-- **WHEN** an owner restores a retired building
-- **THEN** it is restored without a confirmation step
-
 ### Requirement: The screen adapts to the viewport
 
 The buildings SHALL be presented as a table on a wide viewport and as a list of per-building cards on a narrow one, because a table of this width cannot be usefully narrowed and horizontal scrolling hides the columns that matter.
@@ -446,4 +411,80 @@ The choice SHALL live in the page address alongside the other filters, so a filt
 #### Scenario: The choice survives a reload
 - **WHEN** the owner chooses a status and reloads the page
 - **THEN** the same status is still chosen and the same buildings are listed
+
+### Requirement: The rate fields say who a new figure will reach
+The building form SHALL state, beside its electricity and water rate fields, that a changed rate applies to tenancies signed from then on and to invoices issued for them, and not to tenancies already signed.
+
+The statement SHALL be shown when editing an existing building, where the question arises, and SHALL NOT be shown when creating one, where there is nothing already signed to reassure anyone about.
+
+#### Scenario: Editing a building
+- **WHEN** the owner opens an existing building for editing
+- **THEN** the form states that changed rates apply only to tenancies signed from then on
+
+#### Scenario: Creating a building
+- **WHEN** the owner creates a new building
+- **THEN** that statement is absent
+
+### Requirement: Taking a building out of service and putting it back are both confirmed
+
+The application SHALL let the owner retire a building and restore a retired one, and SHALL confirm both before sending anything.
+
+Retiring, because a retired building disappears from the default list and from the location choices. Restoring, because it returns a building to the lists, the filters and the places a tenancy can be signed — a change to what the rest of the application offers, made from a menu item beside ordinary ones. Reversible is not the same as harmless.
+
+When the API refuses to retire a building because one of its rooms still has an active lease, the screen SHALL report the reason the API gave, rather than a generic failure. This is an expected outcome of a reasonable action, not a fault.
+
+The screen SHALL NOT suggest that retiring a building also retires its rooms, because it does not.
+
+#### Scenario: Retiring a building
+
+- **WHEN** an owner retires a building and confirms
+- **THEN** the building is marked retired and leaves the default list
+
+#### Scenario: Retiring is confirmed first
+
+- **WHEN** an owner starts to retire a building and does not confirm
+- **THEN** the building remains in service
+
+#### Scenario: Retiring a building that still has a tenant
+
+- **WHEN** an owner confirms retiring a building whose room still has an active lease
+- **THEN** the screen reports the reason the API gave, and the building remains in service
+
+#### Scenario: Restoring a retired building
+
+- **WHEN** an owner restores a retired building and confirms
+- **THEN** it is marked in service again and reappears in the default list
+
+#### Scenario: Restoring is confirmed first
+
+- **WHEN** an owner starts to restore a retired building and does not confirm
+- **THEN** no request is sent and the building remains retired
+
+### Requirement: A change to a building's rates is confirmed before it is saved
+
+The application SHALL ask the owner to confirm saving a building whose electricity or water rate has changed, and SHALL show each changed rate as its previous value and its new one.
+
+The confirmation SHALL say that new rates apply only to tenancies and invoices made from now on, because that is the question an owner asks at exactly this moment and the answer is not visible on the form.
+
+Saving a building whose rates are unchanged SHALL NOT be confirmed, however many other details were edited. A rate is what later billing reads; a name or an address is not.
+
+#### Scenario: Saving a changed rate
+
+- **WHEN** an owner changes a building's electricity or water rate and saves
+- **THEN** a confirmation lists each changed rate as old and new, and nothing is sent until it is confirmed
+
+#### Scenario: Saving other details
+
+- **WHEN** an owner changes a building's name or address but neither rate and saves
+- **THEN** the change is saved without a confirmation step
+
+#### Scenario: The confirmation says what the new rate applies to
+
+- **WHEN** an owner is asked to confirm a changed rate
+- **THEN** the confirmation says the new rate applies to tenancies and invoices made from now on
+
+#### Scenario: Declining keeps the form
+
+- **WHEN** an owner declines the confirmation
+- **THEN** the form is still open with the rates they entered, and nothing was sent
 

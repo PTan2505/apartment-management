@@ -107,6 +107,53 @@ export function useUpdateLease() {
  * without it the room the cancellation just released would still be missing
  * from the create form's list of rooms that can be let.
  */
+/** Renewing: one request that closes a tenancy and opens its successor. */
+export function useExtendLease() {
+  const invalidate = useInvalidateLeases()
+  return useMutation({
+    mutationFn: ({ id, input }: { id: number; input: leasesApi.ExtendLeaseInput }) =>
+      leasesApi.extendLease(id, input),
+    onSuccess: invalidate,
+  })
+}
+
+/** Closing a tenancy: the tenant left, the final bill goes out, the room frees. */
+export function useRecordMoveOut() {
+  const invalidate = useInvalidateLeases()
+  return useMutation({
+    mutationFn: ({ id, input }: { id: number; input: leasesApi.MoveOutInput }) =>
+      leasesApi.recordMoveOut(id, input),
+    onSuccess: invalidate,
+  })
+}
+
+/** What the deposit settles to. Only asked for once a tenancy has closed. */
+export function useDepositSettlement(leaseId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: [...LEASES_KEY, leaseId, 'deposit-settlement'],
+    queryFn: () => leasesApi.getDepositSettlement(leaseId),
+    enabled,
+  })
+}
+
+export function useRefundDeposit() {
+  const invalidate = useInvalidateLeases()
+  return useMutation({
+    mutationFn: ({ id, refundedAt }: { id: number; refundedAt: string }) =>
+      leasesApi.refundDeposit(id, refundedAt),
+    onSuccess: invalidate,
+  })
+}
+
+/** The building's fee catalogue, for naming charges beyond a term. */
+export function useBuildingServiceFees(buildingId: number | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['buildings', buildingId, 'service-fees'],
+    queryFn: () => leasesApi.listBuildingServiceFees(buildingId!),
+    enabled: buildingId !== undefined && enabled,
+  })
+}
+
 export function useCancelLease() {
   const invalidate = useInvalidateLeases()
   return useMutation({

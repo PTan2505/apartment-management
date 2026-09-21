@@ -1,9 +1,7 @@
 ## Purpose
 
 Tracks rental agreements that bind people to a room for an agreed period, recording who signed the lease, who lives under it over time, how many occupants utilities are billed for, and when the tenant actually moved out.
-
 ## Requirements
-
 ### Requirement: Owner can create a lease
 The system SHALL allow an authenticated `owner` to create a lease for an existing active room, naming an existing customer as the lease signatory and recording a start date, an agreed duration in whole months, an occupant count, the electricity meter reading the tenancy starts from, the agreed monthly rent, and the deposit expressed in months of rent. Duration and occupant count MUST both be at least 1. Creating the lease SHALL also record the signatory as the lease's primary occupant, and SHALL issue the lease's move-in invoice charging its deposit and its first month's rent. All three SHALL be created together, so a lease never exists without someone responsible for it or without the bill that starts it. The starting meter reading SHALL default to the room's latest known meter reading — the most recent of its previous lease's closing reading and any vacancy reading recorded since — and MAY be overridden by the owner, so that electricity consumed while the room stood empty is not charged to the incoming tenant. Where the room has no previous lease, the reading MUST be supplied.
 
@@ -185,6 +183,7 @@ The system SHALL allow an authenticated `owner` to add a person as an occupant o
 #### Scenario: Occupant listing is paginated
 - **WHEN** an authenticated owner lists the occupants of a lease
 - **THEN** the response is the shared paginated shape, with the occupants in `data` and the page, page size, and totals in `meta`
+
 ### Requirement: A lease has one primary occupant at a time
 The system SHALL treat exactly one current occupant as the lease's primary occupant — the person responsible for the agreement — and SHALL allow that responsibility to be transferred to another current occupant without losing the record of who held it before.
 
@@ -462,6 +461,7 @@ The system SHALL reject any lease or lease-occupant request that is unauthentica
 #### Scenario: Authenticated non-owner request
 - **WHEN** a request to any lease endpoint carries a valid access token for a user whose role is not `owner`
 - **THEN** the system responds with HTTP 403 and does not process the request
+
 ### Requirement: Owner can extend a lease
 
 The system SHALL allow an authenticated `owner` to extend a lease: closing it on its agreed end date and opening a successor beginning that same day, in one operation.
@@ -622,7 +622,6 @@ The date SHALL be exclusive in the same way as the expected end date: the first 
 - **WHEN** an authenticated owner retrieves a lease whose move-out was recorded after its expected end date
 - **THEN** both dates are reported, so what was agreed and what happened can be told apart
 
-
 ### Requirement: Owner can cancel a lease that was never lived in
 
 The system SHALL allow an authenticated `owner` to cancel a lease, recording that the tenancy never took place rather than that it ended.
@@ -718,36 +717,6 @@ Freeing the room is most of the point. A tenancy that never happened occupies no
 - **WHEN** an authenticated owner lists the leases for a room whose lease was cancelled
 - **THEN** the cancelled lease is included, marked as cancelled
 
-### Requirement: A tenancy can carry its signed contract
-
-The system SHALL allow an authenticated `owner` to attach one signed contract file to a tenancy, to replace it, to remove it, and to retrieve it.
-
-The record cannot otherwise settle an argument. When a tenant says the rent was different or that no deposit was agreed, every figure here is one party's assertion; the signed page is the only thing that is not.
-
-The file SHALL be evidence attached to the record and nothing more. No rule SHALL read it, and no reported value SHALL derive from it — a tenancy with no contract SHALL behave in every other way exactly like one that has it.
-
-Replacing a contract SHALL leave the tenancy with exactly one, and SHALL NOT leave the previous file behind in storage. Storage nobody can reach from the application is storage nobody will ever clear.
-
-#### Scenario: Attaching a contract
-
-- **WHEN** an authenticated owner attaches a contract to a tenancy
-- **THEN** the tenancy reports that it has one
-
-#### Scenario: Replacing a contract
-
-- **WHEN** an authenticated owner attaches a contract to a tenancy that already has one
-- **THEN** the tenancy carries the new one and the previous file is removed from storage
-
-#### Scenario: Removing a contract
-
-- **WHEN** an authenticated owner removes a tenancy's contract
-- **THEN** the tenancy reports that it has none, and the file is removed from storage
-
-#### Scenario: A tenancy without one behaves normally
-
-- **WHEN** a tenancy has no contract attached
-- **THEN** every other operation on it behaves exactly as it does today
-
 ### Requirement: Contract bytes do not pass through the API
 
 The system SHALL issue a short-lived signed URL that uploads the file directly to storage, and SHALL NOT accept the file's bytes itself.
@@ -838,84 +807,287 @@ Every contract operation SHALL require an authenticated `owner`.
 - **WHEN** an unauthenticated request asks for an upload URL, confirms an upload, reads a contract, or removes one
 - **THEN** the system responds with HTTP 401
 
-### Requirement: A tenancy's storage keeps only its current contract
+### Requirement: A tenancy records the utility rates it was signed at
+A tenancy SHALL record the electricity rate per kWh and the water rate per person that applied when it was created, defaulting to its building's current rates exactly as the agreed rent defaults to the room's.
 
-When a tenancy's contract is confirmed or removed, the system SHALL also remove any other object under that tenancy's own prefix.
+Either rate MAY be supplied when the tenancy is created, so a price agreed with one tenant in particular is recorded without changing what the building charges the next one. Neither MAY be negative.
 
-An upload that is never confirmed leaves an object behind: the browser sends the file to storage and the confirmation then fails — a closed tab, a dropped connection, an error. Nothing is recorded, which is right, and the object remains, unreachable through the application and invisible in it.
+The rates SHALL be recorded at the same precision the building holds them at, so the copy can neither lose nor gain digits.
 
-This is the same reasoning that already deletes an oversized file rather than leaving it: an object nobody can reach through the application is one nobody will ever clear. Applying it to one case and not the other left a gap that grows with every failed upload and never shrinks.
+Editing a building's rates afterwards SHALL NOT alter any tenancy already signed, because those figures are what the tenant agreed to. A tenancy signed after the edit SHALL record the new figures.
 
-The cleanup SHALL be scoped to the tenancy being acted on. Nothing SHALL sweep the bucket, and nothing SHALL run on a schedule — the litter is created by these operations, and clearing it as they happen keeps the two together.
+The recorded rates SHALL be reported wherever a tenancy is returned, so a screen can show what this tenancy is billed at without reading its building.
 
-A failure to clear SHALL NOT fail the operation. The record is what the application reads; reporting a successful confirmation as a failure because a stray object survived would invite the owner to repeat an upload that already worked.
+#### Scenario: A new tenancy copies its building's rates
+- **WHEN** an authenticated owner creates a tenancy without naming rates
+- **THEN** the tenancy records its building's electricity and water rates as they stand at that moment
 
-#### Scenario: An abandoned upload is cleared
+#### Scenario: A rate agreed with this tenant
+- **WHEN** an authenticated owner creates a tenancy naming an electricity rate of its own
+- **THEN** the tenancy records that rate, the building's rate is unchanged, and the tenancy's invoices are computed from the rate it recorded
 
-- **WHEN** an upload reaches storage but is never confirmed, and the owner then confirms a later one
-- **THEN** the abandoned object is removed and the confirmed contract remains
+#### Scenario: Editing the building leaves signed tenancies alone
+- **GIVEN** a tenancy signed while its building charged one set of rates
+- **WHEN** the owner changes the building's rates
+- **THEN** the tenancy still records the rates it was signed at
 
-#### Scenario: Removing a contract clears the prefix
+#### Scenario: A tenancy signed after the edit takes the new rates
+- **GIVEN** a building whose rates have been changed
+- **WHEN** the owner signs a new tenancy in it
+- **THEN** that tenancy records the changed rates
 
-- **WHEN** an owner removes a tenancy's contract
-- **THEN** nothing is left under that tenancy's prefix
+#### Scenario: A tenancy reports its rates
+- **WHEN** an authenticated owner retrieves or lists tenancies
+- **THEN** each carries the electricity and water rates it was signed at
 
-#### Scenario: Only this tenancy is touched
+### Requirement: The rates on a running tenancy can be corrected
+The system SHALL allow an authenticated `owner` to change the electricity and water rates recorded on a tenancy that is running, alongside the other terms it already allows correcting.
 
-- **WHEN** a contract is confirmed for one tenancy
-- **THEN** objects belonging to any other tenancy are untouched
+Without this, a tenancy's rates could only be changed by renewing it early, because the figures live on the tenancy. The same path serves a rate mistyped at signing and a rate the parties have since agreed to change.
 
-#### Scenario: The current contract survives
+Changing them SHALL affect what that tenancy is billed FROM THEN ON, and SHALL NOT alter invoices already issued: each invoice records the rate that produced each of its charges.
 
-- **WHEN** a contract is confirmed
-- **THEN** the object it names is not among those removed
+Changing them SHALL affect only that tenancy — not its building, and not any other tenancy in it.
 
-### Requirement: A lease records the terms of its agreement, not only what it takes to bill
+Neither rate SHALL be negative. A tenancy that has recorded a move-out, or that was cancelled, SHALL refuse the change as it already refuses every other correction.
 
-A lease SHALL record, and report, the notice a departure requires, the day of the month its rent falls due, the opening WATER meter reading, a human-readable reference for the agreement, and whether the handover record has been signed.
+#### Scenario: Correcting a rate
+- **WHEN** an authenticated owner changes the electricity rate on a running tenancy
+- **THEN** the tenancy records the new rate, and its next invoice charges at it
 
-These are terms of the agreement the tenant signed. An owner asked "how much notice do I have to give" is reading a paper contract today, because the system that governs the tenancy does not hold the answer.
+#### Scenario: Invoices already issued do not move
+- **GIVEN** a tenancy with an invoice already issued at its old rate
+- **WHEN** the owner changes that tenancy's rate
+- **THEN** the issued invoice keeps its own line items and its own recorded rate
 
-The opening water reading SHALL be recorded the same way as the opening electricity reading. Water is billed on metered consumption exactly as electricity is; recording the start of one and not the other means a water dispute has no agreed starting point to appeal to.
+#### Scenario: The building is not touched
+- **WHEN** the owner changes a tenancy's rates
+- **THEN** the building's rates are unchanged, and no other tenancy's rates change
+
+#### Scenario: A negative rate is refused
+- **WHEN** an authenticated owner submits a negative rate
+- **THEN** the system responds with HTTP 400 and changes nothing
+
+### Requirement: A lease carries a reference and the date its paper contract was signed
+
+A lease SHALL record and report a human-readable reference for the agreement, and the date the paper contract was signed with the tenant.
 
 The reference SHALL be distinct from the record's identifier. An id is what the system uses; a reference is what two people say out loud to be sure they mean the same agreement, and an owner reading a number out of a URL is using the wrong one.
 
-#### Scenario: Signing an agreement with its terms
+The reference SHALL be generated and SHALL NOT be accepted from a caller. A typed reference drifts: two leases get the same one, a typo makes one unfindable, and the field becomes a place people write notes.
 
-- **WHEN** an owner creates a lease and supplies the notice period, payment day and opening water reading
-- **THEN** the lease records them and reports them back
+EVERY lease SHALL have a reference, however it came to exist. A lease created by renewing another is a lease, and one without a reference cannot be named out loud at all — the gap is invisible until someone asks for the number and there is none to give.
 
-#### Scenario: Reading the terms
+The signing date SHALL be accepted when the lease is created as well as when it is corrected. It is a fact the owner holds at signing and rarely goes looking for later.
+
+#### Scenario: Reading the reference and signing date
 
 - **WHEN** an authenticated owner retrieves a lease
-- **THEN** its notice period, payment day, opening water reading, reference and handover state are reported with its other terms
+- **THEN** its reference and its signing date are reported with its other terms
 
-#### Scenario: Correcting a term
+#### Scenario: A reference is not accepted from the caller
 
-- **WHEN** an owner corrects the notice period or payment day of a running tenancy
-- **THEN** the corrected value is recorded, under the same rules that govern correcting its other terms
+- **WHEN** an owner creates a lease and supplies a reference of their own
+- **THEN** the lease is created with the generated reference, not the supplied one
 
-### Requirement: A term that was never agreed is reported as absent, not as a default
+#### Scenario: A renewed tenancy carries its own reference
 
-Where a lease has no value recorded for one of these terms, the system SHALL report it as absent, and SHALL NOT substitute a default.
+- **WHEN** a tenancy is renewed and a successor lease is opened
+- **THEN** the successor has a reference of its own, built the same way as one created by signing, and distinct from its predecessor's
 
-Every tenancy signed before these terms existed has none of them. A default — thirty days' notice, the fifth of the month, a water reading of zero — would state as agreed something nobody agreed to, on a screen that reads as a contract. A reader has no way to tell a recorded thirty days from an assumed one.
+#### Scenario: A lease left without a reference
 
-A water reading of zero is the sharpest case, because zero is a legitimate reading. "No reading was recorded" and "the meter read zero" are different facts and SHALL be reported differently.
+- **WHEN** a lease exists with no reference recorded
+- **THEN** it is given one, so that no lease is left unnameable
 
-The system SHALL NOT require these terms on an existing lease in order to accept a correction to a different one. Demanding a term that was never agreed, as the price of fixing a rent, converts missing history into an obstacle.
+#### Scenario: Recording the signing date at creation
 
-#### Scenario: A tenancy signed before these terms existed
+- **WHEN** an owner creates a lease and supplies the date the paper contract was signed
+- **THEN** the lease records it and reports it back
 
-- **WHEN** an owner opens a lease created before this change
-- **THEN** each unrecorded term is reported as absent rather than as a default value
+### Requirement: A term that was never agreed is reported as absent
 
-#### Scenario: A meter that genuinely read zero
+Where a lease has no signing date recorded, the system SHALL report it as absent, and SHALL NOT substitute a default.
 
-- **WHEN** a lease records an opening water reading of zero
-- **THEN** it is reported as zero, distinguishably from a lease with no reading recorded
+A default would state as agreed something nobody agreed to, on a record that reads as a contract, and a reader has no way to tell a recorded date from an assumed one.
 
-#### Scenario: Correcting one term without supplying the others
+The system SHALL NOT require it in order to accept a correction to a different term. Demanding a fact that was never recorded, as the price of fixing a rent, converts missing history into an obstacle.
 
-- **WHEN** an owner corrects the rent of a lease that has no notice period recorded
-- **THEN** the correction is accepted, and the notice period stays absent
+#### Scenario: A tenancy recorded without its signing date
+
+- **WHEN** an owner retrieves a lease whose paper contract date was never entered
+- **THEN** the date is reported as absent rather than as a default value
+
+#### Scenario: Correcting one term without supplying the other
+
+- **WHEN** an owner corrects the rent of a lease that has no signing date recorded
+- **THEN** the correction is accepted, and the signing date stays absent
+
+### Requirement: A renewal records which lease it renewed
+
+Where a lease is created by renewing another, it SHALL record which lease that was, and both leases SHALL report the link.
+
+Written at the moment of renewal, because that is the only moment the link is a fact. Afterwards it could only be inferred from a room and two dates — and a DIFFERENT tenant moving in on changeover day produces exactly the same pattern, so the inference is not merely awkward but wrong in a case that happens routinely.
+
+A lease SHALL be renewable at most once, and the system SHALL enforce that where it cannot be bypassed rather than only in the code path that happens to check. Renewing closes the predecessor, and a closed lease cannot be renewed again.
+
+A lease that was signed rather than renewed, and one that has not been renewed, SHALL report the corresponding link as absent. Absent here means "this did not happen", not "this was not recorded".
+
+Leases renewed before this existed SHALL keep no link. The renewal left no record of having happened, and inventing one from matching dates is exactly the inference this replaces.
+
+#### Scenario: The successor names its predecessor
+
+- **WHEN** a tenancy is renewed
+- **THEN** the successor reports which lease it renewed, and the predecessor reports which lease renewed it
+
+#### Scenario: A tenancy that was signed, not renewed
+
+- **WHEN** an owner retrieves a lease created by signing
+- **THEN** it reports no lease that it renewed
+
+#### Scenario: A tenancy that has not been renewed
+
+- **WHEN** an owner retrieves a running lease
+- **THEN** it reports no lease that renewed it
+
+#### Scenario: One renewal per lease
+
+- **WHEN** two renewals of the same lease are attempted
+- **THEN** the second is refused, and the refusal comes from the database's own constraint rather than from a check that could be bypassed
+
+### Requirement: A running tenancy is never left with nobody living in it
+
+The system SHALL refuse to record the departure of a lease's only current occupant, and the refusal SHALL name the operation that does end a tenancy.
+
+Accepting it produces a tenancy that is running, billed, holding a deposit and occupying a room, with nobody recorded as living there. Nothing downstream is prepared for that: the room is not free, the tenancy is not closed, and the screens report a tenancy whose occupant list is empty. It is never what the owner meant — it is what they get when the operation they wanted was the tenancy's move-out and the action in front of them was the person's departure.
+
+A tenancy that has already recorded its move-out SHALL NOT be affected by this rule. Its occupants' departures are history, and closing the tenancy is what set them.
+
+#### Scenario: The only occupant cannot simply leave
+
+- **WHEN** an owner records a departure for the only current occupant of a running tenancy
+- **THEN** the system refuses, says that ending the tenancy is the operation for this, and the occupant remains current
+
+#### Scenario: One of several can leave
+
+- **WHEN** an owner records a departure for one of two or more current occupants
+- **THEN** the departure is recorded and the others remain
+
+#### Scenario: Ending the tenancy still works
+
+- **WHEN** an owner records the tenancy's move-out
+- **THEN** it is accepted, and the fact that one occupant remained is not an obstacle
+
+### Requirement: Departing the responsible occupant hands over responsibility in the same operation
+
+Where the departing occupant is the one responsible for the agreement and other occupants remain, the system SHALL accept the successor as part of recording the departure, and SHALL write both facts in one transaction.
+
+Two requests can half-succeed. A transfer that lands followed by a departure that fails leaves the agreement naming somebody who never took it over while the previous holder still lives there — a state nobody asked for, reached silently, and visible only to a reader who compares the occupant list against the signatory.
+
+The successor SHALL be a current occupant of that lease other than the person leaving. Where no successor is supplied and others remain, the system SHALL refuse as it does today, because an agreement cannot be left with occupants and nobody answerable for it.
+
+#### Scenario: Departing with a successor named
+
+- **WHEN** an owner records the departure of the responsible occupant and names another current occupant as successor
+- **THEN** that person becomes responsible for the agreement and the departure is recorded, both in one transaction
+
+#### Scenario: Neither is written when one fails
+
+- **WHEN** the departure of a responsible occupant fails after the handover would have been written
+- **THEN** the lease still names the original person as responsible, and that person is still a current occupant
+
+#### Scenario: Departing the responsible occupant with nobody named
+
+- **WHEN** an owner records the departure of the responsible occupant, other occupants remain, and no successor is supplied
+- **THEN** the system refuses and the occupant remains current
+
+#### Scenario: A successor who is not an occupant
+
+- **WHEN** the named successor is not a current occupant of that lease
+- **THEN** the system refuses and nothing is written
+
+### Requirement: A tenancy carries the pages of its signed contract
+
+The system SHALL allow an authenticated `owner` to attach one or more PHOTOGRAPHS of a tenancy's signed contract, to add further pages later, to remove any one of them, and to retrieve them.
+
+The record cannot otherwise settle an argument. When a tenant says the rent was different or that no deposit was agreed, every figure in the record is one party's assertion; the signed page is the only thing that is not — and an agreement is several pages, not one.
+
+The pages SHALL be reported in a stable order, oldest first, so a contract read on a screen reads in the order it was photographed.
+
+Each page SHALL be removable on its own, and removing one SHALL leave the others attached.
+
+The pages SHALL be evidence attached to the record and nothing more. No rule SHALL read them, and no reported value SHALL derive from them — a tenancy with no contract pages SHALL behave in every other way exactly like one that has them.
+
+#### Scenario: Attaching several pages
+
+- **WHEN** an authenticated owner attaches three photographs to a tenancy
+- **THEN** the tenancy reports three pages, in the order they were added
+
+#### Scenario: Adding a page later
+
+- **WHEN** an owner attaches another photograph to a tenancy that already has pages
+- **THEN** it joins the existing pages rather than replacing them
+
+#### Scenario: Removing one page
+
+- **WHEN** an owner removes one page of several
+- **THEN** that page is gone from the record and from storage, and the others remain attached
+
+#### Scenario: Removing the last page
+
+- **WHEN** an owner removes the only page a tenancy has
+- **THEN** the tenancy reports no contract pages
+
+#### Scenario: A tenancy without any behaves normally
+
+- **WHEN** a tenancy has no contract pages
+- **THEN** every other operation on it behaves exactly as it does today
+
+### Requirement: A contract page is a photograph
+
+The system SHALL accept JPEG, PNG and HEIC for contract pages, and SHALL refuse anything else — including PDF and word-processor documents.
+
+What is being recorded is what the owner photographed. Accepting a document as well means a tenancy's contract can be a mixture of pages that display and files that download, and a screen that has to handle both shows neither well.
+
+Each page SHALL be subject to the same size ceiling as before, enforced at confirmation, and an oversized object SHALL be deleted rather than left unreachable in storage.
+
+#### Scenario: A photograph is accepted
+
+- **WHEN** an owner uploads a JPEG, PNG or HEIC page
+- **THEN** it is accepted and attached
+
+#### Scenario: A PDF is refused
+
+- **WHEN** an owner requests an upload URL for a PDF
+- **THEN** the system refuses and no URL is issued
+
+#### Scenario: An oversized page
+
+- **WHEN** a confirmed page is larger than the ceiling
+- **THEN** it is refused and the object is deleted from storage
+
+### Requirement: An unconfirmed upload does not accumulate
+
+Where an upload reaches storage and is never confirmed, the system SHALL ensure the object does not remain unreachable forever.
+
+The browser sends the file to storage and the confirmation then fails — a closed tab, a dropped connection, an error. Nothing is recorded, which is right, and the object remains: invisible in the application and impossible to clear through it.
+
+The cleanup SHALL be scoped to what is known to be litter. With several pages legitimately under one tenancy's prefix, a sweep that keeps only the newest would delete the rest, so the rule is per-object and not per-prefix: an object under a tenancy's prefix that no page row refers to is litter.
+
+A failure to clear SHALL NOT fail the operation. The record is what the application reads.
+
+#### Scenario: An abandoned upload is cleared
+
+- **WHEN** an upload reaches storage but is never confirmed, and the owner then confirms a later page
+- **THEN** the abandoned object is removed and every recorded page remains
+
+#### Scenario: Recorded pages are never swept
+
+- **WHEN** a page is confirmed for a tenancy that already has pages
+- **THEN** the existing pages remain in storage and on the record
+
+#### Scenario: Only this tenancy is touched
+
+- **WHEN** a page is confirmed for one tenancy
+- **THEN** objects belonging to any other tenancy are untouched
+

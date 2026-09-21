@@ -1,9 +1,7 @@
 ## Purpose
 
 The owner's screens for tenancies: seeing which rooms are let and to whom, signing a new agreement, keeping its terms current, and maintaining the record of who lives there.
-
 ## Requirements
-
 ### Requirement: The owner can see the tenancies they hold
 
 The application SHALL list leases, most recently begun first, each showing the room, the person responsible for the agreement, the agreed rent, the dates the tenancy covers, and whether it is still running.
@@ -150,7 +148,11 @@ A date that ends a tenancy is exclusive: it is the first day no longer covered. 
 
 This is not presentation for its own sake. An owner reading "ends 01/07/2026" beside a tenant who must be out on 30 June will act on the wrong day — arranging a cleaner, showing the room, or billing a month that was never covered.
 
-Where a tenancy has ended, the application SHALL show that it ended and through which day, distinguishing a tenancy that ran its agreed term from one that was closed early or late.
+Every tenancy date SHALL be labelled by what it is to the owner — the first day lived there, the last day the agreement covers, the day the room was handed back — and not by a word that leaves the reader to work out which boundary is meant.
+
+Where a tenancy has ended, the application SHALL show the day the room was handed back and the last day it covered, together. The handed-back day is the date owner and tenant actually agree on; the last day covered is the one billing and the next tenancy depend on. Showing only one leaves the reader to compute the other, and showing them in different places on one screen reads as two dates that disagree by a day.
+
+The application SHALL distinguish a tenancy handed back before its agreed term ended, on the day it ended, and after it ended. An early departure SHALL NOT be described in words that also describe an on-time one.
 
 #### Scenario: An end date is shown as the day covered through
 
@@ -160,12 +162,27 @@ Where a tenancy has ended, the application SHALL show that it ended and through 
 #### Scenario: A recorded departure is shown as the day covered through
 
 - **WHEN** a lease has a move-out recorded as 2026-07-05
-- **THEN** the screen conveys that the tenancy covered through 2026-07-04
+- **THEN** the screen conveys that the room was handed back on 2026-07-05 and that the tenancy covered through 2026-07-04, together
 
 #### Scenario: A tenancy that ran past its agreed term
 
 - **WHEN** a lease's move-out was recorded after its expected end date
-- **THEN** both are legible: what was agreed, and what happened
+- **THEN** both are legible: what was agreed, and what happened, and it reads as having stayed past the agreement
+
+#### Scenario: A tenancy handed back early
+
+- **WHEN** a lease's move-out was recorded before its expected end date
+- **THEN** it reads as handed back before the agreement ended, not as within the term
+
+#### Scenario: A tenancy handed back on the day its agreement ended
+
+- **WHEN** a lease's move-out date equals its expected end date
+- **THEN** it reads as handed back on time
+
+#### Scenario: Every date says what it is
+
+- **WHEN** the owner reads the dates on a tenancy
+- **THEN** each label names what the date is — the first day lived there, the last day the agreement covers, or the day the room was handed back
 
 ### Requirement: The owner can sign a new tenancy
 
@@ -285,44 +302,35 @@ The owner SHALL be able to accept the matched person and continue, or go back an
 
 ### Requirement: The agreed terms of a tenancy are readable on it
 
-The application SHALL show, on a tenancy, the terms the agreement was made on: its reference, the notice required to end it, the day of the month rent falls due, the opening water reading, and the date the handover was signed.
+The application SHALL show, on a tenancy, the terms the agreement was made on: its reference, and the date the paper contract was signed.
 
-These are the answers an owner is asked for by a tenant or needs in a dispute, and the tenancy is the only record that holds them. Keeping them out of the screen leaves the owner reading the paper contract to answer a question the system already knows.
+These are the answers an owner is asked for by a tenant or needs in a dispute, and the tenancy is the only record that holds them.
 
-Where a term has not been recorded, the screen SHALL say so rather than leave the space blank. A blank is read as a screen that failed rather than as a fact about the tenancy, and these fields are null on every tenancy signed before they existed.
+The notice period, the payment day and the opening water reading SHALL NOT be shown, because the system no longer holds them. Each was written and read by nothing: no move-out consulted the notice, no invoice carried a due date from the payment day, and water is billed per occupant rather than by meter. The water reading was the costliest of the three to show — beside an electricity reading that every invoice consumes, a second meter-looking number reads as another billed meter, and someone would eventually reconcile a water bill against a figure nothing had ever added.
+
+Where the signing date has not been recorded, the screen SHALL say so rather than leave the space blank. A blank is read as a screen that failed rather than as a fact about the tenancy.
+
+Each row of terms SHALL be laid out across the width of the card rather than bunched at one edge, so one fact is separated from the next.
 
 #### Scenario: Reading the terms
 
 - **WHEN** the owner opens a tenancy whose terms have been recorded
-- **THEN** the reference, notice period, payment day, opening water reading and handover date are shown
+- **THEN** the reference and the signing date are shown
 
 #### Scenario: A term that was never recorded
 
-- **WHEN** a tenancy has no value for one of these terms
+- **WHEN** a tenancy has no signing date
 - **THEN** the screen says it has not been recorded, rather than showing an empty space
 
-### Requirement: The terms that can be recorded can be entered from the screen that reports them missing
+#### Scenario: The retired terms are nowhere on the screen
 
-The application SHALL let the owner supply the notice period, the payment day, the opening water reading and the handover date on an existing tenancy.
+- **WHEN** the owner opens any tenancy
+- **THEN** no notice period, payment day or opening water reading appears on it
 
-A screen that reports a value as missing and offers no way to supply it is a dead end, and these four are missing on every tenancy that predates them. The endpoint already accepts all four.
+#### Scenario: A tenancy that was renewed
 
-The reference SHALL NOT be editable. It is generated and never accepted from a caller: a typed reference drifts, and two tenancies sharing one makes both unfindable.
-
-#### Scenario: Recording a term that was missing
-
-- **WHEN** the owner enters a payment day on a tenancy that had none
-- **THEN** it is saved and the tenancy shows it
-
-#### Scenario: The reference is not offered for editing
-
-- **WHEN** the owner edits the terms of a tenancy
-- **THEN** the reference is not among the fields they can change
-
-#### Scenario: A payment day outside the month
-
-- **WHEN** the owner enters a payment day of 31
-- **THEN** it is accepted, because it is the day the agreement names
+- **WHEN** the owner opens a tenancy created by renewing another
+- **THEN** its reference is shown like any other tenancy's, not as an empty space
 
 ### Requirement: The owner can correct the terms of a running tenancy
 
@@ -395,31 +403,6 @@ Adding a person who is already a current occupant SHALL be refused in those term
 
 - **WHEN** the owner adds a person who previously departed the same lease
 - **THEN** a new record is created and the earlier one is retained
-
-### Requirement: Departing the responsible occupant offers the transfer it requires
-
-Responsibility for an agreement cannot simply be dropped: where other occupants remain, the person responsible cannot be recorded as departed until responsibility has passed to one of them.
-
-The application SHALL offer that transfer as part of departing them, rather than refusing and leaving the owner to discover what is required. A refusal that names a rule without offering the action is a screen that knows what to do and will not do it.
-
-Where no other current occupant remains there is nobody to transfer to, and the departure SHALL be accepted — leaving a tenancy that reports no tenant until a move-out is recorded.
-
-The application SHALL also let the owner transfer responsibility on its own, without anybody leaving.
-
-#### Scenario: Departing the responsible occupant while others remain
-
-- **WHEN** the owner records a departure for the person responsible for a lease and other occupants remain
-- **THEN** the application asks which of them takes over, and completes both the transfer and the departure
-
-#### Scenario: Departing the last occupant
-
-- **WHEN** the owner records a departure for the person responsible and no other current occupant remains
-- **THEN** the departure is accepted, and the tenancy reports no tenant
-
-#### Scenario: Transferring on its own
-
-- **WHEN** the owner transfers responsibility to another current occupant without recording a departure
-- **THEN** that person becomes responsible, the previous one remains an occupant, and both are still listed
 
 ### Requirement: The tenancy screens adapt to the viewport
 
@@ -534,27 +517,452 @@ An invoice SHALL be reachable from its row, so the charge behind an amount can b
 - **WHEN** a tenancy has more invoices than the panel lists
 - **THEN** the screen says how many of how many it is showing, and says the balance covers only those — rather than presenting what it shows as all of it
 
-### Requirement: The contract is reported as present or absent, never as a location
+### Requirement: The signing form takes both sides of the tenant's ID card
+The form that signs a tenancy SHALL offer to attach a photograph of each side of the signatory's ID card, and SHALL attach them to the person the tenancy is signed for.
 
-The application SHALL report only WHETHER a signed contract is on file, and SHALL NOT display the file's storage location, its name as stored, or any address derived from it.
+The images SHALL be optional: a tenancy can be signed without them, because the owner may not have the card to hand.
 
-Every link to a contract is signed at the moment it is requested. A stored location on screen would therefore be an address that cannot be opened, and one more thing to leak.
+Where the signatory is a person already on file, choosing new images SHALL replace what that person had, and choosing none SHALL leave what they had alone.
 
-Where this deployment cannot store contracts at all, the screen SHALL say the storage is unconfigured rather than offering an upload that is certain to fail.
+Chosen images SHALL be shown before the form is submitted, so the owner can see they picked the right photographs and the right way round.
 
-The screen SHALL state the size limit an upload is actually held to, so the limit is learned before a large file is chosen rather than after it is rejected.
+If a tenancy is created and its images then fail to upload, the screen SHALL say so plainly and SHALL NOT imply the tenancy failed — the tenancy exists, and the images can be attached again from the tenancy's own page.
 
-#### Scenario: A contract is on file
+#### Scenario: Signing with both sides
+- **WHEN** the owner chooses a front and a back and signs the tenancy
+- **THEN** the tenancy is created and its signatory carries both images
 
-- **WHEN** the owner opens a lease whose contract has been uploaded
-- **THEN** the screen says one is on file and offers to view or replace it, without showing where it is stored
+#### Scenario: Signing without them
+- **WHEN** the owner signs a tenancy without choosing any image
+- **THEN** the tenancy is created and the signatory's images are unchanged
 
-#### Scenario: No contract yet
+#### Scenario: The upload fails after the tenancy is created
+- **WHEN** the tenancy is created and an image upload then fails
+- **THEN** the screen says the tenancy was created and the images were not attached
 
-- **WHEN** the owner opens a lease with no contract uploaded
-- **THEN** the screen says so and offers to upload one, stating the size limit and the accepted formats
+### Requirement: A tenancy's page shows the ID card on file for its signatory
+The tenancy page SHALL show whether its signatory has each side of their ID card on file, and SHALL allow each side to be viewed, replaced or removed.
+
+Viewing SHALL open the image through the short-lived signed link the API issues, rather than embedding a permanent address.
+
+#### Scenario: Both sides on file
+- **WHEN** the owner opens a tenancy whose signatory has both sides on file
+- **THEN** the page shows both as present and offers to view each
+
+#### Scenario: Nothing on file
+- **WHEN** the owner opens a tenancy whose signatory has no images
+- **THEN** the page says so and offers to attach each side
+
+#### Scenario: Removing a side
+- **WHEN** the owner removes one side from the tenancy page
+- **THEN** that side is no longer on file and the other is unaffected
+
+### Requirement: The signing form can attach the signed contract too
+The form that signs a tenancy SHALL offer to attach the signed contract, and SHALL attach it to the tenancy it creates.
+
+It SHALL be optional, SHALL show which file was chosen and how large it is before the form is submitted, and SHALL accept the same file kinds the tenancy's own contract card accepts.
+
+A contract that fails to upload SHALL be reported alongside any ID card that failed, in the same terms: the tenancy exists, these files did not attach, and here is the way to the page that can attach them.
+
+#### Scenario: Signing with the contract attached
+- **WHEN** the owner chooses a contract file and signs the tenancy
+- **THEN** the tenancy is created carrying that contract
+
+#### Scenario: Signing without one
+- **WHEN** the owner signs without choosing a contract
+- **THEN** the tenancy is created with no contract, and no error is shown
+
+#### Scenario: The contract fails to upload
+- **WHEN** the tenancy is created and the contract upload then fails
+- **THEN** the screen says the tenancy was created and names the contract among what did not attach
+
+### Requirement: The tenancy's rates can be corrected from its terms dialog
+The screen that corrects a running tenancy's terms SHALL offer its electricity and water rates, filled with what the tenancy currently records, and SHALL say that the change applies to this tenancy alone and leaves invoices already issued as they are.
+
+#### Scenario: Owner corrects a rate
+- **WHEN** the owner opens a running tenancy's terms and changes its electricity rate
+- **THEN** the tenancy is saved with the new rate, and the building's rate is unchanged
+
+#### Scenario: The fields open filled
+- **WHEN** the owner opens the terms dialog
+- **THEN** both rate fields show what the tenancy is currently billed at
+
+### Requirement: Choosing a room fills what that room already answers
+On the form that signs a tenancy, choosing a room SHALL fill the agreed rent with that room's rent, the opening meter reading with the room's latest known reading, and the electricity and water rates with its building's, rather than leaving them blank beside a note explaining what an empty field would mean.
+
+Both SHALL remain editable, because either may be agreed differently for a particular tenant, and choosing a different room SHALL fill them again from that room.
+
+#### Scenario: Choosing a room
+- **WHEN** the owner chooses a room on the tenancy form
+- **THEN** the agreed rent shows that room's rent, the opening reading shows its latest known reading, and both rate fields show its building's rates
+
+#### Scenario: Signing at a rate of this tenancy's own
+- **WHEN** the owner edits a filled-in rate and signs
+- **THEN** the tenancy records the edited rate and the building's rate is unchanged
+
+#### Scenario: Changing the room
+- **WHEN** the owner then chooses a different room
+- **THEN** both fields are filled again from the newly chosen room
+
+#### Scenario: The figures can still be overridden
+- **WHEN** the owner edits the filled-in rent
+- **THEN** the tenancy is signed at the edited figure
+
+### Requirement: The tenancies screen offers the blank contract template
+The tenancies screen SHALL show whether a blank contract template is on file, and SHALL offer to download it, replace it, or remove it.
+
+Where one is on file it SHALL name the file and say when it was uploaded, so the owner can tell the current one from the copy on their own machine.
+
+Where none is on file it SHALL say so and offer to upload one, rather than showing nothing.
+
+It SHALL sit above the list of tenancies and SHALL NOT crowd it: this is a thing consulted occasionally, not the screen's subject.
+
+#### Scenario: A template on file
+- **WHEN** the owner opens the tenancies screen with a template on file
+- **THEN** it names the file and offers to download, replace or remove it
+
+#### Scenario: No template yet
+- **WHEN** the owner opens the tenancies screen with no template on file
+- **THEN** it says so and offers to upload one
+
+#### Scenario: Downloading to print
+- **WHEN** the owner downloads the template
+- **THEN** the file arrives under its original name
+
+#### Scenario: Phone width
+- **WHEN** the owner opens the tenancies screen at phone width
+- **THEN** the template section fits without the page scrolling sideways
+
+### Requirement: A change to a tenancy's rates is confirmed before it is saved
+
+The application SHALL ask the owner to confirm saving a tenancy whose electricity or water rate has changed, showing each changed rate as its previous value and its new one.
+
+The confirmation SHALL say that invoices already issued keep the rates recorded on them, and that the new rate applies to billing from now on. A tenancy is billed at its own copies of the rates, so changing them here is the one place an owner can move what a running tenancy is charged — and the reach of that change is the thing they cannot see from the form.
+
+Saving a tenancy whose rates are unchanged SHALL NOT be confirmed, however many other terms were edited.
+
+#### Scenario: Saving a changed rate
+
+- **WHEN** an owner changes a tenancy's electricity or water rate and saves
+- **THEN** a confirmation lists each changed rate as old and new, and nothing is sent until it is confirmed
+
+#### Scenario: Saving other terms
+
+- **WHEN** an owner changes a tenancy's notice period, payment day or handover details but neither rate
+- **THEN** the change is saved without a confirmation step
+
+#### Scenario: The confirmation says what is not affected
+
+- **WHEN** an owner is asked to confirm a changed rate
+- **THEN** the confirmation says invoices already issued keep the rates recorded on them
+
+#### Scenario: Declining keeps the form
+
+- **WHEN** an owner declines the confirmation
+- **THEN** the form is still open with the rates they entered, and nothing was sent
+
+### Requirement: The signing date can be entered where it is reported missing
+
+The application SHALL let the owner supply the date the paper contract was signed, both when a tenancy is signed and afterwards when correcting its terms.
+
+Asking at signing is the point: that is the moment the owner has the paper in front of them, and a field that can only be filled in later is filled in never. It SHALL be optional in both places — a tenancy recorded from an old paper file may have no date anyone remembers.
+
+The reference SHALL NOT be editable. It is generated and never accepted from a caller: a typed reference drifts, and two tenancies sharing one makes both unfindable.
+
+#### Scenario: The signing date is asked for at signing
+
+- **WHEN** the owner signs a new tenancy and enters the date the paper contract was signed
+- **THEN** the tenancy records it and shows it
+
+#### Scenario: Signing without the paper date
+
+- **WHEN** the owner signs a tenancy without entering that date
+- **THEN** the tenancy is created and the date is reported as not recorded
+
+#### Scenario: Recording it afterwards
+
+- **WHEN** the owner enters the signing date on a tenancy that had none
+- **THEN** it is saved and the tenancy shows it
+
+#### Scenario: The reference is not offered for editing
+
+- **WHEN** the owner edits the terms of a tenancy
+- **THEN** the reference is not among the fields they can change
+
+### Requirement: A tenancy shows where it came from and what it became
+
+Where a tenancy was created by renewing another, the screen SHALL say so and SHALL name the earlier agreement. Where a tenancy has been renewed, it SHALL name the one that followed it.
+
+Each SHALL be a link to that tenancy, and SHALL be named by the agreement's reference rather than by its record id. "Gia hạn từ #266" sends the reader away to find out what #266 was; the reference is what they recognise.
+
+Unlike the other terms, an absent link SHALL NOT be reported at all. A tenancy that was signed rather than renewed is not missing a predecessor, and a row saying it has not been recorded would send the owner looking for one that never existed.
+
+#### Scenario: Reading a renewed tenancy
+
+- **WHEN** the owner opens a tenancy created by renewing another
+- **THEN** it names the earlier agreement, and following that name opens it
+
+#### Scenario: Reading the tenancy that was renewed
+
+- **WHEN** the owner opens a tenancy that has since been renewed
+- **THEN** it names the agreement that followed it, and following that name opens it
+
+#### Scenario: A tenancy with no renewal on either side
+
+- **WHEN** the owner opens a tenancy that was signed and has not been renewed
+- **THEN** neither link appears, and nothing says a link has not been recorded
+
+### Requirement: Departing an occupant hands over responsibility with it
+
+Where the person leaving is the one responsible for the agreement and other occupants remain, the screen SHALL ask which of them takes over, and SHALL send the handover together with the departure as one operation.
+
+The screen already knows who the others are. Reporting a refusal and stopping would be a screen that knows exactly what to do and declines to do it. Sending two requests would be worse than either: the handover can land while the departure fails, leaving the agreement in somebody else's name with the previous holder still living there.
+
+The choices offered SHALL be the current occupants other than the person leaving.
+
+The screen SHALL NOT offer to record a departure for the ONLY current occupant. There is nobody to hand the agreement to and nothing the departure could mean except ending the tenancy, which has its own action — so the screen SHALL point at that action rather than offering one that will be refused.
+
+#### Scenario: Handing over while recording a departure
+
+- **WHEN** the owner records the departure of the responsible occupant and chooses who takes over
+- **THEN** that person becomes responsible and the departure is recorded
+
+#### Scenario: The choices are the people who remain
+
+- **WHEN** the owner is asked who takes over
+- **THEN** the current occupants other than the person leaving are offered, and nobody else
+
+#### Scenario: Departing somebody who is not responsible
+
+- **WHEN** the owner records the departure of an occupant who is not the one responsible
+- **THEN** no handover is asked for
+
+#### Scenario: The only occupant is not offered the action
+
+- **WHEN** the owner opens a tenancy with exactly one current occupant
+- **THEN** no departure action is offered for that person, and the screen says that ending the tenancy is what applies
+
+#### Scenario: Transferring on its own
+
+- **WHEN** the owner transfers responsibility to another current occupant without recording a departure
+- **THEN** that person becomes responsible, the previous one remains an occupant, and both are still listed
+
+#### Scenario: A refusal is reported
+
+- **WHEN** the API refuses a departure
+- **THEN** the reason it gave is shown and the occupant list is unchanged
+
+### Requirement: The contract is shown as the pages it is
+
+The application SHALL show a tenancy's contract pages as images, in order, and SHALL let the owner open one full size.
+
+The pages ARE the information. "Đã có bản scan trên hệ thống" beside a button asks the owner to take the contract on trust and click to find out what it says, and a phone photograph is unreadable at thumbnail size — which is why opening one full size is part of this, exactly as it is for the ID card.
+
+The application SHALL let several pages be chosen and uploaded in one go, SHALL let further pages be added later, and SHALL let any single page be removed without disturbing the others.
+
+The application SHALL NOT display a page's storage location, its name as stored, or any address derived from it. Every link is signed at the moment it is requested, so a stored location on screen would be an address that cannot be opened, and one more thing to leak.
+
+Where this deployment cannot store files at all, the screen SHALL say the storage is unconfigured rather than offering an upload that is certain to fail.
+
+The screen SHALL state the size limit and that photographs are what it takes, before a file is chosen rather than after it is refused.
+
+Removing a page SHALL be confirmed first, naming what is about to be lost.
+
+#### Scenario: Reading a contract
+
+- **WHEN** the owner opens a tenancy whose contract pages have been uploaded
+- **THEN** the pages are shown as images in the order they were added, without showing where they are stored
+
+#### Scenario: Opening a page
+
+- **WHEN** the owner opens one page
+- **THEN** it is shown full size
+
+#### Scenario: Uploading several at once
+
+- **WHEN** the owner chooses three photographs in one go
+- **THEN** all three are attached, and the screen reports progress while they upload
+
+#### Scenario: Adding a page later
+
+- **WHEN** the owner adds another photograph to a tenancy that already has pages
+- **THEN** it joins them rather than replacing them
+
+#### Scenario: Removing one page
+
+- **WHEN** the owner removes one page and confirms
+- **THEN** that page is gone and the others remain
+
+#### Scenario: No pages yet
+
+- **WHEN** the owner opens a tenancy with no contract pages
+- **THEN** the screen says so and offers an upload, stating the size limit and that photographs are what it accepts
 
 #### Scenario: Storage is not configured
 
-- **WHEN** the deployment has no contract storage configured
+- **WHEN** the deployment has no storage configured
 - **THEN** the screen says so, and does not offer an upload
+
+#### Scenario: One page fails among several
+
+- **WHEN** three pages are uploaded and one fails
+- **THEN** the screen says which failed, the other two are attached, and the tenancy is not left claiming pages it does not have
+
+### Requirement: An occupant's departure reads the same way as the tenancy's
+
+The application SHALL show an occupant's departure as the day they left — the first day they no longer lived there — named so that it reads in the same convention as the day a tenancy's room was handed back.
+
+When a tenancy ends, every remaining occupant is recorded as leaving on the handed-back day. The two dates are the same day, and the screen SHALL make them read as the same day rather than as a last-day-covered beside a first-day-gone.
+
+Where the owner records a departure, the application SHALL say which day it is asking for, and every sentence in that dialog SHALL be Vietnamese.
+
+#### Scenario: Occupants who left when the room was handed back
+
+- **WHEN** the owner views an ended tenancy whose occupants left at move-out
+- **THEN** each occupant's departure day and the tenancy's handed-back day are the same date under matching wording
+
+#### Scenario: Recording a departure
+
+- **WHEN** the owner opens the dialog to record that somebody left
+- **THEN** it explains that the date is the first day that person no longer lives there, and no sentence in it is in English
+
+### Requirement: The owner can renew a tenancy from its screen
+
+The application SHALL offer, on a running tenancy, an action that renews it: closing it on its agreed end date and opening a successor beginning that day, in one operation.
+
+Without it the owner reaches the same outcome by recording a move-out and signing a new tenancy — which re-enters the occupants by hand, settles the deposit and collects it again, re-chooses the service fees, leaves the days between the two uncovered, and records no link between the agreements. A renewal is one operation in the API and SHALL be one action on the screen.
+
+The application SHALL ask only for what a renewal genuinely needs: the closing meter reading and the length of the new term. Everything the successor inherits — its start date, its occupants, its deposit, its service fees — SHALL be shown rather than asked for again.
+
+The agreed rent SHALL be offered with the ROOM's current rent filled in, and SHALL be changeable. A renewal is where a price rise takes effect; carrying the old rent forward silently would make a rise unenforceable for as long as a tenant keeps renewing.
+
+Where the deposit the successor requires differs from what is already held, the application SHALL say so before the renewal is confirmed, and SHALL let the owner either charge the difference on the successor's first invoice or leave it to be settled in cash.
+
+The application SHALL state, before the owner confirms, that the predecessor will be closed with a final bill for its last month and the successor opened with its move-in bill. These are invoices the owner will be answering for, and meeting them afterwards is meeting them too late.
+
+The action SHALL NOT be offered on a tenancy that has recorded a move-out or been cancelled. Its tenancy is closed, and its successor, if any, exists already.
+
+On success the application SHALL take the owner to the successor.
+
+#### Scenario: Renewing a running tenancy
+
+- **WHEN** the owner renews a tenancy, supplying the closing meter reading and a term
+- **THEN** the predecessor is closed on its agreed end date, a successor begins that day, and the owner is taken to the successor
+
+#### Scenario: What the successor inherits is shown, not asked
+
+- **WHEN** the owner opens the renewal dialog
+- **THEN** the start date, the occupants carried over, and the service fees at their current prices are shown without being asked for
+
+#### Scenario: The rent comes from the room and can be changed
+
+- **WHEN** the owner opens the renewal dialog for a room whose rent has since risen
+- **THEN** the room's current rent is filled in, and the owner can change it before confirming
+
+#### Scenario: A deposit that no longer matches
+
+- **WHEN** the renewal requires a larger deposit than is held
+- **THEN** the dialog says so and offers to charge the difference on the successor's first invoice or to settle it in cash
+
+#### Scenario: The bills are named before confirming
+
+- **WHEN** the owner is about to confirm a renewal
+- **THEN** the dialog says the predecessor's final bill and the successor's move-in bill will be issued
+
+#### Scenario: Not offered where it cannot apply
+
+- **WHEN** the owner opens a tenancy that has recorded a move-out or been cancelled
+- **THEN** no renewal action is offered
+
+#### Scenario: A refusal is reported
+
+- **WHEN** the API refuses a renewal
+- **THEN** the reason it gave is shown in the dialog, the dialog stays open, and neither tenancy is changed
+
+### Requirement: The owner can close a tenancy that has ended
+
+The application SHALL offer, on a running tenancy, an action that records the tenant having moved out: the date they left and the meter reading taken at handover.
+
+Until now this existed only in the API. The only ending an owner could reach was the one that records a tenancy as never having happened, which on a tenant who lived somewhere for a year erases the year — and a tenancy left open holds its room against every new one.
+
+The application SHALL state, before the owner confirms, what closing does: the final bill for that month is issued, the people recorded as living there are recorded as having left, and the room becomes free.
+
+The closing reading SHALL be offered with the room's last known reading in view, so the owner can tell whether what they are entering continues from it.
+
+Where the departure falls AFTER the agreed end date, the application SHALL say so and SHALL let the owner name charges for the days beyond the term. Each charge SHALL be picked from the building's fee catalogue, so the name stays comparable with every other bill, while the amount is the owner's to set. Naming nothing SHALL be accepted as a deliberate waiver.
+
+The action SHALL NOT be offered on a tenancy that has already recorded a move-out or been cancelled.
+
+The application SHALL NOT offer it as a way to correct a tenancy that never began: that is what cancelling is for, and the two SHALL remain distinct actions with distinct words.
+
+#### Scenario: Closing a tenancy
+
+- **WHEN** the owner records the date a tenant left and the closing meter reading
+- **THEN** the tenancy is reported as finished, its final bill is issued, its occupants are recorded as departed, and the room is free
+
+#### Scenario: What closing does is said first
+
+- **WHEN** the owner is about to confirm
+- **THEN** the dialog says the final bill will be issued, the occupants recorded as departed, and the room freed
+
+#### Scenario: A departure after the agreed end
+
+- **WHEN** the owner records a departure dated after the agreed end date
+- **THEN** the dialog says the days beyond the term are not covered by the agreement, and offers to name charges for them from the building's fees
+
+#### Scenario: Waiving the extra days
+
+- **WHEN** the owner records a late departure and names no charges
+- **THEN** the closing is accepted and nothing is charged for those days
+
+#### Scenario: A reading that contradicts what was billed
+
+- **WHEN** the owner enters a closing reading below what this tenancy has already been invoiced for
+- **THEN** the reason the API gave is shown, the dialog stays open, and the tenancy is unchanged
+
+#### Scenario: Not offered where it cannot apply
+
+- **WHEN** the owner opens a tenancy that has already ended or been cancelled
+- **THEN** no closing action is offered
+
+### Requirement: A finished tenancy shows what its deposit settles to
+
+Where a tenancy has recorded a move-out and its deposit has not yet been returned, the application SHALL show what is held, what has been deducted from it, and what is still owed on unpaid invoices — and SHALL let the owner record the return of the deposit.
+
+A deposit is the last thing between an owner and a closed file, and the figures that decide it live in three places: the holding, the deductions, and the bills still unpaid. An owner adding those up by hand is an owner who will sometimes get it wrong in the tenant's favour and sometimes in their own.
+
+The unpaid bills SHALL be shown as context rather than subtracted automatically. What a deposit covers is the owner's decision, and a screen that quietly nets them off would make that decision silently.
+
+Once returned, the application SHALL report when it was returned and SHALL NOT offer to return it again.
+
+#### Scenario: Reading the settlement
+
+- **WHEN** the owner opens a tenancy that has recorded a move-out
+- **THEN** the deposit held, the amount deducted from it, and the total still unpaid on its invoices are shown
+
+#### Scenario: Recording the return
+
+- **WHEN** the owner records the deposit as returned
+- **THEN** the tenancy reports it as returned, with the date
+
+#### Scenario: A deposit already returned
+
+- **WHEN** the owner opens a tenancy whose deposit has been returned
+- **THEN** the date it was returned is shown and no second return is offered
+
+#### Scenario: A running tenancy
+
+- **WHEN** the owner opens a tenancy that has not recorded a move-out
+- **THEN** no deposit return is offered, because there is nothing to settle yet
+
+### Requirement: A refusal names an action the owner can find
+
+Where the application reports that some other action is the right one, that action SHALL exist on a screen the owner can reach.
+
+This is not a general principle in search of a case. The refusal shown when the only occupant is departed names the tenancy's closing, and that closing existed nowhere — so an owner following the instruction exactly would find nothing and conclude the system was broken.
+
+#### Scenario: The last occupant cannot depart
+
+- **WHEN** the owner tries to record a departure for the only person living in a tenancy
+- **THEN** the message names closing the tenancy, and that action is on the same screen
+

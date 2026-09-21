@@ -1212,7 +1212,7 @@ export async function departOccupant(
   if (otherCurrent.length === 0 && lease.moveOutDate === null) {
     throw new ConflictError(
       "LAST_OCCUPANT_CANNOT_DEPART",
-      "This is the only person living here. Record the tenancy's move-out instead — that is what ends it",
+      "This is the only person living here. Close the tenancy instead — that is what ends it",
     );
   }
 

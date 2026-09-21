@@ -137,8 +137,7 @@ export function OccupantsCard({ lease }: OccupantsCardProps) {
                 */}
                 {isRunning && current.length === 1 && (
                   <Typography variant="caption" color="text.secondary">
-                    Chỉ còn một người ở. Muốn kết thúc hợp đồng thì dùng “Ghi nhận rời đi” của cả
-                    hợp đồng.
+                    Chỉ còn một người ở. Muốn kết thúc thì dùng “Kết thúc hợp đồng” ở cuối trang.
                   </Typography>
                 )}
               </Box>

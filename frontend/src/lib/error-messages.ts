@@ -106,7 +106,7 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   OCCUPANT_DEPARTURE_PAYLOAD_INVALID: 'Thông tin rời đi chưa hợp lệ.',
   DEPARTURE_BEFORE_JOIN: 'Ngày rời đi không thể trước ngày vào ở.',
   LAST_OCCUPANT_CANNOT_DEPART:
-    'Đây là người duy nhất đang ở. Muốn kết thúc hợp đồng thì dùng "Ghi nhận rời đi" của cả hợp đồng.',
+    'Đây là người duy nhất đang ở. Muốn kết thúc thì dùng "Kết thúc hợp đồng" ở cuối trang.',
   PRIMARY_OCCUPANT_MUST_TRANSFER:
     'Hãy chuyển vai trò người đứng tên cho người khác trước khi ghi nhận rời đi.',
   OCCUPANT_TRANSFER_PAYLOAD_INVALID: 'Thông tin chuyển vai trò chưa hợp lệ.',

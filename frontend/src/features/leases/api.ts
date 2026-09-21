@@ -230,3 +230,110 @@ export async function attachContractPages(
   }
   return failed
 }
+
+export interface ExtendLeaseInput {
+  /** The closing reading of the predecessor, which is also where the successor starts. */
+  endMeterReading: number
+  durationMonths: number
+  /** Absent means the room's current rent — which is where a price rise takes effect. */
+  baseRent?: number
+  /**
+   * Whether the difference between the deposit carried and the deposit now
+   * required is charged on the successor's first invoice. Declining leaves it
+   * as a shortfall the owner settles in cash.
+   */
+  settleDepositOnInvoice?: boolean
+}
+
+/**
+ * Renews a tenancy: closes it on its agreed end date and opens a successor
+ * beginning that day, in one operation.
+ *
+ * Both tenancies come back. A caller that only saw the successor could not tell
+ * what closing the predecessor did to its deposit.
+ */
+export async function extendLease(
+  leaseId: number,
+  input: ExtendLeaseInput,
+): Promise<{ previous: Lease; lease: Lease }> {
+  const { data } = await apiClient.post<{ previous: Lease; lease: Lease }>(
+    `/leases/${leaseId}/extend`,
+    input,
+  )
+  return data
+}
+
+/** What the building charges beside rent. Used to name charges for days beyond a term. */
+export interface BuildingServiceFee {
+  id: number
+  buildingId: number
+  name: string
+  /** The building's current price for it, which those days are not governed by. */
+  unitAmount: number
+  isActive: boolean
+}
+
+/**
+ * The building's fee catalogue.
+ *
+ * PAGINATED, like every other listing in this API — typing it as a bare array
+ * is what crashed this screen: `.filter` on a `{ data, meta }` object took the
+ * whole page down with "Unexpected Application Error". Found by opening the
+ * dialog, not by reading the code.
+ */
+export async function listBuildingServiceFees(buildingId: number): Promise<BuildingServiceFee[]> {
+  const { data } = await apiClient.get<Paginated<BuildingServiceFee>>(
+    `/buildings/${buildingId}/service-fees`,
+    { params: { pageSize: 200 } },
+  )
+  return data.data
+}
+
+export interface MoveOutInput {
+  /** The day the tenant actually left. */
+  moveOutDate: string
+  endMeterReading: number
+  /**
+   * Charges for days beyond the agreed term, each named from the building's
+   * catalogue with an amount of the owner's own. Ignored by the API where the
+   * departure falls within the term; an empty list is a deliberate waiver.
+   */
+  overdueCharges?: { buildingServiceFeeId: number; amount: number }[]
+}
+
+/**
+ * Closes a tenancy the way it actually ended.
+ *
+ * One operation: the occupancy records close, the final bill is issued, the
+ * room is freed. Not to be confused with cancelling, which records a tenancy as
+ * never having happened.
+ */
+export async function recordMoveOut(leaseId: number, input: MoveOutInput): Promise<Lease> {
+  const { data } = await apiClient.post<Lease>(`/leases/${leaseId}/move-out`, input)
+  return data
+}
+
+/** The figures a deposit decision is made from. Deliberately not netted together. */
+export interface DepositSettlement {
+  leaseId: number
+  status: string
+  depositRequired: number
+  depositHeld: number
+  depositCarriedIn: number
+  deductedFromDeposit: number
+  outstandingInvoices: number
+  depositRefunded: number | null
+  depositRefundedAt: string | null
+}
+
+export async function getDepositSettlement(leaseId: number): Promise<DepositSettlement> {
+  const { data } = await apiClient.get<DepositSettlement>(`/leases/${leaseId}/deposit-settlement`)
+  return data
+}
+
+export async function refundDeposit(leaseId: number, refundedAt: string): Promise<DepositSettlement> {
+  const { data } = await apiClient.post<DepositSettlement>(`/leases/${leaseId}/deposit-refund`, {
+    refundedAt,
+  })
+  return data
+}
