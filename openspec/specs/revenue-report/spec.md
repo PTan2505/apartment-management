@@ -1,9 +1,7 @@
 ## Purpose
 
 Answers what a property earned and what it cost over a period: how much was billed to tenants, how much of that has arrived, what remains outstanding, and what the owner spent running the place.
-
 ## Requirements
-
 ### Requirement: Owner can request a revenue report over a range of months
 The system SHALL allow an authenticated `owner` to request a revenue report for a range of months, optionally limited to selected buildings. The range SHALL be inclusive of both its first and last month, and its start MUST NOT fall after its end. Where no buildings are named, the report SHALL cover every building, including retired ones, because a retired building's historical earnings remain part of the record.
 
@@ -169,6 +167,7 @@ The system SHALL reject any revenue report request that is unauthenticated or ma
 #### Scenario: Authenticated non-owner request
 - **WHEN** a request to the revenue report carries a valid access token for a user whose role is not `owner`
 - **THEN** the system responds with HTTP 403 and does not process the request
+
 ### Requirement: Owner-named charges are reported by category
 
 The system SHALL report, per building and across the selection, what was charged in each ad-hoc category — damage, cleaning, a lost item, a penalty, other — over the range requested.
@@ -198,6 +197,7 @@ These figures SHALL be a breakdown of what is already counted in `billed`, not a
 
 - **WHEN** a range contains a damage charge of 200,000 and a repair expense of 180,000
 - **THEN** both are reported in their own breakdowns, and the net figures reflect a gain of 20,000
+
 ### Requirement: Each month reports the money that actually arrived
 
 The system SHALL report, for each building and month, the total **received**: the money that reached the owner during that month, taken from the dates on the payments themselves.
@@ -346,3 +346,20 @@ The counts SHALL be consistent with the figures they accompany: collected, outst
 
 - **WHEN** a month reports what was spent
 - **THEN** it also reports how many expense records that total is made of
+
+### Requirement: Money received for a withdrawn invoice stays out of the cash figure
+
+The report's figure for money that arrived SHALL NOT include payments on a withdrawn invoice, including money that arrived after the invoice was withdrawn.
+
+That money is owed back to the tenant until the owner returns it. Counting it as money received reports income the owner is about to hand back, and counting it again if the owner later reissues the bill and records it there reports the same money twice. The invoice screens flag it instead, so it is not lost by being left out.
+
+#### Scenario: Money arrived after withdrawal
+
+- **WHEN** money arrives for a withdrawn invoice within the reported range
+- **THEN** the cash figure for that month does not include it
+
+#### Scenario: That money is returned
+
+- **WHEN** the owner reverses it
+- **THEN** the cash figure is unchanged by the reversal as well
+

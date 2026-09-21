@@ -1,9 +1,7 @@
 ## Purpose
 
 Records what settles an invoice as an event in its own right — its amount, method, date and status — so that money arriving can be told apart from money billed, a settlement can be undone, and a payment that has been started but not finished has somewhere to exist.
-
 ## Requirements
-
 ### Requirement: A payment is recorded as its own event
 
 The system SHALL record each payment against an invoice as a record of its own, carrying the amount paid, the method, the date the money moved, and a status.
@@ -159,3 +157,20 @@ Every payment endpoint SHALL require a valid access token belonging to a user wi
 
 - **WHEN** a payment endpoint is called with a token whose role is not `owner`
 - **THEN** the system responds with HTTP 403
+
+### Requirement: Returning money that arrived for a withdrawn invoice leaves the deposit alone
+
+When an owner reverses a payment on a withdrawn invoice, the system SHALL record the payment as reversed without releasing or restoring any deposit holding, and without changing the invoice's payment status.
+
+That money never settled the invoice, so no deposit was ever held for it. Releasing one anyway either refuses the refund with a message about a deposit already spent, or takes money out of a holding that belongs to something else. Reversing it is how the owner returns the money, and that must work.
+
+#### Scenario: Returning money to the tenant
+
+- **WHEN** an owner reverses a succeeded payment on a withdrawn move-in invoice
+- **THEN** the payment is recorded as reversed, the tenancy's deposit holding is unchanged, and the invoice stays withdrawn and unpaid
+
+#### Scenario: An ordinary reversal
+
+- **WHEN** an owner reverses a payment on an invoice that was not withdrawn
+- **THEN** the deposit is released and the invoice's status recomputed as before
+

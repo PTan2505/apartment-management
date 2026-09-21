@@ -3,7 +3,7 @@
 - [x] 1.1 A one-field zod schema for the billed count: required whole number, at least 1, with the existing Vietnamese messages
 - [x] 1.2 A dialog holding that field only, titled "Sửa số người tính tiền", reusing the label "Tính cho" and the existing helper sentence
 - [x] 1.3 Saves through `useUpdateLease` with a body of `{ occupantCount }` and nothing else — proven by capturing the real PATCH in the page: `{"occupantCount":2}`. Comparing the API before and after would NOT prove it, since sending the old terms back unchanged leaves the API identical; the first draft of the check did exactly that and was replaced. `useUpdateLease` and `updateLease` now take `Partial<…>`, matching the endpoint's `.partial()`
-- [ ] 1.4 A server refusal is shown inside the dialog; the dialog stays open with the typed value — WRITTEN, NOT EXERCISED. The 0 in 4.5 was refused by the form before any request was made, so the server-error branch was never reached. Provoking it needs the API to refuse a valid number, e.g. the tenancy ending while the dialog is open
+- [x] 1.4 A server refusal is shown inside the dialog; the dialog stays open with the typed value — exercised by cutting the route to the API with a valid number typed: the message landed in the dialog in Vietnamese, the dialog stayed, the typed 3 survived, the tenancy was unchanged, and reconnecting saved it
 
 ## 2. The button
 
