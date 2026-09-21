@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client'
+import { storageFetch } from '@/lib/storage-fetch'
 import type {
   CreateCustomerResult,
   Customer,
@@ -103,7 +104,7 @@ export async function signIdCardUpload(
  * must send exactly the Content-Type bound into the signature.
  */
 export async function uploadIdCardToStorage(signed: SignedUpload, file: File): Promise<void> {
-  const response = await fetch(signed.url, {
+  const response = await storageFetch(signed.url, {
     method: 'PUT',
     headers: { 'Content-Type': file.type },
     body: file,

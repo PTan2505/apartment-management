@@ -22,6 +22,7 @@ export const RESOURCE = {
   customer: { code: "CUSTOMER_NOT_FOUND", label: "Customer" },
   lease: { code: "LEASE_NOT_FOUND", label: "Lease" },
   occupant: { code: "OCCUPANT_NOT_FOUND", label: "Occupant" },
+  contractPage: { code: "CONTRACT_PAGE_NOT_FOUND", label: "Contract page" },
   invoice: { code: "INVOICE_NOT_FOUND", label: "Invoice" },
   payment: { code: "PAYMENT_NOT_FOUND", label: "Payment" },
   expense: { code: "EXPENSE_NOT_FOUND", label: "Expense" },

@@ -93,12 +93,15 @@ interface LeaseRow {
   depositCarriedOut: Prisma.Decimal;
   depositRefunded: Prisma.Decimal | null;
   depositRefundedAt: Date | null;
-  contractKey: string | null;
-  // Terms of the agreement. Every one nullable, and null means NOT AGREED.
-  noticeDays: number | null;
-  paymentDay: number | null;
-  startWaterReading: number | null;
+  // How many pages of the signed contract are on file. Counted rather than
+  // listed: a listing screen asks this per row, and the pages themselves are
+  // fetched only when one tenancy is opened.
+  pages?: { id: number }[];
+  // A term of the agreement. Nullable, and null means NOT RECORDED.
   handoverSignedAt: Date | null;
+  // Both ends of the renewal chain, present only where one exists.
+  renewedFrom?: { id: number; reference: string | null } | null;
+  renewedTo?: { id: number; reference: string | null } | null;
   reference: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -162,22 +165,25 @@ export function toLeaseResponse(lease: LeaseRow) {
     waterRatePerPerson: lease.waterRatePerPerson,
     depositMonths: lease.depositMonths,
     /*
-      Terms of the agreement, reported exactly as stored.
+      A term of the agreement, reported exactly as stored.
 
-      Null is passed through rather than filled in. Every tenancy signed before
-      these existed has none of them, and a default — thirty days' notice, the
-      fifth of the month, a water reading of zero — would state as agreed
-      something nobody agreed to, on a screen that reads as a contract.
-
-      The water reading is the case that proves it: zero is a legitimate
-      reading, so `null` and `0` mean different things and stay different
-      values all the way to the reader.
+      Null is passed through rather than filled in. A tenancy recorded from an
+      old paper file may have no date anyone remembers, and a default would
+      state as fact something nobody recorded, on a screen that reads as a
+      contract.
     */
-    noticeDays: lease.noticeDays,
-    paymentDay: lease.paymentDay,
-    startWaterReading: lease.startWaterReading,
     handoverSignedAt: lease.handoverSignedAt,
     reference: lease.reference,
+    /*
+      Where this tenancy came from, and what it became.
+
+      Reported as the agreement's name rather than its id, because a screen
+      saying "renewed from #266" sends the reader to look up what #266 was.
+      Null on a tenancy that was signed rather than renewed, and on one that has
+      not been renewed — absent is the answer, not an omission.
+    */
+    renewedFrom: lease.renewedFrom ?? null,
+    renewedTo: lease.renewedTo ?? null,
     // Derived, never stored. A stored amount could disagree with the two values
     // it comes from — a rent corrected after the fact would leave a deposit
     // matching neither the months agreed nor the rent agreed.
@@ -247,7 +253,7 @@ export function toLeaseResponse(lease: LeaseRow) {
      * screen would be an address with no way to open it and one more thing to
      * leak.
      */
-    hasContract: lease.contractKey !== null,
+    contractPageCount: lease.pages?.length ?? 0,
     /**
      * Whether this deployment can keep contracts at all.
      *

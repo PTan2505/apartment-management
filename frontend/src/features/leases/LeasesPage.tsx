@@ -12,6 +12,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 
 import { EmptyState } from "@/components/EmptyState";
+import { ContractTemplateBar } from "@/features/contract-template/ContractTemplateBar";
 import { ListSurface } from "@/components/ListSurface";
 import { PageHeader } from "@/components/PageHeader";
 import { Pagination } from "@/components/Pagination";
@@ -173,6 +174,9 @@ export function LeasesPage() {
           </Button>
         }
       />
+
+      {/* The blank contract to print, above the list it is signed from. */}
+      <ContractTemplateBar />
 
       <ListSurface>
         <Box

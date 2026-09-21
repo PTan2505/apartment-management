@@ -72,6 +72,17 @@ export const createLeaseFormSchema = z.object({
     .int('Phải là số nguyên')
     .nonnegative('Không được là số âm')
     .optional(),
+  /**
+   * The day the paper contract was signed with the tenant.
+   *
+   * Optional, and asked for HERE because this is the moment the owner has the
+   * paper in front of them. It was only ever available in the correction
+   * dialog, which is a moment that rarely comes.
+   */
+  handoverSignedAt: z.preprocess(
+    untouched,
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Chọn ngày hợp lệ').optional(),
+  ),
 })
 
 /**
@@ -89,15 +100,6 @@ function untouched(value: unknown): unknown {
   if (typeof value === 'number' && Number.isNaN(value)) return undefined
   return value
 }
-
-const optionalDays = z.preprocess(
-  untouched,
-  z
-    .number({ message: 'Nhập số ngày' })
-    .int('Phải là số nguyên')
-    .nonnegative('Không được âm')
-    .optional(),
-)
 
 /** What the API accepts on a running lease, and nothing beyond it. */
 export const updateLeaseFormSchema = z.object({
@@ -117,30 +119,6 @@ export const updateLeaseFormSchema = z.object({
   waterRatePerPerson: z
     .number({ message: 'Nhập giá nước' })
     .nonnegative('Không được âm'),
-  noticeDays: optionalDays,
-  /*
-    1–31, matching the API. NOT clamped to the length of any particular month:
-    this records the day the agreement names, and what the biller does with a
-    payment day of 31 in February is a separate question this field must not
-    answer on its behalf.
-  */
-  paymentDay: z.preprocess(
-    untouched,
-    z
-      .number({ message: 'Nhập ngày trong tháng' })
-      .int('Phải là số nguyên')
-      .min(1, 'Phải từ 1 đến 31')
-      .max(31, 'Phải từ 1 đến 31')
-      .optional(),
-  ),
-  startWaterReading: z.preprocess(
-    untouched,
-    z
-      .number({ message: 'Nhập số nước' })
-      .int('Phải là số nguyên')
-      .nonnegative('Không được âm')
-      .optional(),
-  ),
   handoverSignedAt: z.preprocess(
     untouched,
     z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Chọn ngày hợp lệ').optional(),

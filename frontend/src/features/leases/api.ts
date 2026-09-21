@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client'
+import { storageFetch } from '@/lib/storage-fetch'
 import type { CreateLeaseFormOutput, UpdateLeaseFormOutput } from '@/features/leases/schema'
 import type { Lease, ListLeasesParams, Occupant, Paginated } from '@/features/leases/types'
 
@@ -81,10 +82,12 @@ export async function departOccupant(
   leaseId: number,
   occupantId: number,
   leftAt: string,
+  /** Who takes over the agreement, where this occupant is the one holding it. */
+  successorId?: number,
 ): Promise<Occupant> {
   const { data } = await apiClient.post<Occupant>(
     `/leases/${leaseId}/occupants/${occupantId}/depart`,
-    { leftAt },
+    successorId === undefined ? { leftAt } : { leftAt, successorId },
   )
   return data
 }
@@ -98,8 +101,14 @@ export async function transferPrimary(leaseId: number, customerId: number): Prom
   return data
 }
 
-/** The kinds of file an owner would plausibly scan a contract as. */
-export const CONTRACT_ACCEPT = 'application/pdf,image/jpeg,image/png,image/heic'
+/**
+ * Photographs, and nothing else.
+ *
+ * PDF was accepted here and is not any more: a contract is kept as the pages it
+ * has, and a screen that shows some pages and offers others as downloads shows
+ * neither well.
+ */
+export const CONTRACT_ACCEPT = 'image/jpeg,image/png,image/heic'
 
 export interface SignedUpload {
   url: string
@@ -108,8 +117,17 @@ export interface SignedUpload {
   maxBytes: number
 }
 
+/** One photographed page, with a link that expires in minutes. */
+export interface ContractPage {
+  id: number
+  contentType: string
+  uploadedAt: string
+  url: string
+  expiresAt: string
+}
+
 /**
- * Asks for a URL to upload a contract with.
+ * Asks for a URL to upload one page with.
  *
  * Answers 503 where storage is not configured on the server — a state, not a
  * fault, and one the screen says out loud rather than offering an action that
@@ -134,48 +152,81 @@ export async function signContractUpload(
  * was bound into the signature — anything else and storage refuses it.
  */
 export async function uploadToStorage(signed: SignedUpload, file: File): Promise<void> {
-  const response = await fetch(signed.url, {
+  const response = await storageFetch(signed.url, {
     method: 'PUT',
     headers: { 'Content-Type': file.type },
     body: file,
   })
   if (!response.ok) {
-    throw new Error(`Kho lưu trữ từ chối tệp này (${response.status})`)
+    throw new Error(`Kho lưu trữ từ chối ảnh này (${response.status})`)
   }
 }
 
-/** Records the contract, once the API has confirmed the file really arrived. */
-export async function confirmContract(leaseId: number, key: string): Promise<Lease> {
-  const { data } = await apiClient.post<Lease>(`/leases/${leaseId}/contract`, { key })
-  return data
+/** Records one page, once the API has confirmed the object really arrived. */
+export async function confirmContractPage(
+  leaseId: number,
+  key: string,
+): Promise<ContractPage[]> {
+  const { data } = await apiClient.post<{ pages: ContractPage[] }>(
+    `/leases/${leaseId}/contract`,
+    { key },
+  )
+  return data.pages
+}
+
+/** The pages on file, oldest first, each with a fresh signed link. */
+export async function getContractPages(leaseId: number): Promise<ContractPage[]> {
+  const { data } = await apiClient.get<{ pages: ContractPage[] }>(`/leases/${leaseId}/contract`)
+  return data.pages
+}
+
+export async function removeContractPage(
+  leaseId: number,
+  pageId: number,
+): Promise<ContractPage[]> {
+  const { data } = await apiClient.delete<{ pages: ContractPage[] }>(
+    `/leases/${leaseId}/contract/${pageId}`,
+  )
+  return data.pages
 }
 
 /**
- * Attaches a signed contract, and says whether it worked.
+ * Attaches one page, and says whether it worked.
  *
  * Never throws, for the same reason `attachIdCards` does not: it is called
  * AFTER the tenancy exists, and a tenancy that exists must not be reported as a
- * failure because a scan did not upload.
+ * failure because a photograph did not upload.
  */
-export async function attachContract(leaseId: number, file: File): Promise<boolean> {
+export async function attachContractPage(leaseId: number, file: File): Promise<boolean> {
   try {
     const signed = await signContractUpload(leaseId, file.type)
     if (file.size > signed.maxBytes) return false
     await uploadToStorage(signed, file)
-    await confirmContract(leaseId, signed.key)
+    await confirmContractPage(leaseId, signed.key)
     return true
   } catch {
     return false
   }
 }
 
-/** A short-lived link for reading. Answers 404 where there is no contract. */
-export async function getContractUrl(leaseId: number): Promise<{ url: string }> {
-  const { data } = await apiClient.get<{ url: string }>(`/leases/${leaseId}/contract`)
-  return data
-}
-
-export async function removeContract(leaseId: number): Promise<Lease> {
-  const { data } = await apiClient.delete<Lease>(`/leases/${leaseId}/contract`)
-  return data
+/**
+ * Attaches several pages, IN SEQUENCE, and reports how many failed.
+ *
+ * One at a time rather than at once: a phone on a weak connection uploading
+ * four 8 MB photographs in parallel fails all four, and sequential uploads make
+ * progress reportable and failures individual. A page that fails does not take
+ * the pages that succeeded with it — they are independent pages, not one
+ * document.
+ */
+export async function attachContractPages(
+  leaseId: number,
+  files: File[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<number> {
+  let failed = 0
+  for (const [index, file] of files.entries()) {
+    if (!(await attachContractPage(leaseId, file))) failed += 1
+    onProgress?.(index + 1, files.length)
+  }
+  return failed
 }

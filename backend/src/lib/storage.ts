@@ -38,9 +38,15 @@ import { env } from "@/config/env.js";
  * credentials fails when somebody tries to use it, which is the worst time.
  */
 
-/** Documents an owner would plausibly scan a contract as. */
+/**
+ * What a contract page is: a photograph.
+ *
+ * PDF was accepted here and is not any more. A tenancy carries several pages
+ * now, and a mixture of pages that display and files that download makes a
+ * screen that handles both and shows neither well. What an owner has is a phone
+ * and a piece of paper.
+ */
 export const CONTRACT_CONTENT_TYPES = [
-  "application/pdf",
   "image/jpeg",
   "image/png",
   "image/heic",
@@ -117,7 +123,6 @@ export function contractPrefix(leaseId: number): string {
 }
 
 const EXTENSIONS: Record<ContractContentType, string> = {
-  "application/pdf": "pdf",
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/heic": "heic",
@@ -174,6 +179,65 @@ export function newIdCardKey(
   contentType: IdCardContentType,
 ): string {
   return `${idCardPrefix(customerId, side)}${randomUUID()}.${ID_CARD_EXTENSIONS[contentType]}`;
+}
+
+/**
+ * The one blank contract the owner prints to sign with a new tenant.
+ *
+ * A fixed place with no database row behind it: there is one of it, it belongs
+ * to nobody in particular, and a row holding a single key would be a second
+ * place for the same fact — which is how a record and a bucket come to
+ * disagree. Everything a screen needs is on the object itself.
+ */
+export const CONTRACT_TEMPLATE_PREFIX = "templates/contract/";
+
+/** What a blank contract plausibly is: something to print. */
+export const TEMPLATE_CONTENT_TYPES = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "image/jpeg",
+  "image/png",
+  "image/heic",
+] as const;
+
+export type TemplateContentType = (typeof TEMPLATE_CONTENT_TYPES)[number];
+
+/** 20 MB, matching a signed contract. */
+export const MAX_TEMPLATE_BYTES = 20 * 1024 * 1024;
+
+/**
+ * A file name safe to put inside a key.
+ *
+ * The name arrives from a caller and a key is a path, so separators go. The
+ * length is capped because a key has one, and an empty result falls back to
+ * something rather than producing a key that ends in the separator.
+ */
+export function safeFileName(name: string): string {
+  const cleaned = name
+    .replace(/[\\/]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+  return cleaned === "" ? "hop-dong-mau" : cleaned;
+}
+
+/**
+ * The key an upload will write.
+ *
+ * The random part prevents a cached copy being served after a replacement; the
+ * suffix is what makes the download land under the name the owner uploaded
+ * rather than a random identifier.
+ */
+export function newTemplateKey(fileName: string): string {
+  return `${CONTRACT_TEMPLATE_PREFIX}${randomUUID()}__${safeFileName(fileName)}`;
+}
+
+/** The original name back out of a key. */
+export function templateFileName(key: string): string {
+  const last = key.slice(CONTRACT_TEMPLATE_PREFIX.length);
+  const at = last.indexOf("__");
+  return at === -1 ? last : last.slice(at + 2);
 }
 
 export interface SignedUpload {
@@ -248,6 +312,74 @@ export async function signIdCardUpload(
   };
 }
 
+export async function signTemplateUpload(
+  fileName: string,
+  contentType: TemplateContentType,
+): Promise<SignedUpload> {
+  const key = newTemplateKey(fileName);
+  const url = await getSignedUrl(
+    s3(),
+    new PutObjectCommand({ Bucket: env.R2_BUCKET!, Key: key, ContentType: contentType }),
+    { expiresIn: UPLOAD_URL_TTL_SECONDS, signableHeaders: new Set(["content-type"]) },
+  );
+  return {
+    url,
+    key,
+    expiresAt: new Date(Date.now() + UPLOAD_URL_TTL_SECONDS * 1000),
+    maxBytes: MAX_TEMPLATE_BYTES,
+  };
+}
+
+/**
+ * A download that arrives under the name it was uploaded with.
+ *
+ * `ResponseContentDisposition` is part of the signature, so the browser saves
+ * "hop-dong-mau.pdf" rather than the uuid the key starts with.
+ */
+export async function signTemplateDownload(
+  key: string,
+): Promise<{ url: string; expiresAt: Date }> {
+  const name = templateFileName(key);
+  const url = await getSignedUrl(
+    s3(),
+    new GetObjectCommand({
+      Bucket: env.R2_BUCKET!,
+      Key: key,
+      ResponseContentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
+    }),
+    { expiresIn: DOWNLOAD_URL_TTL_SECONDS },
+  );
+  return { url, expiresAt: new Date(Date.now() + DOWNLOAD_URL_TTL_SECONDS * 1000) };
+}
+
+/**
+ * The template on file, or null.
+ *
+ * Read from storage rather than from a record, because storage IS the record
+ * here. More than one object under the prefix means an upload was confirmed
+ * while another was in flight; the most recent one wins, which is the same
+ * answer a replacement gives.
+ */
+export async function findTemplate(): Promise<
+  { key: string; fileName: string; size: number; uploadedAt: Date } | null
+> {
+  const listed = await s3().send(
+    new ListObjectsV2Command({ Bucket: env.R2_BUCKET!, Prefix: CONTRACT_TEMPLATE_PREFIX }),
+  );
+  const objects = (listed.Contents ?? []).filter((object) => object.Key !== undefined);
+  if (objects.length === 0) return null;
+
+  const newest = objects.sort(
+    (a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0),
+  )[0]!;
+  return {
+    key: newest.Key!,
+    fileName: templateFileName(newest.Key!),
+    size: newest.Size ?? 0,
+    uploadedAt: newest.LastModified ?? new Date(),
+  };
+}
+
 /** A short-lived URL for reading. The stored object is never public. */
 export async function signDownload(key: string): Promise<{ url: string; expiresAt: Date }> {
   const url = await getSignedUrl(
@@ -271,12 +403,18 @@ export const signContractDownload = signDownload;
  */
 export async function describeObject(
   key: string,
-): Promise<{ size: number; contentType: string | undefined } | null> {
+): Promise<{ size: number; contentType: string | undefined; uploadedAt: Date } | null> {
   try {
     const head = await s3().send(
       new HeadObjectCommand({ Bucket: env.R2_BUCKET!, Key: key }),
     );
-    return { size: head.ContentLength ?? 0, contentType: head.ContentType };
+    return {
+      size: head.ContentLength ?? 0,
+      contentType: head.ContentType,
+      // Reading one object by key is answered from the object itself, unlike a
+      // listing — which is why a caller that has just written can trust this.
+      uploadedAt: head.LastModified ?? new Date(),
+    };
   } catch {
     // Storage answers 404 for an object that is not there, and the SDK throws.
     // Every other failure — credentials, network — is indistinguishable here,
@@ -297,14 +435,19 @@ export async function deleteObject(key: string): Promise<void> {
  * the file and the confirmation then fails, so nothing is recorded and the
  * object remains, unreachable through the application and invisible in it.
  *
- * The prefix holds at most one object the application references, so everything
- * else is litter by construction. That is why the rule is "not the current key"
- * rather than an age: it needs no clock and no guess about how long an upload
- * might take.
+ * WHAT IS KEPT IS A SET, not one key. A tenancy's contract is now several
+ * pages, every one of them a legitimate object under the same prefix, so a
+ * sweep that kept only the newest would delete the rest of the contract. The
+ * caller passes the keys its records point at; everything else is litter by
+ * construction — no clock, no guess about how long an upload might take.
  *
- * Pass `null` to keep nothing, which is what removing a contract wants.
+ * Pass an empty set to keep nothing, which is what removing everything wants.
  */
-export async function clearPrefixExcept(prefix: string, keep: string | null): Promise<void> {
+export async function clearPrefixExcept(
+  prefix: string,
+  keep: string | null | readonly string[],
+): Promise<void> {
+  const kept = new Set(keep === null ? [] : typeof keep === "string" ? [keep] : keep);
   let token: string | undefined;
   do {
     const page = await s3().send(
@@ -316,7 +459,7 @@ export async function clearPrefixExcept(prefix: string, keep: string | null): Pr
     );
 
     for (const object of page.Contents ?? []) {
-      if (object.Key && object.Key !== keep) {
+      if (object.Key && !kept.has(object.Key)) {
         await deleteObject(object.Key);
       }
     }

@@ -17,6 +17,8 @@ import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 
+import { ChangedAmounts, changed, type AmountChange } from "@/components/ChangedAmounts";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { MoneyField } from "@/components/MoneyField";
 import { MOBILE_BREAKPOINT } from "@/app/theme";
 import { AddressCandidates } from "@/features/addresses/AddressCandidates";
@@ -69,6 +71,11 @@ export function BuildingFormDialog({
   const createMutation = useCreateBuilding();
   const updateMutation = useUpdateBuilding();
   const [formError, setFormError] = useState<string | null>(null);
+  /** A save held while the owner is shown which rates it moves. */
+  const [pending, setPending] = useState<{
+    values: BuildingFormValues;
+    changes: AmountChange[];
+  } | null>(null);
 
   const isEdit = building !== null;
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
@@ -193,7 +200,41 @@ export function BuildingFormDialog({
     setLocked(false);
   }, [open, building, reset]);
 
+  /**
+   * The rates this save would change, each as the building holds it now and as
+   * the form has it. Empty when neither moved — a building whose name was
+   * corrected is saved without a question.
+   *
+   * Only on an edit: creating a building changes no rate that anything is
+   * already billed at.
+   */
+  function rateChanges(values: BuildingFormValues): AmountChange[] {
+    if (!building) return [];
+    return changed([
+      {
+        label: "Giá điện",
+        before: building.electricityRate,
+        after: Number(values.electricityRate),
+      },
+      {
+        label: "Giá nước",
+        before: building.waterRatePerPerson,
+        after: Number(values.waterRatePerPerson),
+      },
+    ]);
+  }
+
   async function onSubmit(values: BuildingFormValues) {
+    const doi = rateChanges(values);
+    if (doi.length > 0) {
+      setFormError(null);
+      setPending({ values, changes: doi });
+      return;
+    }
+    await send(values);
+  }
+
+  async function send(values: BuildingFormValues) {
     setFormError(null);
     const input = buildingFormSchema.parse(values) satisfies BuildingFormOutput;
     try {
@@ -203,8 +244,12 @@ export function BuildingFormDialog({
         await createMutation.mutateAsync(input);
         onCreated?.();
       }
+      setPending(null);
       onClose();
     } catch (error) {
+      // The confirmation steps aside so the form's own report — attributed to
+      // the field the API named — is what the owner is looking at.
+      setPending(null);
       if (!isApiError(error)) {
         setFormError("Đã xảy ra lỗi. Vui lòng thử lại.");
         return;
@@ -227,6 +272,7 @@ export function BuildingFormDialog({
   }
 
   return (
+    <>
     <Dialog
       open={open}
       onClose={isSubmitting ? undefined : onClose}
@@ -404,5 +450,26 @@ export function BuildingFormDialog({
         </Button>
       </DialogActions>
     </Dialog>
+
+      {/*
+        The question an owner asks at exactly this moment — does this change
+        what my running tenancies are charged? — answered before the save
+        rather than after it.
+      */}
+      <ConfirmDialog
+        open={pending !== null}
+        title="Lưu giá mới cho toà nhà?"
+        description="Giá mới chỉ áp dụng cho hợp đồng và hoá đơn từ nay về sau. Hợp đồng đang chạy giữ giá đã ghi trên chính nó."
+        confirmLabel="Lưu giá mới"
+        busyLabel="Đang lưu…"
+        busy={isSubmitting}
+        onConfirm={() => {
+          if (pending) void send(pending.values);
+        }}
+        onClose={() => setPending(null)}
+      >
+        {pending && <ChangedAmounts entries={pending.changes} />}
+      </ConfirmDialog>
+    </>
   );
 }

@@ -88,6 +88,24 @@ const leaseInclude = {
     select: { id: true },
     take: 1,
   },
+  /**
+   * Both ends of the renewal chain, by name rather than by id.
+   *
+   * A screen showing "renewed from #266" makes the owner open #266 to find out
+   * which agreement that was. The reference is the thing they recognise, and
+   * fetching it here costs one join rather than a request per row.
+   */
+  renewedFrom: { select: { id: true, reference: true } },
+  renewedTo: { select: { id: true, reference: true } },
+  /**
+   * The contract pages, as ids only.
+   *
+   * The count is what every screen asks for; the pages themselves are fetched
+   * by their own endpoint, with a signed link each, only when one tenancy is
+   * opened. Selecting ids keeps a listing of fifty tenancies from carrying
+   * fifty sets of storage keys it will never use.
+   */
+  pages: { select: { id: true } },
 } as const;
 
 /**
@@ -268,11 +286,8 @@ export async function createLease(input: CreateLeaseInput) {
         electricityRate,
         waterRatePerPerson,
         depositMonths: input.depositMonths,
-        // Terms of the agreement. Absent stays absent — undefined leaves the
-        // column null, which is what "not agreed" means here.
-        noticeDays: input.noticeDays,
-        paymentDay: input.paymentDay,
-        startWaterReading: input.startWaterReading,
+        // A term of the agreement. Absent stays absent — undefined leaves the
+        // column null, which is what "not recorded" means here.
         handoverSignedAt: input.handoverSignedAt,
       },
     });
@@ -580,7 +595,24 @@ export async function extendLease(id: number, input: ExtendLeaseInput) {
         electricityRate: room.building.electricityRate,
         waterRatePerPerson: room.building.waterRatePerPerson,
         depositMonths,
+        // The link, written at the only moment it is a fact. Afterwards it
+        // could only be guessed from a room and two dates, and a tenant moving
+        // in on changeover day produces exactly the same pattern.
+        renewedFromId: lease.id,
       },
+    });
+
+    /*
+      The successor's own reference, set the same two-step way signing sets one:
+      the id is part of it and does not exist until the row does.
+
+      This was missing. A renewal opened a lease that could not be named out
+      loud at all — the gap showed up only as a label with nothing under it on
+      the tenancy screen, months after the code was written.
+    */
+    await tx.lease.update({
+      where: { id: successor.id },
+      data: { reference: buildLeaseReference(room.roomCode, successor.startDate, successor.id) },
     });
 
     for (const occupant of continuingOccupants) {
@@ -989,46 +1021,84 @@ export async function confirmContractUpload(id: number, key: string) {
     );
   }
 
-  await prisma.lease.update({ where: { id }, data: { contractKey: key } });
+  const page = await prisma.leaseContractPage.create({
+    data: { leaseId: id, key, contentType: object.contentType ?? "image/jpeg" },
+  });
 
-  // Everything else under this tenancy's prefix goes: the contract being
-  // replaced, and any upload that reached storage and was never confirmed.
-  //
-  // This used to delete only the PREVIOUS contract, which caught a replacement
-  // and never an abandoned upload — and abandoned uploads accumulate, since
-  // nothing else ever removes them. Found by running the feature against a real
-  // bucket, not while designing it.
-  //
-  // After the record is written, so a failure leaves the tenancy with a
-  // contract rather than none. And swallowed: the record is what the
-  // application reads, and reporting a successful confirmation as a failure
-  // would invite the owner to repeat an upload that already worked.
-  await storage.clearPrefixExcept(storage.contractPrefix(id), key).catch(() => {});
+  /*
+    Litter goes; the contract stays.
 
-  return findLeaseOrThrow(id);
+    Every page this tenancy records is a legitimate object under this prefix, so
+    the cleanup is told what the records point at rather than being told to keep
+    one key. The version of this that kept only the newest would have deleted
+    the rest of the contract on every upload after the first.
+
+    After the record is written, so a failure leaves the page attached rather
+    than lost. And swallowed: the record is what the application reads, and
+    reporting a successful confirmation as a failure would invite the owner to
+    repeat an upload that already worked.
+  */
+  const kept = await prisma.leaseContractPage.findMany({
+    where: { leaseId: id },
+    select: { key: true },
+  });
+  await storage
+    .clearPrefixExcept(storage.contractPrefix(id), kept.map((row) => row.key))
+    .catch(() => {});
+
+  return page;
 }
 
-export async function getContractDownload(id: number) {
-  const lease = await findLeaseOrThrow(id);
+/**
+ * The pages, each with a link that expires.
+ *
+ * Oldest first: that is the order they were photographed, and a contract read
+ * out of order is a contract read wrong. The storage keys never leave the
+ * server — a link is signed for each page at the moment it is asked for.
+ */
+export async function listContractPages(id: number) {
+  await findLeaseOrThrow(id);
   assertStorage();
-  if (lease.contractKey === null) {
-    throw new NotFoundError("CONTRACT_NONE_ON_FILE", "This tenancy has no contract on file");
-  }
-  return storage.signContractDownload(lease.contractKey);
+  const pages = await prisma.leaseContractPage.findMany({
+    where: { leaseId: id },
+    orderBy: [{ uploadedAt: "asc" }, { id: "asc" }],
+  });
+
+  return Promise.all(
+    pages.map(async (page) => {
+      const signed = await storage.signDownload(page.key);
+      return {
+        id: page.id,
+        contentType: page.contentType,
+        uploadedAt: page.uploadedAt,
+        url: signed.url,
+        expiresAt: signed.expiresAt,
+      };
+    }),
+  );
 }
 
-export async function removeContract(id: number) {
-  const lease = await findLeaseOrThrow(id);
+/**
+ * One page goes; the others stay.
+ *
+ * The row is deleted before the object, so a failure to delete bytes leaves an
+ * unreferenced object — which the next confirmation clears — rather than a row
+ * pointing at bytes that are gone, which nothing would ever repair.
+ */
+export async function removeContractPage(id: number, pageId: number) {
+  await findLeaseOrThrow(id);
   assertStorage();
-  if (lease.contractKey === null) {
-    throw new NotFoundError("CONTRACT_NONE_ON_FILE", "This tenancy has no contract on file");
+  const page = await prisma.leaseContractPage.findFirst({
+    where: { id: pageId, leaseId: id },
+  });
+  if (page === null) {
+    throw new NotFoundError("CONTRACT_PAGE_NOT_ON_LEASE", "That page is not on this tenancy");
   }
 
-  await prisma.lease.update({ where: { id }, data: { contractKey: null } });
-  // Keeping nothing: the contract itself and any abandoned upload beside it.
-  await storage.clearPrefixExcept(storage.contractPrefix(id), null).catch(() => {});
+  await prisma.leaseContractPage.delete({ where: { id: page.id } });
+  await storage.deleteObject(page.key).catch(() => {});
 
-  return findLeaseOrThrow(id);
+  return listContractPages(id);
 }
 
 export async function listOccupants(leaseId: number, query: ListOccupantsQuery) {
@@ -1107,6 +1177,7 @@ export async function departOccupant(
   leaseId: number,
   occupantId: number,
   leftAt: Date,
+  successorId?: number,
 ) {
   const lease = await findLeaseOrThrow(leaseId);
   const occupant = lease.occupants.find((o) => o.id === occupantId);
@@ -1124,20 +1195,71 @@ export async function departOccupant(
   const otherCurrent = lease.occupants.filter(
     (o) => o.leftAt === null && o.id !== occupantId,
   );
-  // Responsibility must be handed over first, otherwise the lease would be left
-  // with occupants but nobody accountable. If they are the last occupant there
-  // is nobody to transfer to, so the departure is allowed.
-  if (occupant.isPrimary && otherCurrent.length > 0) {
+
+  /*
+    A running tenancy is never left with nobody living in it.
+
+    Accepting this produced a tenancy that is billed monthly, holds a deposit
+    and occupies a room, whose occupant list is empty — a state nothing
+    downstream is prepared for, and never the one the owner meant. What they
+    wanted is the tenancy's move-out, which closes it: final invoice, closing
+    meter reading, deposit settled. So the refusal names that operation rather
+    than only stating a rule.
+
+    A tenancy that has already recorded its move-out is exempt: its occupants'
+    departures are history, set by the closing itself.
+  */
+  if (otherCurrent.length === 0 && lease.moveOutDate === null) {
     throw new ConflictError(
-      "PRIMARY_OCCUPANT_MUST_TRANSFER",
-      "Transfer primary responsibility to another occupant before recording this departure",
+      "LAST_OCCUPANT_CANNOT_DEPART",
+      "This is the only person living here. Record the tenancy's move-out instead — that is what ends it",
     );
   }
 
-  return prisma.leaseOccupant.update({
-    where: { id: occupantId },
-    data: { leftAt },
-    include: { user: { select: { id: true, fullName: true, phone: true } } },
+  // Responsibility must be handed over, otherwise the lease would be left with
+  // occupants but nobody accountable. The successor travels with the departure
+  // so that both facts are written together or not at all.
+  if (occupant.isPrimary && otherCurrent.length > 0) {
+    if (successorId === undefined) {
+      throw new ConflictError(
+        "PRIMARY_OCCUPANT_MUST_TRANSFER",
+        "Transfer primary responsibility to another occupant before recording this departure",
+      );
+    }
+  }
+
+  const successor =
+    successorId === undefined
+      ? null
+      : otherCurrent.find((o) => o.userId === successorId) ?? null;
+  if (successorId !== undefined && successor === null) {
+    throw new ValidationError(
+      "TRANSFER_TARGET_NOT_OCCUPANT",
+      "That person is not a current occupant of this lease",
+    );
+  }
+
+  return prisma.$transaction(async (tx) => {
+    if (successor !== null) {
+      // Cleared before the new one is set: the partial unique index permits
+      // only one active primary at a time.
+      if (occupant.isPrimary) {
+        await tx.leaseOccupant.update({
+          where: { id: occupant.id },
+          data: { isPrimary: false },
+        });
+      }
+      await tx.leaseOccupant.update({
+        where: { id: successor.id },
+        data: { isPrimary: true },
+      });
+    }
+
+    return tx.leaseOccupant.update({
+      where: { id: occupantId },
+      data: { leftAt },
+      include: { user: { select: { id: true, fullName: true, phone: true } } },
+    });
   });
 }
 

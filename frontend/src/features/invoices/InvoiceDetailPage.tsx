@@ -26,6 +26,7 @@ import UndoIcon from '@mui/icons-material/Undo'
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
 import { formatDate } from '@/features/leases/dates'
 import { useInvoice, useInvoices, useReversePayment } from '@/features/invoices/hooks'
@@ -229,6 +230,10 @@ export function InvoiceDetailPage() {
   const [payOpen, setPayOpen] = useState(false)
   const [voidOpen, setVoidOpen] = useState(false)
   const [reversing, setReversing] = useState<number | null>(null)
+  // The payment the owner has asked to reverse, held while they are asked
+  // whether they meant it. Nothing is sent until they answer.
+  const [reverseAsked, setReverseAsked] = useState<Payment | null>(null)
+  const [reverseError, setReverseError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
   if (invoiceQuery.isPending) {
@@ -293,6 +298,7 @@ export function InvoiceDetailPage() {
 
   async function handleReverse(payment: Payment) {
     setActionError(null)
+    setReverseError(null)
     setReversing(payment.id)
     try {
       await reverse.mutateAsync({
@@ -302,8 +308,11 @@ export function InvoiceDetailPage() {
         // April happened in both months.
         reversedAt: new Date().toISOString().slice(0, 10),
       })
+      setReverseAsked(null)
     } catch (cause) {
-      setActionError(errorMessage(cause))
+      // Reported inside the dialog, which stays open: a refusal that appears
+      // behind a dialog that closed on its own reads as success.
+      setReverseError(errorMessage(cause))
     } finally {
       setReversing(null)
     }
@@ -464,7 +473,14 @@ export function InvoiceDetailPage() {
           </Card>
         )}
 
-        <PaymentsCard invoice={invoice} onReverse={handleReverse} reversing={reversing} />
+        <PaymentsCard
+          invoice={invoice}
+          onReverse={(payment) => {
+            setReverseError(null)
+            setReverseAsked(payment)
+          }}
+          reversing={reversing}
+        />
 
         {/*
           Withheld on a voided bill and on one already settled, rather than
@@ -525,6 +541,35 @@ export function InvoiceDetailPage() {
         open={voidOpen}
         invoice={invoice}
         onClose={() => setVoidOpen(false)}
+      />
+
+      {/*
+        The amount and the date are what tell one payment from another: an
+        invoice can carry several, and "Hoàn tiền cho khách" on its own does not
+        say which one is about to be undone. The return to unpaid is named
+        because it is a consequence of the action, not something the button says.
+      */}
+      <ConfirmDialog
+        open={reverseAsked !== null}
+        title="Hoàn tiền cho khách?"
+        description={
+          reverseAsked && (
+            <>
+              Khoản {formatMoney(reverseAsked.amount)} nhận ngày{' '}
+              {formatDate(reverseAsked.paidAt)} sẽ được ghi là đã hoàn lại cho khách.
+              Hoá đơn quay về trạng thái chưa thanh toán.
+            </>
+          )
+        }
+        confirmLabel="Hoàn tiền"
+        busyLabel="Đang hoàn…"
+        destructive
+        busy={reversing !== null}
+        error={reverseError}
+        onConfirm={() => {
+          if (reverseAsked) void handleReverse(reverseAsked)
+        }}
+        onClose={() => setReverseAsked(null)}
       />
     </Box>
   )

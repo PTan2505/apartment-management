@@ -56,6 +56,25 @@ export function useOccupants(leaseId: number) {
  * and the next attempt would be refused by the API for a reason the screen had
  * already been told about and thrown away.
  */
+/**
+ * The contract's pages, each carrying a link that expires in ten minutes.
+ *
+ * Refetched well inside that window so a page left open keeps links that still
+ * work — the same reason the ID card's links come from a query rather than
+ * being held in state.
+ */
+export function useContractPages(leaseId: number, enabled = true) {
+  return useQuery({
+    queryKey: [...LEASES_KEY, leaseId, 'contract-pages'],
+    queryFn: () => leasesApi.getContractPages(leaseId),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+    retry: false,
+  })
+}
+
 function useInvalidateLeases() {
   const queryClient = useQueryClient()
   return () => {
@@ -139,12 +158,16 @@ export function useDepartOccupant() {
       leftAt: string
       /** The customer taking over, where this occupant is the responsible one. */
       transferTo?: number
-    }) => {
-      if (transferTo !== undefined) {
-        await leasesApi.transferPrimary(leaseId, transferTo)
-      }
-      return leasesApi.departOccupant(leaseId, occupantId, leftAt)
-    },
+    }) =>
+      /*
+        One request, not two.
+
+        This used to transfer and then depart. The transfer could land and the
+        departure fail, leaving the agreement in the successor's name with the
+        previous holder still living there — each request having done exactly
+        what it said. The API now takes both and writes them together.
+      */
+      leasesApi.departOccupant(leaseId, occupantId, leftAt, transferTo),
     onSuccess: invalidate,
   })
 }

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { Link as RouterLink, useNavigate, useParams } from 'react-router'
 import Alert from '@mui/material/Alert'
@@ -52,7 +53,7 @@ function Field({
   emphasis = false,
 }: {
   label: string
-  value: string
+  value: ReactNode
   hint?: string | string[]
   emphasis?: boolean
 }) {
@@ -257,7 +258,12 @@ function TermsCard({ lease }: { lease: Lease }) {
               every other row's first field. Measured at x=305 against 281.
             */
             useFlexGap
-            sx={{ flexWrap: 'wrap', rowGap: 2 }}
+            /*
+              Spread across the card rather than bunched at the left. The label
+              and its value stay together in one Field; what separates is one
+              fact from the next, which is what the eye is scanning for.
+            */
+            sx={{ flexWrap: 'wrap', rowGap: 2, justifyContent: { sm: 'space-between' } }}
           >
             <Field
               label="Tiền thuê hàng tháng"
@@ -297,7 +303,12 @@ function TermsCard({ lease }: { lease: Lease }) {
               every other row's first field. Measured at x=305 against 281.
             */
             useFlexGap
-            sx={{ flexWrap: 'wrap', rowGap: 2 }}
+            /*
+              Spread across the card rather than bunched at the left. The label
+              and its value stay together in one Field; what separates is one
+              fact from the next, which is what the eye is scanning for.
+            */
+            sx={{ flexWrap: 'wrap', rowGap: 2, justifyContent: { sm: 'space-between' } }}
           >
             {/*
               A cancelled tenancy's dates describe an agreement, not an
@@ -375,44 +386,68 @@ function TermsCard({ lease }: { lease: Lease }) {
               every other row's first field. Measured at x=305 against 281.
             */
             useFlexGap
-            sx={{ flexWrap: 'wrap', rowGap: 2 }}
+            /*
+              Spread across the card rather than bunched at the left. The label
+              and its value stay together in one Field; what separates is one
+              fact from the next, which is what the eye is scanning for.
+            */
+            sx={{ flexWrap: 'wrap', rowGap: 2, justifyContent: { sm: 'space-between' } }}
           >
             {/*
               Generated, unique, never typed — so it is read here and absent
               from the edit dialog entirely.
+
+              Three fields used to stand beside these two: the notice period,
+              the payment day and the opening water reading. All three were
+              recorded and read by nothing, and the water reading was worse than
+              idle — beside an electricity reading that every invoice consumes,
+              a second meter-looking number reads as another billed meter.
             */}
             <Field label="Số hợp đồng" value={lease.reference} />
             <Field
-              label="Báo trước khi kết thúc"
-              value={lease.noticeDays === null ? KHONG_GHI : `${lease.noticeDays} ngày`}
-            />
-            <Field
-              label="Ngày thanh toán hàng tháng"
-              value={lease.paymentDay === null ? KHONG_GHI : `Ngày ${lease.paymentDay}`}
-            />
-            {/*
-              Labelled as the OPENING reading. Beside an electricity reading
-              that the bills actually consume, a bare "số nước" invites reading
-              this as the current one — water is billed per person here, so
-              nothing has computed from it since handover.
-            */}
-            <Field
-              label="Số nước lúc bàn giao"
-              value={
-                lease.startWaterReading === null
-                  ? KHONG_GHI
-                  : `${lease.startWaterReading.toLocaleString('vi-VN')} m³`
-              }
-              hint="Số đầu kỳ, không phải số hiện tại"
-            />
-            <Field
-              label="Ngày ký bàn giao"
+              label="Ngày ký hợp đồng"
               value={
                 lease.handoverSignedAt === null
                   ? KHONG_GHI
                   : formatDate(lease.handoverSignedAt)
               }
+              hint="Ngày ký hợp đồng giấy với khách"
             />
+            {/*
+              The renewal chain, shown ONLY where there is one — unlike the
+              terms above, which say "not recorded" when empty.
+
+              The difference is what absence means. A tenancy with no signing
+              date has a fact nobody wrote down; a tenancy that was signed
+              rather than renewed is not missing anything, and a row reading
+              "Chưa ghi nhận" would invite the owner to go looking for a
+              predecessor that never existed.
+
+              Named, not numbered: "gia hạn từ #266" makes the reader open #266
+              to find out which agreement that was.
+            */}
+            {lease.renewedFrom && (
+              <Field
+                label="Gia hạn từ"
+                value={
+                  <Link component={RouterLink} to={`/leases/${lease.renewedFrom.id}`}>
+                    {lease.renewedFrom.reference ?? `#${lease.renewedFrom.id}`}
+                  </Link>
+                }
+                hint="Hợp đồng trước của cùng khách, cùng phòng"
+              />
+            )}
+            {lease.renewedTo && (
+              <Field
+                label="Đã gia hạn thành"
+                value={
+                  <Link component={RouterLink} to={`/leases/${lease.renewedTo.id}`}>
+                    {lease.renewedTo.reference ?? `#${lease.renewedTo.id}`}
+                  </Link>
+                }
+                hint="Hợp đồng tiếp nối sau khi hết hạn"
+              />
+            )}
           </Stack>
         </Stack>
       </CardContent>

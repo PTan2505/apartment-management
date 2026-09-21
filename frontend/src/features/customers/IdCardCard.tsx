@@ -12,6 +12,7 @@ import BadgeIcon from '@mui/icons-material/Badge'
 import DeleteIcon from '@mui/icons-material/Delete'
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera'
 
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
 import * as customersApi from '@/features/customers/api'
@@ -34,6 +35,15 @@ export function IdCardCard({ customerId, name }: { customerId: number; name: str
   const queryClient = useQueryClient()
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /**
+   * What the owner has asked to do to a photo, held until they say they meant
+   * it. Replacing is here too: the photo it replaces is deleted, so it destroys
+   * as surely as removing does — it just does not say so on the button.
+   */
+  const [asked, setAsked] = useState<
+    { kind: 'remove'; side: IdCardSide } | { kind: 'replace'; side: IdCardSide; file: File } | null
+  >(null)
+  const [askError, setAskError] = useState<string | null>(null)
 
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: ['customers'] })
@@ -52,17 +62,37 @@ export function IdCardCard({ customerId, name }: { customerId: number; name: str
       await customersApi.uploadIdCardToStorage(signed, file)
       await customersApi.confirmIdCard(customerId, side, signed.key)
       refresh()
+      setAsked(null)
     } catch (cause) {
-      setError(
+      const noi =
         isApiError(cause)
           ? errorMessage(cause)
           : cause instanceof Error
             ? cause.message
-            : 'Không tải lên được ảnh này.',
-      )
+            : 'Không tải lên được ảnh này.'
+      // Into the dialog while one is open, so a refusal is not reported behind it.
+      if (asked) setAskError(noi)
+      else setError(noi)
     } finally {
       setBusy(null)
     }
+  }
+
+  /** Asked first when there is a photo to lose; sent straight away when there is not. */
+  function askUpload(side: IdCardSide, file: File) {
+    setError(null)
+    setAskError(null)
+    const coAnh =
+      (side === 'front' ? customerQuery.data?.hasIdCardFront : customerQuery.data?.hasIdCardBack) ??
+      false
+    if (coAnh) setAsked({ kind: 'replace', side, file })
+    else void upload(side, file)
+  }
+
+  function askRemove(side: IdCardSide) {
+    setError(null)
+    setAskError(null)
+    setAsked({ kind: 'remove', side })
   }
 
   async function remove(side: IdCardSide) {
@@ -71,8 +101,9 @@ export function IdCardCard({ customerId, name }: { customerId: number; name: str
     try {
       await customersApi.removeIdCard(customerId, side)
       refresh()
+      setAsked(null)
     } catch (cause) {
-      setError(errorMessage(cause))
+      setAskError(errorMessage(cause))
     } finally {
       setBusy(null)
     }
@@ -115,13 +146,48 @@ export function IdCardCard({ customerId, name }: { customerId: number; name: str
                   (side === 'front' ? customer?.hasIdCardFront : customer?.hasIdCardBack) ?? false
                 }
                 busy={busy}
-                onUpload={upload}
-                onRemove={remove}
+                onUpload={askUpload}
+                onRemove={askRemove}
               />
             ))}
           </Stack>
         )}
       </CardContent>
+
+      <ConfirmDialog
+        open={asked !== null}
+        title={
+          asked?.kind === 'replace'
+            ? `Thay ảnh ${TEN[asked.side].toLowerCase()}?`
+            : asked
+              ? `Xoá ảnh ${TEN[asked.side].toLowerCase()}?`
+              : ''
+        }
+        description={
+          asked?.kind === 'replace' ? (
+            <>
+              Ảnh {TEN[asked.side].toLowerCase()} đang lưu sẽ bị xoá và thay bằng{' '}
+              <strong>{asked.file.name}</strong>. Ảnh cũ không lấy lại được.
+            </>
+          ) : asked ? (
+            <>
+              Ảnh {TEN[asked.side].toLowerCase()} của {name ?? 'người đứng tên'} sẽ bị xoá khỏi
+              hệ thống và không lấy lại được. Ảnh này dùng chung cho mọi hợp đồng của người này.
+            </>
+          ) : null
+        }
+        confirmLabel={asked?.kind === 'replace' ? 'Thay ảnh' : 'Xoá ảnh'}
+        busyLabel={asked?.kind === 'replace' ? 'Đang tải lên…' : 'Đang xoá…'}
+        destructive
+        busy={busy !== null}
+        error={askError}
+        onConfirm={() => {
+          if (!asked) return
+          if (asked.kind === 'replace') void upload(asked.side, asked.file)
+          else void remove(asked.side)
+        }}
+        onClose={() => setAsked(null)}
+      />
     </Card>
   )
 }
@@ -149,8 +215,8 @@ function MotCanhCuoc({
   side: IdCardSide
   coAnh: boolean
   busy: string | null
-  onUpload: (side: IdCardSide, file: File) => Promise<void>
-  onRemove: (side: IdCardSide) => Promise<void>
+  onUpload: (side: IdCardSide, file: File) => void
+  onRemove: (side: IdCardSide) => void
 }) {
   const input = useRef<HTMLInputElement>(null)
   const linkQuery = useIdCardUrl(customerId, side, coAnh)
@@ -246,7 +312,7 @@ function MotCanhCuoc({
             color="error"
             startIcon={<DeleteIcon />}
             disabled={busy !== null}
-            onClick={() => void onRemove(side)}
+            onClick={() => onRemove(side)}
           >
             {busy === `${side}:removing` ? 'Đang xoá…' : 'Xoá'}
           </Button>
@@ -260,7 +326,7 @@ function MotCanhCuoc({
         hidden
         onChange={(event) => {
           const file = event.target.files?.[0]
-          if (file) void onUpload(side, file)
+          if (file) onUpload(side, file)
           event.target.value = ''
         }}
       />

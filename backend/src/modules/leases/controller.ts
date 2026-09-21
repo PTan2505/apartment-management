@@ -101,21 +101,24 @@ export async function contractConfirmHandler(req: Request, res: Response) {
     throw new ValidationError("CONTRACT_CONFIRM_PAYLOAD_INVALID", "Invalid confirmation", parsed.error.flatten());
   }
 
-  const lease = await leaseService.confirmContractUpload(
+  const leaseId = parseIdParam(req.params.id, RESOURCE.lease);
+  await leaseService.confirmContractUpload(leaseId, parsed.data.key);
+  // The pages, not the page just added: the screen is showing a contract, and
+  // one confirmation per page would otherwise make it stitch the set together.
+  res.status(201).json({ pages: await leaseService.listContractPages(leaseId) });
+}
+
+export async function contractPagesHandler(req: Request, res: Response) {
+  const pages = await leaseService.listContractPages(parseIdParam(req.params.id, RESOURCE.lease));
+  res.status(200).json({ pages });
+}
+
+export async function contractPageRemoveHandler(req: Request, res: Response) {
+  const pages = await leaseService.removeContractPage(
     parseIdParam(req.params.id, RESOURCE.lease),
-    parsed.data.key,
+    parseIdParam(req.params.pageId, RESOURCE.contractPage),
   );
-  res.status(200).json(toLeaseResponse(lease));
-}
-
-export async function contractDownloadHandler(req: Request, res: Response) {
-  const signed = await leaseService.getContractDownload(parseIdParam(req.params.id, RESOURCE.lease));
-  res.status(200).json(signed);
-}
-
-export async function contractRemoveHandler(req: Request, res: Response) {
-  const lease = await leaseService.removeContract(parseIdParam(req.params.id, RESOURCE.lease));
-  res.status(200).json(toLeaseResponse(lease));
+  res.status(200).json({ pages });
 }
 
 export async function listOccupantsHandler(req: Request, res: Response) {
@@ -151,6 +154,7 @@ export async function departOccupantHandler(req: Request, res: Response) {
     parseIdParam(req.params.id, RESOURCE.lease),
     parseIdParam(req.params.occupantId, RESOURCE.occupant),
     parsed.data.leftAt,
+    parsed.data.successorId,
   );
   res.status(200).json(toOccupantResponse(occupant));
 }

@@ -6,25 +6,19 @@ const isoDate = z.coerce.date();
 /**
  * Terms of the agreement, as distinct from what it takes to bill it.
  *
- * All optional, on creation and on correction alike. An owner recording a
- * tenancy signed years ago may not have any of them, and demanding one would
- * turn missing history into an obstacle.
+ * Optional, on creation and on correction alike. An owner recording a tenancy
+ * signed years ago may not have the date, and demanding it would turn missing
+ * history into an obstacle.
  *
  * `reference` is absent on purpose: it is generated, never accepted. A typed
  * reference drifts — two leases get the same one, a typo makes one unfindable,
  * and the field becomes a place people write notes.
+ *
+ * Three fields were removed from here — `noticeDays`, `paymentDay` and
+ * `startWaterReading` — along with their columns. Every one was accepted,
+ * stored, reported, and read by nothing.
  */
 const agreementTermFields = {
-  noticeDays: z.coerce.number().int().nonnegative("must not be negative").optional(),
-  // 1–31 rather than the length of a particular month: it is the day an
-  // agreement names, and February is the biller's problem rather than this
-  // field's.
-  paymentDay: z.coerce.number().int().min(1, "must be between 1 and 31")
-    .max(31, "must be between 1 and 31").optional(),
-  // Zero is a legitimate reading, so this accepts it and the column stays
-  // nullable — "the meter read zero" and "no reading recorded" are different
-  // facts and stay different values.
-  startWaterReading: z.coerce.number().int().nonnegative("must not be negative").optional(),
   handoverSignedAt: isoDate.optional(),
 } as const;
 
@@ -153,7 +147,10 @@ export const cancelLeaseSchema = z.object({
  * value nobody vetted would let a URL issued for a document store anything.
  */
 export const contractUploadSchema = z.object({
-  contentType: z.enum(["application/pdf", "image/jpeg", "image/png", "image/heic"]),
+  // Photographs only. PDF was accepted and is not any more: a contract is kept
+  // as the pages it has, and a mixture of pages that display and files that
+  // download makes a screen that shows neither well.
+  contentType: z.enum(["image/jpeg", "image/png", "image/heic"]),
 });
 
 /** Confirming that an upload reached storage. */
@@ -189,6 +186,16 @@ export const addOccupantSchema = z.object({
 
 export const departOccupantSchema = z.object({
   leftAt: isoDate,
+  /**
+   * Who takes over the agreement, where the person leaving is the one holding
+   * it and others remain.
+   *
+   * Carried on the departure rather than left to a separate transfer call: two
+   * requests can half-succeed, and the half that lands — a handover to somebody
+   * who never took it over, while the previous holder still lives there — is
+   * invisible unless a reader compares the occupant list against the signatory.
+   */
+  successorId: z.coerce.number().int().positive("successorId must be a customer id").optional(),
 });
 
 export const transferPrimarySchema = z.object({
