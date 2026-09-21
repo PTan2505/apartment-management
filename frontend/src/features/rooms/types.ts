@@ -58,6 +58,14 @@ export interface ListRoomsParams {
   status?: ActiveStatus
   /** Only rooms with no running tenancy — the ones that can be let. */
   vacant?: boolean
+  /**
+   * Which rooms can take a tenancy BEGINNING on this date (YYYY-MM-DD).
+   *
+   * Different from `vacant`, which is "free right now": a room whose tenancy
+   * ends on the 30th is available from the 30th, and a room free today is not
+   * available for a date before the previous tenancy ended.
+   */
+  availableOn?: string
 }
 
 /**

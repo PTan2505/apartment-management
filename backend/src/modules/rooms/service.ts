@@ -130,6 +130,30 @@ export async function listRooms(query: ListRoomsQuery) {
     // page afterwards: post-filtering would return short pages and a total that
     // counts rooms the caller was not shown.
     ...(query.vacant ? { leases: { none: HOLDS_ITS_ROOM } } : {}),
+    /*
+      Available on a named date: no tenancy holds the room, and none that
+      counted ends AFTER that date.
+
+      `moveOutDate` strictly greater, never equal: an ending date is the first
+      day no longer covered, so a tenancy ending exactly then abuts the new one
+      with neither gap nor overlap. The same comparison the signing guard makes,
+      written once here so the list and the rule cannot disagree.
+
+      A CANCELLED tenancy is excluded — it covered no days, so counting its
+      dates would hide the very room the cancellation freed.
+    */
+    ...(query.availableOn
+      ? {
+          leases: {
+            none: {
+              OR: [
+                HOLDS_ITS_ROOM,
+                { cancelledAt: null, moveOutDate: { gt: query.availableOn } },
+              ],
+            },
+          },
+        }
+      : {}),
   };
 
   return mapPaginated(

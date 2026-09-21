@@ -6,10 +6,13 @@ import type { ListRoomsParams } from '@/features/rooms/types'
 
 const ROOMS_KEY = ['rooms'] as const
 
-export function useRooms(params: ListRoomsParams) {
+export function useRooms(params: ListRoomsParams, enabled = true) {
   return useQuery({
     queryKey: [...ROOMS_KEY, 'list', params],
     queryFn: () => roomsApi.listRooms(params),
+    // Off until the caller has what the question needs — the signing form
+    // cannot ask which rooms fit a date before a date is chosen.
+    enabled,
   })
 }
 
