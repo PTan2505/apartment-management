@@ -14,6 +14,9 @@ export type InvoiceType = 'moveIn' | 'monthly' | 'final' | 'overdue' | 'adhoc'
 
 export type PaymentStatus = 'pending' | 'paid'
 
+/** What is owed first (the default), newest issued first, or oldest first. */
+export type InvoiceSort = 'owing' | 'newest' | 'oldest'
+
 export type PaymentMethod = 'cash' | 'bank_transfer' | 'deposit_deduction' | 'gateway'
 
 /**
@@ -135,6 +138,16 @@ export interface ListInvoicesParams {
   year?: number
   month?: number
   paymentStatus?: PaymentStatus
+  /** Which kind of bill. Absent means every kind. */
+  type?: InvoiceType
+  /**
+   * The order the API returns them in.
+   *
+   * Asked of the API rather than applied to the page: the list is paginated, so
+   * sorting the rows that happen to be on screen produces a list that looks
+   * sorted and is not.
+   */
+  sort?: InvoiceSort
   /** Voided invoices are withheld unless asked for. */
   includeVoided?: boolean
 }

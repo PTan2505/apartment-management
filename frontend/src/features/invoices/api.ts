@@ -17,6 +17,9 @@ function toQuery(params: ListInvoicesParams): Record<string, string | number> {
   if (params.year) query.year = params.year
   if (params.month) query.month = params.month
   if (params.paymentStatus) query.paymentStatus = params.paymentStatus
+  if (params.type) query.type = params.type
+  // Only a chosen order is sent; the API's own default is what is owed first.
+  if (params.sort) query.sort = params.sort
   // Voided bills are a record of what was withdrawn, not money anybody owes.
   // Only a decided value is sent, so the API's default keeps them out.
   if (params.includeVoided) query.includeVoided = 'true'

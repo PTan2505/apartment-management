@@ -9,6 +9,9 @@ import type { InvoiceType, PaymentMethod } from '@/features/invoices/types'
  * move-in invoice, whose total is large because most of it is a deposit rather
  * than money earned.
  */
+/** Every kind, in the order a filter should offer them: how a tenancy runs. */
+export const INVOICE_TYPES: InvoiceType[] = ['moveIn', 'monthly', 'final', 'overdue', 'adhoc']
+
 const INVOICE_TYPE_LABELS: Record<InvoiceType, string> = {
   moveIn: 'Nhận phòng',
   monthly: 'Hàng tháng',

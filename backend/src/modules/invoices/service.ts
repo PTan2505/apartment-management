@@ -356,12 +356,41 @@ export async function listDueForMonth(query: ListDueQuery) {
   );
 }
 
+/**
+ * The order a listing comes back in.
+ *
+ * Every order is three deep. FIRST, live bills before withdrawn ones: a
+ * withdrawn bill records something cancelled, so finding one between two live
+ * bills is finding it in the way. LAST, the id, so the order is total and no
+ * invoice can move between pages as pages are fetched.
+ *
+ * `owing` — the default — puts unpaid first, then the most recently issued.
+ * Ordering oldest-first, as this did, buries both the bills of this month and
+ * the ones still unpaid on the last page: the same defect the lease listing
+ * already records and fixed.
+ *
+ * `paymentStatus` sorts by the ENUM'S DECLARED ORDER in Postgres, not
+ * alphabetically — `pending` is declared before `paid`, so ascending is
+ * unpaid-first. Reordering that enum would silently invert this.
+ */
+function invoiceOrder(sort: ListInvoicesQuery["sort"]): Prisma.InvoiceOrderByWithRelationInput[] {
+  const liveFirst = { voidedAt: { sort: "asc", nulls: "first" } } as const;
+  if (sort === "oldest") {
+    return [liveFirst, { issueDate: "asc" }, { id: "asc" }];
+  }
+  if (sort === "newest") {
+    return [liveFirst, { issueDate: "desc" }, { id: "desc" }];
+  }
+  return [liveFirst, { paymentStatus: "asc" }, { issueDate: "desc" }, { id: "desc" }];
+}
+
 export async function listInvoices(query: ListInvoicesQuery) {
   const where = {
     ...(query.leaseId ? { leaseId: query.leaseId } : {}),
     ...(query.year ? { year: query.year } : {}),
     ...(query.month ? { month: query.month } : {}),
     ...(query.paymentStatus ? { paymentStatus: query.paymentStatus } : {}),
+    ...(query.type ? { type: query.type } : {}),
     ...(query.includeVoided ? {} : { voidedAt: null }),
     ...(query.roomId || query.buildingId
       ? {
@@ -379,7 +408,7 @@ export async function listInvoices(query: ListInvoicesQuery) {
       prisma.invoice.findMany({
         where,
         include: invoiceInclude,
-        orderBy: [{ year: "asc" }, { month: "asc" }, { id: "asc" }],
+        orderBy: invoiceOrder(query.sort),
         ...toSkipTake(query),
       }),
       prisma.invoice.count({ where }),

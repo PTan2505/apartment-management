@@ -21,14 +21,16 @@ import { useBuildings } from '@/features/buildings/hooks'
 import { useRooms } from '@/features/rooms/hooks'
 import { useInvoices } from '@/features/invoices/hooks'
 import { InvoiceList } from '@/features/invoices/InvoiceList'
-import { monthLabel, recentMonths } from '@/features/invoices/labels'
-import type { PaymentStatus } from '@/features/invoices/types'
+import { INVOICE_TYPES, invoiceTypeLabel, monthLabel, recentMonths } from '@/features/invoices/labels'
+import type { InvoiceSort, InvoiceType, PaymentStatus } from '@/features/invoices/types'
 
 interface InvoiceFilters extends Record<string, string | undefined> {
   buildingId?: string
   roomId?: string
   period?: string
   paymentStatus?: string
+  type?: string
+  sort?: string
   includeVoided?: string
 }
 
@@ -37,6 +39,8 @@ const FILTER_KEYS = [
   'roomId',
   'period',
   'paymentStatus',
+  'type',
+  'sort',
   'includeVoided',
 ] as const
 
@@ -57,6 +61,8 @@ export function InvoicesPage() {
     year: Number.isFinite(year) && year ? year : undefined,
     month: Number.isFinite(month) && month ? month : undefined,
     paymentStatus: (filters.paymentStatus as PaymentStatus | undefined) || undefined,
+    type: (filters.type as InvoiceType | undefined) || undefined,
+    sort: (filters.sort as InvoiceSort | undefined) || undefined,
     includeVoided: filters.includeVoided === 'true',
   })
 
@@ -229,6 +235,48 @@ export function InvoicesPage() {
             <MenuItem value="">Tất cả tình trạng</MenuItem>
             <MenuItem value="pending">Chưa trả</MenuItem>
             <MenuItem value="paid">Đã trả</MenuItem>
+          </TextField>
+
+          {/*
+            Five kinds look identical as an amount. "Show me the one-off
+            charges" had no answer before this.
+          */}
+          <TextField
+            select
+            label="Loại hoá đơn"
+            size="small"
+            value={filters.type ?? ''}
+            onChange={(event) =>
+              setFilter('type', event.target.value === '' ? undefined : event.target.value)
+            }
+            sx={{ minWidth: 160 }}
+          >
+            <MenuItem value="">Tất cả các loại</MenuItem>
+            {INVOICE_TYPES.map((type) => (
+              <MenuItem key={type} value={type}>
+                {invoiceTypeLabel(type)}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          {/*
+            The order is a QUERY, not a table header. The list is paginated, so
+            reordering the rows on screen would sort thirty of two hundred and
+            look as though it had sorted all of them.
+          */}
+          <TextField
+            select
+            label="Sắp xếp"
+            size="small"
+            value={filters.sort ?? 'owing'}
+            onChange={(event) =>
+              setFilter('sort', event.target.value === 'owing' ? undefined : event.target.value)
+            }
+            sx={{ minWidth: 170 }}
+          >
+            <MenuItem value="owing">Cần thu trước</MenuItem>
+            <MenuItem value="newest">Mới nhất trước</MenuItem>
+            <MenuItem value="oldest">Cũ nhất trước</MenuItem>
           </TextField>
 
           <FormControlLabel
