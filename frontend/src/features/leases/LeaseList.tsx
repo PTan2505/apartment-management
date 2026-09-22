@@ -101,6 +101,29 @@ function StatusChips({ lease }: { lease: Lease }) {
 }
 
 /** What the tenancy covers, always as the last day covered — never the boundary. */
+/**
+ * The day a tenancy covers to, and which kind of day it is.
+ *
+ * "Ended in June" and "agreed to end in June" are different claims about a
+ * tenancy, and a column that flattened them would let a reader take one for
+ * the other. A cancelled tenancy gets neither: it covered no days.
+ */
+function endCell(lease: Lease): { value: string; note: string | null } {
+  if (lease.status === 'cancelled') {
+    return { value: `Huỷ ngày ${formatDate(lease.cancelledAt)}`, note: null }
+  }
+  if (lease.moveOutDate !== null) {
+    return { value: formatCoveredThrough(lease.moveOutDate), note: 'Đã trả phòng' }
+  }
+  return { value: formatCoveredThrough(lease.expectedEndDate), note: 'Theo hợp đồng' }
+}
+
+function startCell(lease: Lease): string {
+  // A cancelled tenancy never began. Printing its agreed start under a heading
+  // about occupancy would state the one thing the status denies.
+  return lease.status === 'cancelled' ? '—' : formatDate(lease.startDate)
+}
+
 function coverLabel(lease: Lease): string {
   // A cancelled tenancy covered no days at all, so it gets no range. Printing
   // its agreed dates in a column headed "Covers" would state as occupancy the
@@ -127,9 +150,16 @@ export function LeaseList({ leases, onOpen }: LeaseListProps) {
           <TableHead>
             <TableRow>
               <TableCell>Phòng</TableCell>
+              {/*
+                The building is its own column, not a suffix: two buildings may
+                each hold a room with the same code, and a reader comparing
+                rooms down the page cannot line up "Q54299A · Trọ thủ đức".
+              */}
+              <TableCell>Toà nhà</TableCell>
               <TableCell>Người đứng tên</TableCell>
               <TableCell>Giá thuê</TableCell>
-              <TableCell>Thời gian ở</TableCell>
+              <TableCell sx={{ whiteSpace: 'nowrap' }}>Bắt đầu</TableCell>
+              <TableCell sx={{ whiteSpace: 'nowrap' }}>Kết thúc</TableCell>
               <TableCell>Trạng thái</TableCell>
             </TableRow>
           </TableHead>
@@ -138,7 +168,12 @@ export function LeaseList({ leases, onOpen }: LeaseListProps) {
               <TableRow key={lease.id} hover sx={{ cursor: 'pointer' }} onClick={() => onOpen(lease)}>
                 <TableCell>
                   <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                    {roomLabel(lease)}
+                    {lease.room?.roomCode ?? `Phòng #${lease.roomId}`}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" color="text.secondary">
+                    {lease.room?.building?.displayName ?? '—'}
                   </Typography>
                 </TableCell>
                 <TableCell>
@@ -149,8 +184,16 @@ export function LeaseList({ leases, onOpen }: LeaseListProps) {
                 <TableCell>
                   <Typography variant="body2">{formatMoney(lease.baseRent)} / tháng</Typography>
                 </TableCell>
-                <TableCell>
-                  <Typography variant="body2">{coverLabel(lease)}</Typography>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                  <Typography variant="body2">{startCell(lease)}</Typography>
+                </TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                  <Typography variant="body2">{endCell(lease).value}</Typography>
+                  {endCell(lease).note && (
+                    <Typography variant="caption" color="text.secondary">
+                      {endCell(lease).note}
+                    </Typography>
+                  )}
                 </TableCell>
                 <TableCell>
                   <StatusChips lease={lease} />

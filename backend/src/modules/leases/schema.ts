@@ -177,6 +177,18 @@ export const listLeasesQuerySchema = z.object({
     .enum(["true", "false"])
     .optional()
     .transform((value) => value === "true"),
+  /*
+    Two independent bounds, each constraining its own end of a tenancy: `from`
+    the day it began, `to` the day it covers to. Given both, they mean
+    containment — the tenancies that began AND ended inside the window, which
+    is what an owner naming a window is asking for.
+
+    Deliberately not an overlap filter. A tenancy that began years earlier and
+    is still running did not begin and end inside the period; returning it
+    would answer a different question from the one the two dates ask.
+  */
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
 });
 
 export const addOccupantSchema = z.object({

@@ -159,4 +159,14 @@ export interface ListLeasesParams {
   active?: boolean
   /** Term ended with no move-out recorded. */
   overdue?: boolean
+  /**
+   * Two independent bounds on WHEN a tenancy ran.
+   *
+   * `from` — began on or after that day. `to` — ended on or before it. Given
+   * both, only tenancies contained in the window. Not an overlap filter: a
+   * tenancy that began years earlier and is still running did not begin and
+   * end inside the period.
+   */
+  from?: string
+  to?: string
 }

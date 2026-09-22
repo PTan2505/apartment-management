@@ -146,6 +146,7 @@ export function RoomsSection({
             setRestoring(room)
           }}
           onStartLease={setLettingRoom}
+          onOpenLease={(leaseId) => navigate(`/leases/${leaseId}`)}
         />
         {meta && <Pagination meta={meta} onPageChange={onPageChange} />}
       </>

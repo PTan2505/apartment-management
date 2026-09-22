@@ -12,11 +12,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 
 import { EmptyState } from "@/components/EmptyState";
-import { ContractTemplateBar } from "@/features/contract-template/ContractTemplateBar";
 import { ListSurface } from "@/components/ListSurface";
 import { PageHeader } from "@/components/PageHeader";
 import { Pagination } from "@/components/Pagination";
 import { useBuildings } from "@/features/buildings/hooks";
+import { ContractTemplateBar } from "@/features/contract-template/ContractTemplateBar";
 import { useCustomers } from "@/features/customers/hooks";
 import { useLeases, useOverdueLeaseCount } from "@/features/leases/hooks";
 import { LeaseFormDialog } from "@/features/leases/LeaseFormDialog";
@@ -32,6 +32,8 @@ interface LeaseFilters extends Record<string, string | undefined> {
   customerId?: string;
   active?: string;
   overdue?: string;
+  from?: string;
+  to?: string;
 }
 
 const FILTER_KEYS = [
@@ -40,6 +42,8 @@ const FILTER_KEYS = [
   "customerId",
   "active",
   "overdue",
+  "from",
+  "to",
 ] as const;
 
 export function LeasesPage() {
@@ -69,6 +73,8 @@ export function LeasesPage() {
     active:
       filters.active === undefined ? undefined : filters.active === "true",
     overdue: filters.overdue === "true",
+    from: filters.from || undefined,
+    to: filters.to || undefined,
   });
 
   // Every room, including let ones: the filter is for finding a room's history,
@@ -179,128 +185,176 @@ export function LeasesPage() {
       <ContractTemplateBar />
 
       <ListSurface>
-        <Box
-          sx={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 2,
-            alignItems: "start",
-            mb: 2,
-          }}
-        >
-          <TextField
-            select
-            label="Toà nhà"
-            size="small"
-            value={filters.buildingId ?? ""}
-            onChange={(event) =>
-              // Both in one update: a room belongs to one building, so changing
-              // the building leaves any chosen room pointing somewhere it is not.
-              // Two `setFilter` calls would not compose — the second computes
-              // from the params the first captured and discards its change.
-              setFilters({
-                buildingId:
+        <Box>
+          <Box
+            sx={{
+              display: "flex",
+              gap: 2,
+              alignItems: "start",
+              mb: 2,
+            }}
+          >
+            <TextField
+              select
+              label="Toà nhà"
+              size="small"
+              value={filters.buildingId ?? ""}
+              onChange={(event) =>
+                // Both in one update: a room belongs to one building, so changing
+                // the building leaves any chosen room pointing somewhere it is not.
+                // Two `setFilter` calls would not compose — the second computes
+                // from the params the first captured and discards its change.
+                setFilters({
+                  buildingId:
+                    event.target.value === "" ? undefined : event.target.value,
+                  roomId: undefined,
+                })
+              }
+              sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
+            >
+              <MenuItem value="">Tất cả toà nhà</MenuItem>
+              {(buildingsQuery.data?.data ?? []).map((building) => (
+                <MenuItem key={building.id} value={String(building.id)}>
+                  {building.displayName}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              select
+              label="Phòng"
+              size="small"
+              value={filters.roomId ?? ""}
+              onChange={(event) =>
+                setFilter(
+                  "roomId",
                   event.target.value === "" ? undefined : event.target.value,
-                roomId: undefined,
-              })
-            }
-            sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
-          >
-            <MenuItem value="">Tất cả toà nhà</MenuItem>
-            {(buildingsQuery.data?.data ?? []).map((building) => (
-              <MenuItem key={building.id} value={String(building.id)}>
-                {building.displayName}
-              </MenuItem>
-            ))}
-          </TextField>
-
-          <TextField
-            select
-            label="Phòng"
-            size="small"
-            value={filters.roomId ?? ""}
-            onChange={(event) =>
-              setFilter(
-                "roomId",
-                event.target.value === "" ? undefined : event.target.value,
-              )
-            }
-            sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
-          >
-            <MenuItem value="">Tất cả phòng</MenuItem>
-            {(roomsQuery.data?.data ?? []).map((room) => (
-              <MenuItem key={room.id} value={String(room.id)}>
-                {/* The building is established by the filter above once chosen,
+                )
+              }
+              sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
+            >
+              <MenuItem value="">Tất cả phòng</MenuItem>
+              {(roomsQuery.data?.data ?? []).map((room) => (
+                <MenuItem key={room.id} value={String(room.id)}>
+                  {/* The building is established by the filter above once chosen,
                     so repeating it on every row is noise. */}
-                {buildingId
-                  ? room.roomCode
-                  : `${room.roomCode} · ${room.building.displayName}`}
-              </MenuItem>
-            ))}
-          </TextField>
+                  {buildingId
+                    ? room.roomCode
+                    : `${room.roomCode} · ${room.building.displayName}`}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          <TextField
-            select
-            label="Người"
-            size="small"
-            value={filters.customerId ?? ""}
-            onChange={(event) =>
-              setFilter(
-                "customerId",
-                event.target.value === "" ? undefined : event.target.value,
-              )
-            }
-            // Finds every tenancy this person occupied, not only the ones they
-            // signed — which is what makes it a question about their history.
-            helperText="Bất kỳ ai từng ở, không riêng người đứng tên"
-            sx={{ minWidth: 220, flexGrow: { xs: 1, sm: 0 } }}
+            <TextField
+              select
+              label="Người"
+              size="small"
+              value={filters.customerId ?? ""}
+              onChange={(event) =>
+                setFilter(
+                  "customerId",
+                  event.target.value === "" ? undefined : event.target.value,
+                )
+              }
+              // Finds every tenancy this person occupied, not only the ones they
+              // signed — which is what makes it a question about their history.
+              helperText="Bất kỳ ai từng ở, không riêng người đứng tên"
+              sx={{ minWidth: 220, flexGrow: { xs: 1, sm: 0 } }}
+            >
+              <MenuItem value="">Bất kỳ ai</MenuItem>
+              {(customersQuery.data?.data ?? []).map((customer) => (
+                <MenuItem key={customer.id} value={String(customer.id)}>
+                  {customer.fullName}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              select
+              label="Trạng thái"
+              size="small"
+              value={filters.active ?? ""}
+              onChange={(event) =>
+                setFilter(
+                  "active",
+                  event.target.value === "" ? undefined : event.target.value,
+                )
+              }
+              sx={{ minWidth: 150 }}
+            >
+              <MenuItem value="">Tất cả</MenuItem>
+              <MenuItem value="true">Đang thuê</MenuItem>
+              <MenuItem value="false">Đã kết thúc</MenuItem>
+            </TextField>
+          </Box>
+
+          <Box
+            sx={{
+              display: "flex",
+              gap: 2,
+              alignItems: "start",
+              mb: 2,
+            }}
           >
-            <MenuItem value="">Bất kỳ ai</MenuItem>
-            {(customersQuery.data?.data ?? []).map((customer) => (
-              <MenuItem key={customer.id} value={String(customer.id)}>
-                {customer.fullName}
-              </MenuItem>
-            ))}
-          </TextField>
+            {/*
+            Two bounds, each constraining its own end of a tenancy. Said on the
+            fields themselves: "Từ ngày" alone could as easily mean "still
+            running from", and the two readings differ by every long tenancy in
+            the list.
+          */}
+            <TextField
+              label="Bắt đầu từ ngày"
+              type="date"
+              size="small"
+              value={filters.from ?? ""}
+              onChange={(event) =>
+                setFilter(
+                  "from",
+                  event.target.value === "" ? undefined : event.target.value,
+                )
+              }
+              slotProps={{ inputLabel: { shrink: true } }}
+              helperText="Hợp đồng bắt đầu từ ngày này trở đi"
+              sx={{ minWidth: 300 }}
+            />
 
-          <TextField
-            select
-            label="Trạng thái"
-            size="small"
-            value={filters.active ?? ""}
-            onChange={(event) =>
-              setFilter(
-                "active",
-                event.target.value === "" ? undefined : event.target.value,
-              )
-            }
-            sx={{ minWidth: 150 }}
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            <MenuItem value="true">Đang thuê</MenuItem>
-            <MenuItem value="false">Đã kết thúc</MenuItem>
-          </TextField>
+            <TextField
+              label="Kết thúc trước ngày"
+              type="date"
+              size="small"
+              value={filters.to ?? ""}
+              onChange={(event) =>
+                setFilter(
+                  "to",
+                  event.target.value === "" ? undefined : event.target.value,
+                )
+              }
+              slotProps={{ inputLabel: { shrink: true } }}
+              helperText="Hợp đồng kết thúc trước ngày này"
+              sx={{ minWidth: 300 }}
+            />
 
-          <FormControlLabel
-            control={
-              <Switch
-                checked={filters.overdue === "true"}
-                onChange={(event) =>
-                  setFilter(
-                    "overdue",
-                    event.target.checked ? "true" : undefined,
-                  )
-                }
-              />
-            }
-            label="Cần xử lý"
-          />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={filters.overdue === "true"}
+                  onChange={(event) =>
+                    setFilter(
+                      "overdue",
+                      event.target.checked ? "true" : undefined,
+                    )
+                  }
+                />
+              }
+              label="Cần xử lý"
+            />
 
-          {hasFilters && (
-            <Button onClick={clearFilters} size="small">
-              Xoá bộ lọc
-            </Button>
-          )}
+            {hasFilters && (
+              <Button onClick={clearFilters} size="small">
+                Xoá bộ lọc
+              </Button>
+            )}
+          </Box>
         </Box>
 
         {/*

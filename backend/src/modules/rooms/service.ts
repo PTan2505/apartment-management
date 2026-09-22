@@ -4,6 +4,9 @@ import { findLatestKnownReading } from "@/lib/meter-history.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import { inServiceWhere } from "@/modules/buildings/service.js";
 import { HOLDS_ITS_ROOM } from "@/modules/leases/occupancy.js";
+// The same arithmetic the lease's own expected end uses. Computed in one place
+// so a room and its tenancy can never disagree about the day it comes free.
+import { addMonths } from "@/modules/leases/mapper.js";
 import type { CreateRoomInput, ListRoomsQuery, UpdateRoomInput } from "./schema.js";
 
 /**
@@ -47,12 +50,17 @@ const roomSelect = {
    */
   leases: {
     where: HOLDS_ITS_ROOM,
-    select: { id: true },
+    // The id and the dates the end is computed from — and nothing else. A
+    // room must not carry the tenancy's terms, tenant or rent: that is the
+    // tenancy's own record, and a copy of it goes stale on the first change.
+    select: { id: true, startDate: true, durationMonths: true, moveOutDate: true },
     take: 1,
   },
 } as const;
 
-type SelectedRoom = { leases: { id: number }[] };
+type SelectedRoom = {
+  leases: { id: number; startDate: Date; durationMonths: number; moveOutDate: Date | null }[];
+};
 
 /**
  * Turns the fetched tenancy into the fact a caller wants.
@@ -68,7 +76,29 @@ type SelectedRoom = { leases: { id: number }[] };
  * living in.
  */
 function toRoom<T extends SelectedRoom>({ leases, ...room }: T) {
-  return { ...room, isLet: leases.length > 0 };
+  const holding = leases[0];
+  return {
+    ...room,
+    isLet: holding !== undefined,
+    /*
+      Which tenancy holds it, and the day it comes free.
+
+      Two facts, not a copy of the tenancy. They are what a rooms screen cannot
+      answer without them — "when does this room come free" and "which tenancy
+      is in it" — and the alternative is one request per row, which is the thing
+      a listing exists to avoid. Everything else about that tenancy is a click
+      away through the id.
+
+      The end is the agreed one here: a room is let, so no move-out has been
+      recorded. `moveOutDate` is selected anyway so the shape does not depend on
+      the filter above staying what it is.
+    */
+    currentLeaseId: holding?.id ?? null,
+    freeFrom:
+      holding === undefined
+        ? null
+        : (holding.moveOutDate ?? addMonths(holding.startDate, holding.durationMonths)),
+  };
 }
 
 /**

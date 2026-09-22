@@ -391,12 +391,62 @@ async function overdueLeaseIds(): Promise<number[]> {
   return rows.map((row) => row.id);
 }
 
+/**
+ * The ids of RUNNING tenancies whose agreed end falls on or before a date.
+ *
+ * `expectedEndDate` is not a column: it is `startDate` plus `durationMonths`,
+ * computed in the mapper. Prisma cannot compare against arithmetic over two
+ * columns, and neither a per-row filter in JavaScript nor a fetch-then-slice
+ * would survive pagination — the page would be filtered after it was chosen.
+ *
+ * So the arithmetic happens where the rows are. One extra query, only when a
+ * to-bound is given, over the tenancies that are still open.
+ */
+async function openLeasesEndingBy(to: Date): Promise<number[]> {
+  const rows = await prisma.$queryRaw<{ id: number }[]>`
+    SELECT "id" FROM "Lease"
+    WHERE "moveOutDate" IS NULL
+      AND "cancelledAt" IS NULL
+      AND "startDate" + make_interval(months => "durationMonths") <= ${to}
+  `;
+  return rows.map((row) => row.id);
+}
+
+/**
+ * The two date bounds, as a `where` fragment.
+ *
+ * `from` compares `startDate`. `to` compares the day the tenancy COVERS TO,
+ * which is the recorded move-out where there is one and the agreed end
+ * otherwise — a tenancy that left in June ended in June, whatever it agreed.
+ *
+ * A CANCELLED tenancy matches neither bound. It covered no days, so its dates
+ * describe an agreement rather than an occupancy, and placing it inside a
+ * period would assert the one thing that status denies.
+ */
+async function periodWhere(query: ListLeasesQuery): Promise<Prisma.LeaseWhereInput> {
+  if (query.from === undefined && query.to === undefined) return {};
+
+  return {
+    cancelledAt: null,
+    ...(query.from ? { startDate: { gte: query.from } } : {}),
+    ...(query.to
+      ? {
+          OR: [
+            { moveOutDate: { not: null, lte: query.to } },
+            { id: { in: await openLeasesEndingBy(query.to) } },
+          ],
+        }
+      : {}),
+  };
+}
+
 export async function listLeases(query: ListLeasesQuery) {
   // Resolved before the where clause is built, so it composes with every other
   // filter rather than replacing them.
   const overdueIds = query.overdue ? await overdueLeaseIds() : null;
 
   const where = {
+    ...(await periodWhere(query)),
     ...(query.roomId ? { roomId: query.roomId } : {}),
     // Narrows through the room rather than duplicating a building id onto the
     // lease. Combines with `roomId`: naming both is a room within a building,

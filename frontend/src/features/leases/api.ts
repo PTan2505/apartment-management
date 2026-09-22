@@ -13,6 +13,8 @@ function toQuery(params: ListLeasesParams): Record<string, string | number> {
   // Absent means both running and ended, so only a decided value is sent.
   if (params.active !== undefined) query.active = params.active ? 'true' : 'false'
   if (params.overdue) query.overdue = 'true'
+  if (params.from) query.from = params.from
+  if (params.to) query.to = params.to
   return query
 }
 

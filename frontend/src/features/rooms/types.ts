@@ -41,6 +41,15 @@ export interface Room {
    * tenancy.
    */
   isLet: boolean
+  /**
+   * The tenancy holding this room, and the day it comes free.
+   *
+   * An identifier and a date, never the tenancy's terms or its tenant: those
+   * belong to the tenancy, and a copy would go stale on the first change. Null
+   * on a room that is not let.
+   */
+  currentLeaseId: number | null
+  freeFrom: string | null
   createdAt: string
   updatedAt: string
 }

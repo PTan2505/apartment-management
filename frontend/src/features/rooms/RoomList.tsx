@@ -12,6 +12,9 @@ import TableRow from '@mui/material/TableRow'
 import Typography from '@mui/material/Typography'
 
 import { formatMoney } from '@/lib/format'
+// The same "last day covered" rendering the tenancy screens use: a stored end
+// is the first day NOT covered, so showing it raw would be a day late.
+import { formatCoveredThrough } from '@/features/leases/dates'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
 import { RoomRowActions } from '@/features/rooms/RoomRowActions'
 import type { Room } from '@/features/rooms/types'
@@ -28,6 +31,15 @@ interface RoomListProps {
   onRetire: (room: Room) => void
   onRestore: (room: Room) => void
   onStartLease: (room: Room) => void
+  /**
+   * Opening a room that is LET opens the tenancy holding it.
+   *
+   * Nothing an owner clicking a let room wants is on the room's own record —
+   * the terms, the tenant, the bills and the dates are all on the tenancy, and
+   * the room is how they got there. A vacant room has no tenancy to open, so
+   * its row stays inert.
+   */
+  onOpenLease: (leaseId: number) => void
 }
 
 function RetiredChip() {
@@ -67,6 +79,7 @@ export function RoomList({
   onRetire,
   onRestore,
   onStartLease,
+  onOpenLease,
 }: RoomListProps) {
   const actions = (room: Room) => (
     <RoomRowActions
@@ -88,13 +101,29 @@ export function RoomList({
               <TableCell>Phòng</TableCell>
               {!hideBuilding && <TableCell>Toà nhà</TableCell>}
               <TableCell>Giá thuê</TableCell>
+              {/*
+                "Đang thuê" says whether the room is free today. This says WHEN
+                — the question an owner has in front of a waiting tenant, and
+                one they could otherwise answer only by looking the room up in
+                the tenancy list.
+              */}
+              <TableCell sx={{ whiteSpace: 'nowrap' }}>Trả phòng</TableCell>
               <TableCell>Trạng thái</TableCell>
               <TableCell align="right">Thao tác</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {rooms.map((room) => (
-              <TableRow key={room.id} hover>
+              <TableRow
+                key={room.id}
+                hover
+                sx={room.currentLeaseId ? { cursor: 'pointer' } : undefined}
+                onClick={
+                  room.currentLeaseId
+                    ? () => onOpenLease(room.currentLeaseId!)
+                    : undefined
+                }
+              >
                 <TableCell>
                   <Typography variant="body2" sx={{ fontWeight: 500 }}>
                     {room.roomCode}
@@ -108,6 +137,11 @@ export function RoomList({
                 <TableCell>
                   <Typography variant="body2">{formatMoney(room.baseRent)} / tháng</Typography>
                 </TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    {room.freeFrom ? formatCoveredThrough(room.freeFrom) : '—'}
+                  </Typography>
+                </TableCell>
                 <TableCell>
                   <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
                     {room.isActive ? (
@@ -118,7 +152,11 @@ export function RoomList({
                     {room.isActive && <OccupancyChip isLet={room.isLet} />}
                   </Stack>
                 </TableCell>
-                <TableCell align="right">{actions(room)}</TableCell>
+                {/* The actions are their own targets; a click here is not a
+                    click on the row. */}
+                <TableCell align="right" onClick={(event) => event.stopPropagation()}>
+                  {actions(room)}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -128,7 +166,12 @@ export function RoomList({
       {/* Phone */}
       <Stack spacing={1.5} sx={{ display: { xs: 'flex', [MOBILE_BREAKPOINT]: 'none' } }}>
         {rooms.map((room) => (
-          <Card key={room.id} variant="outlined">
+          <Card
+            key={room.id}
+            variant="outlined"
+            sx={room.currentLeaseId ? { cursor: 'pointer' } : undefined}
+            onClick={room.currentLeaseId ? () => onOpenLease(room.currentLeaseId!) : undefined}
+          >
             <CardContent sx={{ pb: 1.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
                 <Box sx={{ minWidth: 0, flexGrow: 1 }}>
@@ -141,11 +184,17 @@ export function RoomList({
                     </Typography>
                   )}
                   <Typography variant="body2">{formatMoney(room.baseRent)} / tháng</Typography>
+                  {room.freeFrom && (
+                    <Typography variant="body2" color="text.secondary">
+                      Trả phòng {formatCoveredThrough(room.freeFrom)}
+                    </Typography>
+                  )}
                 </Box>
                 <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
                   {!room.isActive && <RetiredChip />}
                   {room.isActive && <OccupancyChip isLet={room.isLet} />}
-                  {actions(room)}
+                  {/* Their own targets, not the card's. */}
+                  <Box onClick={(event) => event.stopPropagation()}>{actions(room)}</Box>
                 </Stack>
               </Box>
             </CardContent>
