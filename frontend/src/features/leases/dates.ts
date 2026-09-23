@@ -121,6 +121,51 @@ export function remainingTerm(lease: {
   return { months, days }
 }
 
+/**
+ * How long a tenancy has been past its agreed term, in the same units.
+ *
+ * Counted from the last day covered, like everything else here: a tenancy
+ * covered through the 30th is one day past its term on the 1st, not zero. The
+ * state decides whether to count at all — it is the API that says a tenancy is
+ * overdue, and working it out again from the dates would let this figure and
+ * the chip beside it disagree.
+ */
+export function overdueTerm(lease: {
+  status: LeaseStatus
+  expectedEndDate: string
+}): { months: number; days: number } | null {
+  if (lease.status !== 'overdue') return null
+
+  const end = coveredThrough(lease.expectedEndDate)
+  const now = new Date()
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  if (end.getTime() >= today) return null
+
+  let months = 0
+  const cursor = new Date(end)
+  for (;;) {
+    const next = new Date(cursor)
+    next.setUTCMonth(next.getUTCMonth() + 1)
+    if (next.getTime() > today) break
+    cursor.setTime(next.getTime())
+    months += 1
+  }
+  const days = Math.round((today - cursor.getTime()) / (24 * 60 * 60 * 1000))
+  return { months, days }
+}
+
+/** How long past its term, as an owner would say it, or null when it is not. */
+export function formatOverdueTerm(lease: {
+  status: LeaseStatus
+  expectedEndDate: string
+}): string | null {
+  const past = overdueTerm(lease)
+  if (past === null) return null
+  if (past.months === 0) return `Quá hạn ${past.days} ngày`
+  if (past.days === 0) return `Quá hạn ${past.months} tháng`
+  return `Quá hạn ${past.months} tháng ${past.days} ngày`
+}
+
 /** The remaining term as an owner would say it, or null when there is none. */
 export function formatRemainingTerm(lease: {
   status: LeaseStatus

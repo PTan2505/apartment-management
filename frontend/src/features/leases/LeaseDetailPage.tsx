@@ -29,6 +29,7 @@ import {
   departureAgainstTerm,
   formatCoveredThrough,
   formatDate,
+  formatOverdueTerm,
   formatRemainingTerm,
   isTermRunOut,
 } from '@/features/leases/dates'
@@ -101,7 +102,19 @@ function BandFact({ label, value }: { label: string; value: string }) {
  * down a list of equal-weight rows is a summary the screen declined to give.
  */
 function SummaryBand({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
-  const remaining = formatRemainingTerm(lease)
+  /*
+    How near the end it is, or how far past it — the same measurement pointing
+    two ways, so one field says both. Emphasised only in the two states that
+    need acting on: a mark that applies to every tenancy marks none of them.
+  */
+  const standing = formatOverdueTerm(lease) ?? formatRemainingTerm(lease)
+  const standingColor =
+    lease.status === 'overdue'
+      ? 'error.main'
+      : lease.status === 'dueSoon'
+        ? 'warning.main'
+        : 'text.primary'
+  const standingEmphasis = lease.status === 'overdue' || lease.status === 'dueSoon'
   const tenantName =
     lease.tenant?.fullName ??
     (isLive(lease.status) ? 'Chưa ai đứng tên' : 'Không có người đứng tên')
@@ -179,17 +192,26 @@ function SummaryBand({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
             sx={{ alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', rowGap: 1 }}
           >
             {/*
-              Only while the tenancy is running. "Còn 0 tháng" on a tenancy that
-              ended in March states something false, and there is no honest
-              number to put here — so there is no field.
+              Only while the tenancy is live. "Còn 0 tháng" on a tenancy that
+              ended in March states something false, and "quá hạn" on one that
+              was handed back states something falser — so there is no field.
             */}
-            {remaining !== null && (
+            {standing !== null && (
               <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
+                {/*
+                  One label for both readings. "Thời hạn" would collide with the
+                  field of that name in the terms card below, which says how
+                  many months were agreed — a different fact entirely.
+                */}
                 <Typography variant="overline" color="text.secondary">
                   Thời gian hiệu lực
                 </Typography>
-                <Typography variant="h6" component="p">
-                  {remaining}
+                <Typography
+                  variant="h6"
+                  component="p"
+                  sx={{ color: standingColor, fontWeight: standingEmphasis ? 700 : undefined }}
+                >
+                  {standing}
                 </Typography>
               </Box>
             )}
