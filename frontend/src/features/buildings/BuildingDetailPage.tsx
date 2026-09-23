@@ -11,7 +11,6 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { Link as RouterLink, useParams } from 'react-router'
 
 import { CreateRoomButton } from '@/features/rooms/CreateRoomButton'
-import { PageHeader } from '@/components/PageHeader'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
 import type { Building } from '@/features/buildings/types'
 import { ListSurface } from '@/components/ListSurface'
@@ -123,11 +122,26 @@ export function BuildingDetailPage() {
 
       <Divider sx={{ my: 3 }} />
 
-      <PageHeader
-        title="Phòng"
-        level="h3"
-        action={<CreateRoomButton buildingId={building.id} />}
-      />
+      {/*
+        Kept, where the page titles were dropped: this one names a SECTION
+        inside a page rather than the page. The shell's own title says "Toà
+        nhà", so nothing else on the screen says what the table below is.
+      */}
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 1,
+          flexWrap: 'wrap',
+          mb: 2,
+        }}
+      >
+        <Typography variant="h6" component="h3">
+          Phòng
+        </Typography>
+        <CreateRoomButton buildingId={building.id} />
+      </Box>
 
       {/*
         The four figures an owner opens a building for, above the table rather

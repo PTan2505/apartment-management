@@ -51,7 +51,6 @@ export function RoomsPage() {
   return (
     <Box>
       <PageHeader
-        title="Phòng"
         action={
           <CreateRoomButton
             onCreated={() => {

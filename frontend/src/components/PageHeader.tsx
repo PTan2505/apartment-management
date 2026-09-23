@@ -1,17 +1,13 @@
-import type { ReactNode } from 'react'
-import Box from '@mui/material/Box'
-import Typography from '@mui/material/Typography'
+import Box from "@mui/material/Box";
+import type { ReactNode } from "react";
 
 interface PageHeaderProps {
-  title: string
-  /** The one thing this screen exists to add. Right of the title, on every screen. */
-  action?: ReactNode
-  /** `h2` on a page of its own; `h3` for a section inside a page. */
-  level?: 'h2' | 'h3'
+  /** The one thing this screen exists to add. Top right, on every screen. */
+  action?: ReactNode;
 }
 
 /**
- * The title row every list screen opens with.
+ * The row every list screen opens with.
  *
  * Its job is the action's POSITION. Before this, the button to add something
  * sat in three different places depending on the screen — beside the title on
@@ -19,25 +15,24 @@ interface PageHeaderProps {
  * tenancies, and tucked at the end of the filter row on customers — so the
  * first thing an owner does on a screen was somewhere new each time.
  *
- * It wraps rather than shrinks at phone width: the button keeps its label, and
- * drops under the title when there is no room beside it.
+ * It no longer carries a title: the shell already names the page in the bar
+ * above, and the two said the same word twice on every screen.
+ *
+ * It wraps rather than shrinks at phone width, so the button keeps its label.
  */
-export function PageHeader({ title, action, level = 'h2' }: PageHeaderProps) {
+export function PageHeader({ action }: PageHeaderProps) {
   return (
     <Box
       sx={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        display: "flex",
+        justifyContent: "end",
+        alignItems: "center",
         gap: 1,
-        flexWrap: 'wrap',
+        flexWrap: "wrap",
         mb: 2,
       }}
     >
-      <Typography variant={level === 'h2' ? 'h5' : 'h6'} component={level}>
-        {title}
-      </Typography>
       {action}
     </Box>
-  )
+  );
 }

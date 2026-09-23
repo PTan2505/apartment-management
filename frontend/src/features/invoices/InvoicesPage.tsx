@@ -144,7 +144,6 @@ export function InvoicesPage() {
   return (
     <Box>
       <PageHeader
-        title="Hoá đơn"
         action={
           <Button
             variant="contained"

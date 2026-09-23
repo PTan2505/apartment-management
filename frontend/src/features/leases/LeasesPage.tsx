@@ -223,7 +223,6 @@ export function LeasesPage() {
   return (
     <Box>
       <PageHeader
-        title="Hợp đồng"
         action={
           <Button
             variant="contained"

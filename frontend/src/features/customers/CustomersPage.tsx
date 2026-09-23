@@ -127,7 +127,6 @@ export function CustomersPage() {
   return (
     <Box>
       <PageHeader
-        title="Khách"
         action={
           <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
             Thêm khách

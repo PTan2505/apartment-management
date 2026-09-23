@@ -74,7 +74,6 @@ export function BuildingsPage() {
 
   const header = (
     <PageHeader
-      title="Toà nhà"
       action={
         <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
           Thêm toà nhà
