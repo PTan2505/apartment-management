@@ -15,7 +15,8 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 
 import { formatMoney } from '@/lib/format'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
-import { formatCoveredThrough, formatDate, isTermRunOut } from '@/features/leases/dates'
+import { formatCoveredThrough, formatDate } from '@/features/leases/dates'
+import { isLive, leaseStatusColor, leaseStatusLabel } from '@/features/leases/status'
 import type { Lease } from '@/features/leases/types'
 
 interface LeaseListProps {
@@ -43,59 +44,32 @@ function roomLabel(lease: Lease): string {
  */
 function tenantLabel(lease: Lease): string {
   if (lease.tenant?.fullName) return lease.tenant.fullName
-  return lease.status === 'active' ? 'Chưa ai đứng tên' : 'Không có người đứng tên'
+  return isLive(lease.status) ? 'Chưa ai đứng tên' : 'Không có người đứng tên'
 }
 
 function tenantColor(lease: Lease): 'text.primary' | 'text.secondary' | 'warning.main' {
   if (lease.tenant?.fullName) return 'text.primary'
-  return lease.status === 'active' ? 'warning.main' : 'text.secondary'
+  return isLive(lease.status) ? 'warning.main' : 'text.secondary'
 }
 
 /**
- * The status of a tenancy, and the one thing that has to be visible without
- * being asked for.
- *
- * A running tenancy whose agreed term has passed with no move-out needs
- * attention and nothing announces it: no further invoice can be issued against
- * it, and its room stays held against a new tenancy. It is marked here, in the
- * list, rather than only being reachable through a filter — a filter finds
- * these for an owner who already suspects they exist, which is precisely the
- * owner who does not need finding them.
+ * The status of a tenancy — the one thing that has to be visible without being
+ * asked for, so it is a chip on every row rather than something a filter finds.
+ * A filter finds these for an owner who already suspects they exist, which is
+ * precisely the owner who does not need finding them.
  */
 function StatusChips({ lease }: { lease: Lease }) {
   return (
     <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-      {/*
-        Three labels, not two. A cancelled tenancy shown as "Ended" would be
-        counted among the times a room was let and a person rented — history
-        that never happened, and unrecoverable once it reads that way.
-      */}
       <Chip
         size="small"
-        label={
-          lease.status === 'active'
-            ? 'Đang thuê'
-            : lease.status === 'cancelled'
-              ? 'Đã huỷ'
-              : 'Đã kết thúc'
+        label={leaseStatusLabel(lease.status)}
+        color={leaseStatusColor(lease.status)}
+        variant={
+          lease.status === 'finalized' || lease.status === 'upcoming' ? 'outlined' : 'filled'
         }
-        color={
-          lease.status === 'active'
-            ? 'success'
-            : lease.status === 'cancelled'
-              ? 'error'
-              : 'default'
-        }
-        variant={lease.status === 'finalized' ? 'outlined' : 'filled'}
+        icon={lease.status === 'overdue' ? <WarningAmberIcon /> : undefined}
       />
-      {isTermRunOut(lease) && (
-        <Chip
-          size="small"
-          color="warning"
-          icon={<WarningAmberIcon />}
-          label="Hết hạn"
-        />
-      )}
     </Stack>
   )
 }

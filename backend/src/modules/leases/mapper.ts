@@ -23,29 +23,73 @@ export function addMonths(date: Date, months: number): Date {
 }
 
 /**
- * Three states, not two. A tenancy that never took place is not one that ran
- * and ended: reporting them alike presents as history something that never
- * happened, inflating how many tenancies a room has had and how many a person
- * has held.
+ * How close to its end a tenancy has to be before it counts as due soon.
+ *
+ * Fourteen days: the window in which an owner still has time to ask whether the
+ * tenant is staying and to look for another if not. Defined once, and used by
+ * both the status below and the listing's order, so the two cannot disagree
+ * about which tenancy is which.
  */
-export type LeaseStatus = "active" | "finalized" | "cancelled";
+export const DUE_SOON_DAYS = 14;
 
 /**
- * Derived from the two dates rather than stored, which is what stops a status
- * from contradicting the rows it comes from.
+ * Six states, not three. Each distinction is one an owner acts on differently.
+ *
+ * A tenancy that never took place is not one that ran and ended: reporting them
+ * alike presents as history something that never happened.
+ *
+ * And three states hid inside "active". A tenancy whose term ran out with no
+ * move-out recorded still holds its room and can no longer be billed, while
+ * reading as an ordinary running one. A tenancy ending next week read the same
+ * as one ending next year. A tenancy signed for next month read as though
+ * somebody were already living there.
+ */
+export type LeaseStatus =
+  | "overdue"
+  | "dueSoon"
+  | "active"
+  | "upcoming"
+  | "finalized"
+  | "cancelled";
+
+/**
+ * Derived from the dates rather than stored, which is what stops a status from
+ * contradicting the rows it comes from — and here it is more than the usual
+ * argument: every one of these is a question about TODAY. A tenancy moves from
+ * active to due soon to overdue with nothing being written, so a stored column
+ * would be wrong every morning until something touched it.
  *
  * Cancellation wins where both are somehow set. It cannot happen — cancelling
  * is refused on a lease that recorded a move-out, and vice versa — but a
  * precedence has to exist, and "never took place" is the stronger claim.
  */
-export function leaseStatus(lease: {
-  moveOutDate: Date | null;
-  cancelledAt: Date | null;
-}): LeaseStatus {
+export function leaseStatus(
+  lease: {
+    startDate: Date;
+    durationMonths: number;
+    moveOutDate: Date | null;
+    cancelledAt: Date | null;
+  },
+  now: Date = new Date(),
+): LeaseStatus {
   if (lease.cancelledAt !== null) {
     return "cancelled";
   }
-  return lease.moveOutDate === null ? "active" : "finalized";
+  if (lease.moveOutDate !== null) {
+    return "finalized";
+  }
+  if (lease.startDate > now) {
+    return "upcoming";
+  }
+
+  // The term end is the first day NO LONGER covered, so a tenancy whose end is
+  // today has already run out — the same exclusive reading billing uses.
+  const termEnd = addMonths(lease.startDate, lease.durationMonths);
+  if (termEnd <= now) {
+    return "overdue";
+  }
+  const dueSoonFrom = new Date(now.getTime() + DUE_SOON_DAYS * 24 * 60 * 60 * 1000);
+  return termEnd <= dueSoonFrom ? "dueSoon" : "active";
 }
 
 interface OccupantRow {
@@ -243,8 +287,19 @@ export function toLeaseResponse(lease: LeaseRow) {
      * that offers an action the API refuses is the visible half of that; the
      * invisible half is a screen that hides one the API would have allowed.
      */
+    /*
+      Any tenancy that has not ended and was not already cancelled, and that has
+      never been billed for a month it occupied.
+
+      Written against the two facts rather than against `status === "active"`:
+      once "active" split into four, that test silently excluded a tenancy
+      signed for next month — the very case cancellation exists for — and an
+      overdue one, which can also turn out never to have been moved into.
+    */
     cancellable:
-      status === "active" && (lease.invoices?.length ?? 0) === 0,
+      lease.cancelledAt === null &&
+      lease.moveOutDate === null &&
+      (lease.invoices?.length ?? 0) === 0,
     /**
      * Whether the signed contract is on file — not WHERE it is.
      *

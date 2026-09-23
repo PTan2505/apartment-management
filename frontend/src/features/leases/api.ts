@@ -10,9 +10,8 @@ function toQuery(params: ListLeasesParams): Record<string, string | number> {
   if (params.roomId) query.roomId = params.roomId
   if (params.buildingId) query.buildingId = params.buildingId
   if (params.customerId) query.customerId = params.customerId
-  // Absent means both running and ended, so only a decided value is sent.
-  if (params.active !== undefined) query.active = params.active ? 'true' : 'false'
-  if (params.overdue) query.overdue = 'true'
+  // Absent means every state, so only a chosen one is sent.
+  if (params.status) query.status = params.status
   if (params.from) query.from = params.from
   if (params.to) query.to = params.to
   return query

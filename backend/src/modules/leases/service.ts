@@ -16,7 +16,7 @@ import {
   issueOverdueInvoice,
 } from "@/modules/invoices/issue.js";
 import { carryHolding, deductFromDeposit } from "@/modules/deposits/holding.js";
-import { addMonths } from "./mapper.js";
+import { addMonths, DUE_SOON_DAYS } from "./mapper.js";
 import { HOLDS_ITS_ROOM, roomOccupiedBy } from "./occupancy.js";
 import type {
   AddOccupantInput,
@@ -440,10 +440,109 @@ async function periodWhere(query: ListLeasesQuery): Promise<Prisma.LeaseWhereInp
   };
 }
 
+/**
+ * One page of lease ids, in the order the screen needs them.
+ *
+ * ── Why this is SQL and not an `orderBy` ────────────────────────────────────
+ *
+ * The order is by STATE — overdue, then due soon, then running, then upcoming,
+ * finished, cancelled — and by how little time is left within the first three.
+ * Neither is a column: the state comes from three dates compared against today,
+ * and the time left from `startDate + durationMonths`. Prisma can order by
+ * columns, not by arithmetic over them or by a rank derived from them.
+ *
+ * ── Why the first three share one key ───────────────────────────────────────
+ *
+ * They are one sequence by term end: overdue ended before today, due-soon ends
+ * within the window, running ends later. Sorting them by term end ascending
+ * produces exactly that order, and "least time left first" inside each group
+ * falls out of the same key. So the rank distinguishes four things, not six.
+ *
+ * ── Why the ids come from Prisma first ──────────────────────────────────────
+ *
+ * The filters — building, room, occupant, period — already exist there, with
+ * their joins right. Rewriting them in SQL would put the same rules in two
+ * places, and the copies would drift. So Prisma decides WHICH leases, and this
+ * decides in what order they come back.
+ */
+async function orderedPage(
+  ids: number[],
+  status: ListLeasesQuery["status"],
+  skip: number,
+  take: number,
+): Promise<number[]> {
+  if (ids.length === 0) return [];
+
+  const rows = await prisma.$queryRaw<{ id: number }[]>`
+    WITH ranked AS (
+      SELECT
+        "id",
+        "createdAt",
+        "startDate" + make_interval(months => "durationMonths") AS term_end,
+        CASE
+          WHEN "cancelledAt" IS NOT NULL THEN 6
+          WHEN "moveOutDate" IS NOT NULL THEN 5
+          WHEN "startDate" > now() THEN 4
+          ELSE 1
+        END AS rank
+      FROM "Lease"
+      WHERE "id" = ANY(${ids})
+    )
+    SELECT "id" FROM ranked
+    WHERE ${status ?? null}::text IS NULL OR rank = CASE
+      WHEN ${status ?? null}::text IN ('overdue', 'dueSoon', 'active') THEN 1
+      WHEN ${status ?? null}::text = 'upcoming' THEN 4
+      WHEN ${status ?? null}::text = 'finalized' THEN 5
+      ELSE 6
+    END
+    ORDER BY
+      rank ASC,
+      -- The running sequence orders by when it ends; everything else by when it
+      -- was signed. The id comes last, so the order is TOTAL: without a final
+      -- tiebreak two rows tying on every key have no defined order, and the
+      -- database may return them differently per page: one row on two pages, or none.
+      CASE WHEN rank = 1 THEN term_end END ASC,
+      CASE WHEN rank <> 1 THEN "createdAt" END DESC,
+      "id" DESC
+    OFFSET ${skip} LIMIT ${take}
+  `;
+  return rows.map((row) => row.id);
+}
+
+/**
+ * The ids of leases in one of the three RUNNING states, which the rank above
+ * cannot tell apart on its own — it groups them as one.
+ *
+ * Same arithmetic as the status in the mapper, and the same window, so a lease
+ * cannot be listed as due soon while its own row says otherwise.
+ */
+async function runningStateIds(state: "overdue" | "dueSoon" | "active"): Promise<number[]> {
+  const rows = await prisma.$queryRaw<{ id: number }[]>`
+    SELECT "id" FROM "Lease"
+    WHERE "cancelledAt" IS NULL
+      AND "moveOutDate" IS NULL
+      AND "startDate" <= now()
+      AND CASE
+        WHEN ${state} = 'overdue'
+          THEN "startDate" + make_interval(months => "durationMonths") <= now()
+        WHEN ${state} = 'dueSoon'
+          THEN "startDate" + make_interval(months => "durationMonths") > now()
+           AND "startDate" + make_interval(months => "durationMonths")
+               <= now() + make_interval(days => ${DUE_SOON_DAYS})
+        ELSE "startDate" + make_interval(months => "durationMonths")
+             > now() + make_interval(days => ${DUE_SOON_DAYS})
+      END
+  `;
+  return rows.map((row) => row.id);
+}
+
 export async function listLeases(query: ListLeasesQuery) {
-  // Resolved before the where clause is built, so it composes with every other
-  // filter rather than replacing them.
-  const overdueIds = query.overdue ? await overdueLeaseIds() : null;
+  // The three running states are not distinguishable by the rank alone, so
+  // their ids are resolved first and composed with every other filter.
+  const stateIds =
+    query.status === "overdue" || query.status === "dueSoon" || query.status === "active"
+      ? await runningStateIds(query.status)
+      : null;
 
   const where = {
     ...(await periodWhere(query)),
@@ -453,34 +552,41 @@ export async function listLeases(query: ListLeasesQuery) {
     // which matches nothing if they disagree — correct, and better than
     // silently ignoring one of them.
     ...(query.buildingId ? { room: { buildingId: query.buildingId } } : {}),
-    // "Active" is the running tenancies — which a cancelled one is not, so it
-    // falls on the same side of this filter as one that ended.
-    ...(query.active === undefined
-      ? {}
-      : query.active
-        ? HOLDS_ITS_ROOM
-        : { OR: [{ moveOutDate: { not: null } }, { cancelledAt: { not: null } }] }),
     // Matches any lease the person occupied, primary or not.
     ...(query.customerId ? { occupants: { some: { userId: query.customerId } } } : {}),
-    ...(overdueIds === null ? {} : { id: { in: overdueIds } }),
+    ...(query.status === "finalized" ? { moveOutDate: { not: null }, cancelledAt: null } : {}),
+    ...(query.status === "cancelled" ? { cancelledAt: { not: null } } : {}),
+    ...(query.status === "upcoming"
+      ? { ...HOLDS_ITS_ROOM, startDate: { gt: new Date() } }
+      : {}),
+    ...(stateIds === null ? {} : { id: { in: stateIds } }),
   };
 
-  return paginate(
-    query,
-    prisma.lease.findMany({
-      where,
-      include: leaseInclude,
-      // Most recently begun first: the tenancy an owner has just signed, or is
-      // about to act on, is the recent one. `createdAt` breaks a tie so the
-      // order is TOTAL — without a tiebreak, two leases sharing a start date
-      // have no defined order between them, and the database is free to return
-      // them differently for each page. A row can then appear on two pages, or
-      // on none.
-      orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
-      ...toSkipTake(query),
-    }),
-    prisma.lease.count({ where }),
+  const matching = await prisma.lease.findMany({ where, select: { id: true } });
+  const ids = await orderedPage(
+    matching.map((row) => row.id),
+    query.status,
+    (query.page - 1) * query.pageSize,
+    query.pageSize,
   );
+
+  const rows = await prisma.lease.findMany({ where: { id: { in: ids } }, include: leaseInclude });
+  // `findMany` answers in its own order, so the page is put back into the order
+  // it was chosen in — otherwise the ranking above would be thrown away here.
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const page = ids.map((id) => byId.get(id)!).filter(Boolean);
+
+  // Rows, not responses: the controller maps them, as it does for every other
+  // listing. Mapping here too would shape them twice.
+  return {
+    data: page,
+    meta: {
+      page: query.page,
+      pageSize: query.pageSize,
+      total: matching.length,
+      totalPages: matching.length === 0 ? 0 : Math.ceil(matching.length / query.pageSize),
+    },
+  };
 }
 
 export async function getLeaseById(id: number) {

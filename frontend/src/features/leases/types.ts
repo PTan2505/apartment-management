@@ -26,7 +26,13 @@ export interface LeaseTenant {
  * and ended, and showing them alike presents as history something that never
  * happened.
  */
-export type LeaseStatus = 'active' | 'finalized' | 'cancelled'
+export type LeaseStatus =
+  | 'overdue'
+  | 'dueSoon'
+  | 'active'
+  | 'upcoming'
+  | 'finalized'
+  | 'cancelled'
 
 export interface Lease {
   id: number
@@ -155,10 +161,13 @@ export interface ListLeasesParams {
   /** Every tenancy in a building, without naming its rooms one at a time. */
   buildingId?: number
   customerId?: number
-  /** Absent means both running and ended. */
-  active?: boolean
-  /** Term ended with no move-out recorded. */
-  overdue?: boolean
+  /**
+   * One of the six states. Absent means every state.
+   *
+   * Replaces the `active` boolean and the `overdue` one: both were filters
+   * standing in for a status the row could not report.
+   */
+  status?: LeaseStatus
   /**
    * Two independent bounds on WHEN a tenancy ran.
    *

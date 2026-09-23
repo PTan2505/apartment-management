@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as leasesApi from '@/features/leases/api'
 import type { CreateLeaseFormOutput, UpdateLeaseFormOutput } from '@/features/leases/schema'
-import type { ListLeasesParams } from '@/features/leases/types'
+import type { LeaseStatus, ListLeasesParams } from '@/features/leases/types'
 
 const LEASES_KEY = ['leases'] as const
 const ROOMS_KEY = ['rooms'] as const
@@ -15,20 +15,19 @@ export function useLeases(params: ListLeasesParams) {
 }
 
 /**
- * How many tenancies need attention, asked for on its own.
+ * How many tenancies are in one state, asked for on its own.
  *
- * The list marks them, but marking is not announcing: leases are ordered most
- * recently begun first, and a tenancy whose term ran out is usually an OLD one
- * — so it sinks to the last page, which is the page nobody opens. The very
- * record that needs chasing ends up the hardest to see.
+ * The list already marks each row, but marking is not announcing: a count
+ * stands where the owner is, whatever page the tenancies it counts are on.
  *
- * One row is fetched and thrown away; only `meta.total` is wanted, and the
- * shared paginated shape reports it whatever the page size.
+ * The listing itself asked with `pageSize=1` and read off `meta.total`, rather
+ * than a counting endpoint: the number has to agree with the list it leads to,
+ * and the surest way to agree with a query is to BE that query.
  */
-export function useOverdueLeaseCount() {
+export function useLeaseCount(status: LeaseStatus) {
   return useQuery({
-    queryKey: [...LEASES_KEY, 'overdue-count'],
-    queryFn: () => leasesApi.listLeases({ overdue: true, pageSize: 1 }),
+    queryKey: [...LEASES_KEY, 'count', status],
+    queryFn: () => leasesApi.listLeases({ status, pageSize: 1 }),
     select: (page) => page.meta.total,
   })
 }

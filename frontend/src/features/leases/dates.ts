@@ -1,3 +1,6 @@
+import { isLive } from '@/features/leases/status'
+import type { LeaseStatus } from '@/features/leases/types'
+
 /**
  * Turning the API's dates into the days a reader acts on.
  *
@@ -86,11 +89,14 @@ export function formatCoveredThrough(exclusiveEnd: string | null | undefined): s
  * free to disagree with the first.
  */
 export function remainingTerm(lease: {
-  status: string
+  status: LeaseStatus
   expectedEndDate: string
   moveOutDate: string | null
 }): { months: number; days: number } | null {
-  if (lease.status !== 'active' || lease.moveOutDate !== null) return null
+  // Every live tenancy, not only the ones with more than a fortnight left: a
+  // tenancy ending next week is exactly the one an owner wants the countdown
+  // for. One already past its term falls out below, where the date is checked.
+  if (!isLive(lease.status) || lease.moveOutDate !== null) return null
 
   // The last day covered, not the exclusive boundary — a tenancy running
   // through today has a day left, not none.
@@ -117,7 +123,7 @@ export function remainingTerm(lease: {
 
 /** The remaining term as an owner would say it, or null when there is none. */
 export function formatRemainingTerm(lease: {
-  status: string
+  status: LeaseStatus
   expectedEndDate: string
   moveOutDate: string | null
 }): string | null {
@@ -132,18 +138,14 @@ export function formatRemainingTerm(lease: {
 /**
  * Whether a running tenancy's agreed term has already run out.
  *
- * Judged against the same exclusive boundary the API uses for its own overdue
- * filter, so the mark shown in the list and the rows that filter returns cannot
- * disagree. A tenancy that has recorded a move-out is never overdue however
- * long ago its term ended — it has been closed, and needs nothing.
+ * Read off the state the API reports rather than recomputed from the dates.
+ * The rule — which is a decision about a boundary, not arithmetic — belongs to
+ * the server, and a second implementation of a decision is free to disagree
+ * with the first: the mark shown here and the rows `status=overdue` returns
+ * would then be answering the same question differently.
  */
-export function isTermRunOut(lease: {
-  status: string
-  expectedEndDate: string
-  moveOutDate: string | null
-}): boolean {
-  if (lease.status !== 'active' || lease.moveOutDate !== null) return false
-  return new Date(lease.expectedEndDate).getTime() <= Date.now()
+export function isTermRunOut(lease: { status: LeaseStatus }): boolean {
+  return lease.status === 'overdue'
 }
 
 /**

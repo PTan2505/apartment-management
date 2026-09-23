@@ -42,13 +42,8 @@ import { ContractCard } from '@/features/leases/ContractCard'
 import { EditTermsDialog } from '@/features/leases/EditTermsDialog'
 import { LeaseInvoicesPanel } from '@/features/leases/LeaseInvoicesPanel'
 import { OccupantsCard } from '@/features/leases/OccupantsCard'
+import { isLive, leaseStatusColor, leaseStatusLabel } from '@/features/leases/status'
 import type { Lease } from '@/features/leases/types'
-
-/** The three states a tenancy can be in, as an owner would name them. */
-function statusLabel(status: Lease['status']): string {
-  if (status === 'active') return 'Đang thuê'
-  return status === 'cancelled' ? 'Đã huỷ' : 'Đã kết thúc'
-}
 
 /** A labelled fact. Enough of them that a component beats repeating the markup. */
 function Field({
@@ -109,7 +104,7 @@ function SummaryBand({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
   const remaining = formatRemainingTerm(lease)
   const tenantName =
     lease.tenant?.fullName ??
-    (lease.status === 'active' ? 'Chưa ai đứng tên' : 'Không có người đứng tên')
+    (isLive(lease.status) ? 'Chưa ai đứng tên' : 'Không có người đứng tên')
 
   return (
     <Card variant="outlined" sx={{ mb: 2 }}>
@@ -139,7 +134,7 @@ function SummaryBand({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
                   component="span"
                   sx={{
                     color:
-                      !lease.tenant?.fullName && lease.status === 'active'
+                      !lease.tenant?.fullName && isLive(lease.status)
                         ? 'warning.main'
                         : 'inherit',
                   }}
@@ -154,19 +149,15 @@ function SummaryBand({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
               */}
               <Chip
                 size="small"
-                label={statusLabel(lease.status)}
-                color={
-                  lease.status === 'active'
-                    ? 'success'
-                    : lease.status === 'cancelled'
-                      ? 'error'
-                      : 'default'
+                label={leaseStatusLabel(lease.status)}
+                color={leaseStatusColor(lease.status)}
+                variant={
+                  lease.status === 'finalized' || lease.status === 'upcoming'
+                    ? 'outlined'
+                    : 'filled'
                 }
-                variant={lease.status === 'finalized' ? 'outlined' : 'filled'}
+                icon={lease.status === 'overdue' ? <WarningAmberIcon /> : undefined}
               />
-              {isTermRunOut(lease) && (
-                <Chip size="small" color="warning" icon={<WarningAmberIcon />} label="Hết hạn" />
-              )}
             </Stack>
 
             <Stack
@@ -207,7 +198,7 @@ function SummaryBand({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
               the API answers 409, and a control that cannot work is worse than
               no control.
             */}
-            {lease.status === 'active' && (
+            {isLive(lease.status) && (
               <Button variant="contained" startIcon={<EditIcon />} onClick={onEdit}>
                 Chỉnh sửa hợp đồng
               </Button>
@@ -586,7 +577,7 @@ export function LeaseDetailPage() {
           Offered while the tenancy is running. A closed or cancelled one has
           nothing to renew, and the API refuses both.
         */}
-        {lease.status === 'active' && (
+        {isLive(lease.status) && (
           <Box>
             <Button
               variant="outlined"
@@ -608,7 +599,7 @@ export function LeaseDetailPage() {
           as never having happened, and on a tenant who lived here for a year
           would erase the year.
         */}
-        {lease.status === 'active' && (
+        {isLive(lease.status) && (
           <Box>
             <Button
               color="error"
@@ -648,7 +639,7 @@ export function LeaseDetailPage() {
           to close a tenancy that has been billed needs telling what to look for
           instead — otherwise they hunt for a control that was never there.
         */}
-        {lease.status === 'active' && !lease.cancellable && lease.hasBilledMonth && (
+        {isLive(lease.status) && !lease.cancellable && lease.hasBilledMonth && (
           <Alert severity="info">
             <AlertTitle>Không huỷ được hợp đồng này</AlertTitle>
             Đã xuất hoá đơn tháng, tức là đã có người ở. Hợp đồng đã xuất hoá đơn thì
