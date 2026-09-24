@@ -17,10 +17,12 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import DeleteIcon from '@mui/icons-material/Delete'
 
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { MoneyInput } from '@/components/MoneyField'
 import { errorMessage } from '@/lib/error-messages'
 import { formatCoveredThrough, formatDate } from '@/features/leases/dates'
 import { useBuildingServiceFees, useRecordMoveOut } from '@/features/leases/hooks'
+import { UnpaidInvoicesWarning } from '@/features/leases/UnpaidInvoicesWarning'
 import { useRoomMeterReading } from '@/features/rooms/hooks'
 import type { Lease } from '@/features/leases/types'
 
@@ -87,6 +89,13 @@ export function MoveOutDialog({ open, lease, onClose }: MoveOutDialogProps) {
   const soDien = Number(reading)
   const ready = reading.trim() !== '' && Number.isFinite(soDien) && soDien >= 0 && leftOn !== ''
 
+  /*
+    The question asked between filling the form in and the tenancy actually
+    closing. Recording a move-out issues the final bill and hands the room
+    back; neither is undone by this screen.
+  */
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
   async function handleConfirm() {
     setError(null)
     try {
@@ -107,10 +116,14 @@ export function MoveOutDialog({ open, lease, onClose }: MoveOutDialogProps) {
             : [],
         },
       })
+      setConfirmOpen(false)
       onClose()
     } catch (cause) {
       // Stays open: a refusal means the tenancy is untouched, and the reading is
       // the usual reason — it has to be corrected here, not rediscovered later.
+      // The confirmation closes with it, so the correction is made on the form
+      // rather than behind a dialog asking the same question again.
+      setConfirmOpen(false)
       setError(errorMessage(cause))
     }
   }
@@ -129,6 +142,11 @@ export function MoveOutDialog({ open, lease, onClose }: MoveOutDialogProps) {
           </DialogContentText>
 
           {error && <Alert severity="error">{error}</Alert>}
+
+          <UnpaidInvoicesWarning
+            leaseId={lease.id}
+            action="Kết thúc hợp đồng không xoá khoản nợ này — sau khi khách dọn đi, chỗ còn lại để thu là tiền cọc."
+          />
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
@@ -241,13 +259,30 @@ export function MoveOutDialog({ open, lease, onClose }: MoveOutDialogProps) {
         <Button
           variant="contained"
           color="error"
-          onClick={() => void handleConfirm()}
+          onClick={() => setConfirmOpen(true)}
           disabled={isSubmitting || !ready}
           startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
           {isSubmitting ? 'Đang kết thúc…' : 'Kết thúc hợp đồng'}
         </Button>
       </DialogActions>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Kết thúc hợp đồng này?"
+        description={`Ghi nhận khách đã dọn đi ngày ${formatDate(leftOn)}, xuất hoá đơn tháng cuối theo số điện ${soDien ?? '—'}, và trả phòng ${lease.room?.roomCode ?? ''} về trạng thái trống. Không hoàn tác được.`}
+        confirmLabel="Kết thúc hợp đồng"
+        busyLabel="Đang kết thúc…"
+        destructive
+        busy={isSubmitting}
+        onConfirm={() => void handleConfirm()}
+        onClose={() => setConfirmOpen(false)}
+      >
+        <UnpaidInvoicesWarning
+          leaseId={lease.id}
+          action="Khoản này vẫn còn sau khi kết thúc hợp đồng."
+        />
+      </ConfirmDialog>
     </Dialog>
   )
 }

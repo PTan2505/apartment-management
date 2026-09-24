@@ -15,12 +15,14 @@ import Switch from '@mui/material/Switch'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { MoneyInput } from '@/components/MoneyField'
 import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { formatCoveredThrough, formatDate } from '@/features/leases/dates'
 import { useExtendLease, useOccupants } from '@/features/leases/hooks'
 import { useRoom } from '@/features/rooms/hooks'
+import { UnpaidInvoicesWarning } from '@/features/leases/UnpaidInvoicesWarning'
 import type { Lease } from '@/features/leases/types'
 
 interface RenewLeaseDialogProps {
@@ -118,6 +120,13 @@ export function RenewLeaseDialog({ open, lease, onRenewed, onClose }: RenewLease
   const depositMoi = (rent ?? 0) * lease.depositMonths
   const chenhLech = depositMoi - lease.depositHeld
 
+  /*
+    Asked between filling the form in and the two tenancies changing. A renewal
+    closes this tenancy and opens another one in the same breath; nothing on
+    this screen puts either back.
+  */
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
   async function handleConfirm() {
     setError(null)
     try {
@@ -130,8 +139,10 @@ export function RenewLeaseDialog({ open, lease, onRenewed, onClose }: RenewLease
           ...(chenhLech === 0 ? {} : { settleDepositOnInvoice: settleOnInvoice }),
         },
       })
+      setConfirmOpen(false)
       onRenewed(successor.id)
     } catch (cause) {
+      setConfirmOpen(false)
       // Stays open: a refusal here means neither tenancy changed, and closing
       // the dialog would leave the owner guessing which.
       setError(errorMessage(cause))
@@ -146,6 +157,11 @@ export function RenewLeaseDialog({ open, lease, onRenewed, onClose }: RenewLease
       <DialogContent>
         <Stack spacing={2.5} sx={{ mt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
+
+          <UnpaidInvoicesWarning
+            leaseId={lease.id}
+            action="Khoản nợ này ở lại với hợp đồng cũ, không chuyển sang hợp đồng mới."
+          />
 
           <Alert severity="info" icon={false}>
             <AlertTitle sx={{ mb: 0.5 }}>Khách ở tiếp</AlertTitle>
@@ -276,13 +292,30 @@ export function RenewLeaseDialog({ open, lease, onRenewed, onClose }: RenewLease
         </Button>
         <Button
           variant="contained"
-          onClick={() => void handleConfirm()}
+          onClick={() => setConfirmOpen(true)}
           disabled={isSubmitting || !ready}
           startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
           {isSubmitting ? 'Đang gia hạn…' : 'Gia hạn hợp đồng'}
         </Button>
       </DialogActions>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Gia hạn hợp đồng này?"
+        description={`Đóng hợp đồng hiện tại ngày ${formatDate(lease.expectedEndDate)} và mở hợp đồng mới ${soThang} tháng ngay hôm đó, giữ nguyên người ở và tiền cọc. Không hoàn tác được bằng một thao tác.`}
+        confirmLabel="Gia hạn hợp đồng"
+        busyLabel="Đang gia hạn…"
+        destructive
+        busy={isSubmitting}
+        onConfirm={() => void handleConfirm()}
+        onClose={() => setConfirmOpen(false)}
+      >
+        <UnpaidInvoicesWarning
+          leaseId={lease.id}
+          action="Khoản này ở lại với hợp đồng cũ."
+        />
+      </ConfirmDialog>
     </Dialog>
   )
 }
