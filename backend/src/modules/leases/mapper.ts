@@ -182,7 +182,9 @@ export function toLeaseResponse(lease: LeaseRow) {
   const status = leaseStatus(lease);
   const primary =
     currentPrimary ??
-    (status !== "active" ? lease.occupants?.find((o) => o.isPrimary) : undefined);
+    (status === "finalized" || status === "cancelled"
+      ? lease.occupants?.find((o) => o.isPrimary)
+      : undefined);
 
   return {
     id: lease.id,
