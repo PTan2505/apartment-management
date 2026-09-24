@@ -998,3 +998,398 @@ A count below one SHALL be refused, as the API refuses it, and the refusal SHALL
 - **WHEN** the owner enters 0 and saves
 - **THEN** the form refuses, names the field, and nothing is saved
 
+### Requirement: Signing asks when before it asks where
+
+The signing form SHALL ask for the date the tenant moves in BEFORE it offers a room, and the rooms it offers SHALL be those that can take a tenancy beginning on that date.
+
+Asked in the other order, the form offers the rooms that are free TODAY — which is neither the question nor the answer. A room whose tenant leaves at the end of the month cannot be chosen for a tenancy starting after that, and a room free today can be chosen for a start date it cannot take, with the refusal arriving only after the whole form has been filled in.
+
+Until a date is chosen the room list SHALL be empty and SHALL say that the date comes first, rather than offering a list that is about to change.
+
+When the date changes, the rooms SHALL be asked for again. A room already chosen that the new date cannot take SHALL be cleared, and the screen SHALL say so — carrying it silently into a submission the API will refuse moves the refusal to the worst possible moment.
+
+Where the form is opened from a room that is already chosen, the room stands and the date SHALL still be asked for; the form SHALL NOT drop a room the owner arrived with.
+
+#### Scenario: The date comes first
+
+- **WHEN** the owner opens the signing form
+- **THEN** the move-in date is asked for above the room, and no rooms are offered until it is filled in
+
+#### Scenario: Rooms that fit the date
+
+- **WHEN** the owner enters a move-in date
+- **THEN** the rooms offered are those free on that date, including one whose previous tenancy ends exactly then
+
+#### Scenario: Changing the date changes the rooms
+
+- **WHEN** the owner changes the move-in date after choosing a room
+- **THEN** the room list is asked for again for the new date
+
+#### Scenario: A chosen room that no longer fits
+
+- **WHEN** the new date cannot take the room already chosen
+- **THEN** the room is cleared and the screen says why, before anything is submitted
+
+#### Scenario: Arriving from a room
+
+- **WHEN** the owner opens the form from a room, so the room is already chosen
+- **THEN** that room stays chosen and the date is still asked for
+
+### Requirement: The tenancy list separates the facts it joins together
+
+The list SHALL show the date a tenancy began and the date it ends as SEPARATE columns, and the room and its building as SEPARATE columns.
+
+Both pairs were single cells holding two facts joined by a separator. The dates were "01/03/2026 – 28/02/2027"; the room was "Q54299A · Trọ thủ đức". A reader scanning for the tenancies ending this quarter had to read every cell and split it by eye, and neither date could be compared against the rows above it.
+
+The ending column SHALL show the day the tenancy actually covers to — the recorded move-out where there is one, the agreed end otherwise — and SHALL make clear which of the two it is showing, because "ended in June" and "agreed to end in June" are different facts about a tenancy.
+
+A CANCELLED tenancy SHALL NOT show a range in either column. It covered no days, and printing its agreed dates under headings about occupancy would state as fact the one thing that status denies; it SHALL say it was cancelled instead.
+
+#### Scenario: Reading the list
+
+- **WHEN** the owner opens the tenancy list
+- **THEN** each row shows the date it began and the date it ends in separate columns, and the room and its building in separate columns
+
+#### Scenario: Rooms sharing a code
+
+- **WHEN** two buildings each hold a room with the same code
+- **THEN** the two are still told apart, because the building is its own column rather than a suffix
+
+#### Scenario: A tenancy that ended early
+
+- **WHEN** a tenancy recorded a move-out before its agreed end
+- **THEN** the ending column shows the day it actually ended, marked as what happened rather than what was agreed
+
+#### Scenario: A cancelled tenancy
+
+- **WHEN** a cancelled tenancy is listed
+- **THEN** neither column presents it as having covered days
+
+### Requirement: The owner can narrow tenancies by when they began and ended
+
+The application SHALL let the owner name a from-date, a to-date, or both, and SHALL list the tenancies those bounds allow: begun on or after the from-date, ended on or before the to-date, and — where both are given — contained entirely within the period.
+
+Either bound alone is a question worth asking. "Everything signed since March" and "everything that has finished by December" are both things an owner looks for, and neither requires the other.
+
+The screen SHALL say what each bound does, because a date field labelled only "từ" could as easily mean "still running from" — and the two answers differ by every long tenancy in the list.
+
+The filter SHALL be requested from the API, and SHALL survive a page change and a reload like the filters already there.
+
+#### Scenario: From-date alone
+
+- **WHEN** the owner names only a from-date
+- **THEN** the tenancies listed are those that began on or after it
+
+#### Scenario: To-date alone
+
+- **WHEN** the owner names only a to-date
+- **THEN** the tenancies listed are those that ended on or before it
+
+#### Scenario: Both bounds
+
+- **WHEN** the owner names both
+- **THEN** only tenancies that ran entirely inside the period are listed
+
+#### Scenario: What the bounds mean is on the screen
+
+- **WHEN** the owner looks at the period filter
+- **THEN** it says that the dates bound the start and the end, not merely a period the tenancy touched
+
+#### Scenario: Clearing it
+
+- **WHEN** the owner clears the period
+- **THEN** the list returns to what it showed before, with the other filters untouched
+
+### Requirement: The tenancy list shows the six states and puts the pressing ones first
+
+The list SHALL distinguish, on every row, whether a tenancy is overdue, due soon, running, not yet started, finished or cancelled — and SHALL order itself so the first of those come first.
+
+Three of the six could not be seen at all. A tenancy whose term ran out read as "Đang thuê" while it held its room and could no longer be billed. One ending next week read the same as one ending next year. One signed for next month read as though somebody were living there already.
+
+The order SHALL be: overdue, due soon, running — those three by how little time is left — then not yet started, then finished, then cancelled. Within the remaining groups the most recently signed SHALL come first.
+
+Ordering SHALL be requested from the API rather than applied to the page. The list is paginated, and reordering the rows that happen to be on screen produces a list that looks ordered and is not.
+
+#### Scenario: What needs doing is at the top
+
+- **WHEN** the owner opens the tenancy list
+- **THEN** overdue tenancies are at the top, followed by those ending soonest
+
+#### Scenario: Every row says which state it is in
+
+- **WHEN** the owner reads a row
+- **THEN** it says whether the tenancy is overdue, ending soon, running, not yet started, finished or cancelled
+
+#### Scenario: The order comes from the API
+
+- **WHEN** the list is shown
+- **THEN** the rows arrive in that order rather than being sorted in the browser
+
+### Requirement: The owner can filter tenancies by any of the six states
+
+The status filter SHALL offer all six states, and SHALL replace the "Cần xử lý" switch.
+
+That switch was a filter pretending to be a status: it found the tenancies whose term had run out, while the row itself said nothing about them. Now that the row says it, the filter is one value among the others rather than a control of its own.
+
+#### Scenario: Filtering to overdue
+
+- **WHEN** the owner filters to overdue tenancies
+- **THEN** only those whose term has ended with no move-out recorded are listed
+
+#### Scenario: Filtering to those ending soon
+
+- **WHEN** the owner filters to tenancies ending soon
+- **THEN** only running tenancies within two weeks of their end are listed
+
+#### Scenario: The old switch is gone
+
+- **WHEN** the owner looks at the filters
+- **THEN** there is no separate "Cần xử lý" control, and its question is answered by the status filter
+
+#### Scenario: The filter is reachable on a phone
+
+- **WHEN** the owner opens the tenancy list on a phone
+- **THEN** the status filter is on the screen and can be used, rather than clipped off the side of a row that does not scroll
+
+### Requirement: The tenancy screen counts what is overdue and what is running
+
+The screen SHALL show, above the list, how many tenancies are overdue and how many are running.
+
+A count answers a question the list cannot: whether there is anything to do at all. An owner scanning a page of twenty rows to work out that three need attention is doing by eye what a number does at a glance — and the number is right even when the answer is on page four.
+
+Each count SHALL be reachable: selecting it SHALL filter the list to what it counts.
+
+#### Scenario: The counts are shown
+
+- **WHEN** the owner opens the tenancy screen
+- **THEN** the number of overdue tenancies and the number running are shown above the list
+
+#### Scenario: A count filters the list
+
+- **WHEN** the owner selects the overdue count
+- **THEN** the list is filtered to overdue tenancies
+
+#### Scenario: Nothing overdue
+
+- **WHEN** no tenancy is overdue
+- **THEN** the count says zero rather than disappearing, so the absence is an answer rather than a missing control
+
+### Requirement: A tenancy that has not ended keeps everything an owner can do to it
+
+Every action on the tenancy screen that was offered while a tenancy was running SHALL stay offered for a tenancy that is overdue, ending soon or not yet started — editing its terms, renewing it, recording a move-out, and naming a signatory who is missing.
+
+Those four states were one state until now, and each control asked for it by name. Splitting the state without splitting the question would have taken "Kết thúc hợp đồng" off the one tenancy that most needs it: the one whose term has already run out and whose room is still being held.
+
+#### Scenario: An overdue tenancy can still be closed
+
+- **WHEN** the owner opens a tenancy whose term has run out
+- **THEN** it can still be renewed, edited, and recorded as moved out
+
+#### Scenario: A tenancy signed for a future date can still be edited
+
+- **WHEN** the owner opens a tenancy that has not started yet
+- **THEN** its terms can still be edited and it can still be cancelled or closed
+
+### Requirement: The tenancy screen says how near its end a tenancy is, and how far past it
+
+The tenancy screen SHALL state the time remaining on a running tenancy, and SHALL
+state how long a tenancy has been past its agreed term once that term has ended.
+
+Both SHALL be counted from the last day the tenancy covers, not from the
+exclusive boundary the API stores — a tenancy covered through the 30th has a day
+left on the 30th, and is one day past its term on the 1st.
+
+The figure SHALL be emphasised when the tenancy is within two weeks of its end
+and when it is past it, using the colours those states already carry in the
+list. A tenancy with months left SHALL keep the plain reading it has now: an
+emphasis that applies to everything marks nothing.
+
+#### Scenario: Days rather than silence once the term has run out
+
+- **WHEN** the owner opens a tenancy whose agreed term ended five days ago
+- **THEN** the screen says it is five days past its term, rather than omitting the figure
+
+#### Scenario: A tenancy about to end says so plainly
+
+- **WHEN** the owner opens a tenancy ending in five days
+- **THEN** the remaining time is shown and marked as needing attention
+
+#### Scenario: A tenancy with months left reads normally
+
+- **WHEN** the owner opens a tenancy with three months left
+- **THEN** the remaining time is shown without emphasis
+
+#### Scenario: A finished tenancy claims nothing
+
+- **WHEN** the owner opens a tenancy that has been handed back or cancelled
+- **THEN** no remaining or overdue figure is shown, because neither is true of it
+
+### Requirement: The tenancy screen carries the link a tenant pays through
+
+The tenancy screen SHALL show the payment link for that tenancy, ready to copy,
+together with when it was issued and when it was last opened.
+
+The link is the only way a tenant reaches their bills, and until now the
+application could not produce one at all — the API could, and no screen asked
+it to.
+
+The screen SHALL allow reissuing the link, which stops the previous one working,
+and withdrawing it, which leaves the tenancy with no link. Both SHALL confirm
+before acting, being irreversible for whoever already holds the old link.
+
+The screen SHALL say plainly what the link grants: whoever opens it can see and
+pay that tenancy's bills.
+
+Where a link exists but cannot be shown, the screen SHALL say so and offer to
+reissue, rather than showing an empty box.
+
+#### Scenario: Copying the link
+
+- **WHEN** the owner opens a tenancy
+- **THEN** its payment link is shown and can be copied in one action
+
+#### Scenario: What it says about itself
+
+- **WHEN** the owner reads the link
+- **THEN** it says when it was issued, whether it has ever been opened, and what anyone holding it can do
+
+#### Scenario: Replacing a link
+
+- **WHEN** the owner reissues the link and confirms
+- **THEN** a new link is shown and the owner is told the previous one has stopped working
+
+#### Scenario: Withdrawing a link
+
+- **WHEN** the owner withdraws the link and confirms
+- **THEN** the tenancy has no link, and the screen offers to issue one
+
+#### Scenario: A tenancy that has no link
+
+- **WHEN** the owner opens a tenancy whose link was withdrawn
+- **THEN** the screen says there is none and offers to issue one
+
+### Requirement: Ending, renewing or cancelling a tenancy says what is still owed
+
+Each of the three endings SHALL show, before it is carried out, how many of the
+tenancy's bills are unpaid and what they come to.
+
+The figure SHALL count the same bills the tenancy's invoice panel counts as
+owed — issued, not withdrawn, not paid — so the two cannot state different
+amounts about the same tenancy.
+
+It SHALL NOT prevent the action. A tenant who has moved out has moved out, and
+a system that refused to record it would leave the room held by a tenancy
+nobody is in. The owner is told and decides.
+
+Where nothing is owed, nothing SHALL be said. A warning that appears every time
+is a warning nobody reads.
+
+#### Scenario: Ending a tenancy with bills outstanding
+
+- **WHEN** the owner opens the move-out dialog for a tenancy with two unpaid bills
+- **THEN** it says two bills are unpaid and what they total, before anything is recorded
+
+#### Scenario: Renewing with bills outstanding
+
+- **WHEN** the owner renews a tenancy that still owes money
+- **THEN** the dialog says so, because the debt stays with the tenancy being closed rather than moving to its successor
+
+#### Scenario: Cancelling with bills outstanding
+
+- **WHEN** the owner cancels a tenancy that has unpaid bills
+- **THEN** the dialog says so, because cancelling records the tenancy as never having happened
+
+#### Scenario: Nothing owed
+
+- **WHEN** every bill of the tenancy is settled
+- **THEN** no such warning is shown
+
+#### Scenario: The warning does not block
+
+- **WHEN** the owner proceeds despite the warning
+- **THEN** the action is carried out as it would be otherwise
+
+### Requirement: The three endings are confirmed before they happen
+
+Ending, renewing and cancelling a tenancy SHALL each ask the owner to confirm,
+naming the tenancy and what the action does, and SHALL carry it out only on
+that confirmation.
+
+Each is irreversible by the screen that offers it: a move-out issues the final
+bill and frees the room, a renewal closes one tenancy and opens another, a
+cancellation states that the tenancy never took place. None of them should turn
+on a single click landing on a submit button.
+
+#### Scenario: Confirming a move-out
+
+- **WHEN** the owner submits the move-out dialog
+- **THEN** they are asked to confirm, and nothing is recorded until they do
+
+#### Scenario: Confirming a renewal
+
+- **WHEN** the owner submits the renewal dialog
+- **THEN** they are asked to confirm, and no tenancy is opened or closed until they do
+
+#### Scenario: Confirming a cancellation
+
+- **WHEN** the owner submits the cancellation dialog
+- **THEN** they are asked to confirm, and nothing is cancelled until they do
+
+#### Scenario: Declining the confirmation
+
+- **WHEN** the owner declines at the confirmation
+- **THEN** nothing happens and the dialog they filled in is still there, with what they entered
+
+### Requirement: Every bill of a tenancy can be opened from its own screen
+
+The tenancy screen SHALL offer a way to see every invoice of that tenancy,
+paginated, without leaving the tenancy.
+
+The panel beside the terms SHALL show only the bills still owed — issued, not
+withdrawn, not paid. What an owner opens a tenancy to check is what is still to
+be collected; a settled bill from four months ago is history, and a tenancy
+running two years otherwise makes that card taller than the rest of the screen
+together.
+
+The panel SHALL still say how many bills the tenancy has in total, so the ones
+it is not showing are accounted for rather than silently absent.
+
+The full listing SHALL be ordered and paged by the API. Ordering the rows that
+happen to have been fetched produces a second page that is not the second page.
+
+Each row SHALL open that invoice, as the rows in the panel already do.
+
+#### Scenario: Opening the full list
+
+- **WHEN** the owner chooses to see all of a tenancy's bills
+- **THEN** every bill of that tenancy is listed, a page at a time, without leaving the tenancy screen
+
+#### Scenario: The count is stated
+
+- **WHEN** the full list is open
+- **THEN** it says how many bills the tenancy has in total
+
+#### Scenario: Paging
+
+- **WHEN** the owner moves to the next page
+- **THEN** the next bills of that tenancy are fetched and shown, in the same order
+
+#### Scenario: Opening a bill from the list
+
+- **WHEN** the owner selects a bill in the full list
+- **THEN** that invoice's own screen opens
+
+#### Scenario: A tenancy with few bills
+
+- **WHEN** a tenancy has fewer bills than one page
+- **THEN** the full list shows them with no pager, and the panel still offers to open it
+
+#### Scenario: The panel lists what is owed
+
+- **WHEN** a tenancy has both settled and unpaid bills
+- **THEN** the panel lists the unpaid ones, and the full list is where the settled ones are
+
+#### Scenario: Everything settled
+
+- **WHEN** every bill of the tenancy has been paid
+- **THEN** the panel says so rather than reading as a tenancy that was never billed, and still offers the full list

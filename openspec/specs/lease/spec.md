@@ -258,19 +258,25 @@ The system SHALL treat the lease's occupant count as a manually maintained numbe
 - **THEN** the lease's occupant count is unchanged
 
 ### Requirement: Lease status, expected end date, and tenant are derived
-The system SHALL derive a lease's expected end date from its start date and agreed duration, its status from whether it has been cancelled or has recorded a move-out, its tenant from the current primary occupant, and its deposit amount from the agreed rent and the number of deposit months. None of these SHALL be independently settable, so they can never contradict the records they come from.
 
-**A lease's status SHALL distinguish three states: running, finalized, and cancelled.** A tenancy that never took place is not one that ran and ended, and reporting them alike would present as history something that never happened — inflating how many tenancies a room has had, and how many a person has held.
+A lease SHALL report a status derived from its own dates rather than stored, together with the expected end of its term and the person responsible for it.
 
-A date that ends a tenancy SHALL be **exclusive**: it is the first day the tenancy no longer covers, and the last day covered is the day before it. This SHALL hold for both the expected end date and the move-out date, so that a reader never has to remember which of them counts its own day and which does not.
+The status SHALL distinguish six states:
 
-A lease beginning 1 January for six months therefore has an expected end date of 1 July and covers through 30 June. A lease whose move-out is recorded as 5 July covers through 4 July. In both cases a new lease beginning on that same date follows with neither a gap nor an overlap.
+- **cancelled** — a cancellation is recorded; the tenancy never took place
+- **finalized** — a move-out is recorded; the tenancy is over
+- **upcoming** — it has not started: the start date is still in the future
+- **overdue** — the agreed term has ended and no move-out has been recorded
+- **dueSoon** — it is running and its term ends within FOURTEEN DAYS
+- **active** — it is running with more than fourteen days left
 
-The expected end date SHALL NOT constrain the move-out date. It states when the agreement ends, not when the tenant left — a tenant may stay past it without either party wanting a renewal, and the record SHALL be able to say so.
+Derived rather than stored because a stored status is a second place for a fact the dates already carry, and the two drift the moment one is written without the other. Every one of these is a question about today, and today changes without anything being written.
 
-**A cancelled lease's dates describe an agreement, not an occupancy.** Its expected end date SHALL continue to be reported, because it states what was agreed, but nothing SHALL present it as days the tenancy covered.
+Overdue is a state the system creates and nothing else announces: such a tenancy still holds its room, no further invoice can be issued for it, and until this it read as an ordinary running tenancy.
 
-The deposit amount SHALL be reported alongside the number of months it was agreed in, so that a caller can show either without computing it. It SHALL follow the lease's own agreed rent rather than the room's current rent, because the deposit was agreed against the rent in the lease.
+Two weeks for dueSoon, because that is the window in which an owner still has time to ask whether the tenant is staying and to look for another if not.
+
+The expected end SHALL be the start date plus the agreed months, and SHALL be reported so a caller can show what the tenancy agreed without recomputing it.
 
 #### Scenario: Expected end date reflects start date and duration
 - **WHEN** an authenticated owner retrieves a lease starting 2026-01-15 with an agreed duration of 12 months
@@ -297,7 +303,7 @@ The deposit amount SHALL be reported alongside the number of months it was agree
 - **THEN** the system accepts it and records that date, rather than requiring a date that did not happen
 
 #### Scenario: Lease without a move-out date is active
-- **WHEN** an authenticated owner retrieves a lease that has no move-out date and has not been cancelled
+- **WHEN** an authenticated owner retrieves a lease that has no move-out date, has not been cancelled, has started, and has more than fourteen days of its term left
 - **THEN** the response reports the lease as active
 
 #### Scenario: Lease with a move-out date is finalized
@@ -328,6 +334,41 @@ The deposit amount SHALL be reported alongside the number of months it was agree
 #### Scenario: Deposit amount ignores a later change to the room's rent
 - **WHEN** a room's base rent is changed after a lease on it was created
 - **THEN** that lease still reports a deposit amount derived from its own agreed rent
+
+#### Scenario: A running tenancy
+
+- **WHEN** an owner retrieves a lease running with more than fourteen days of its term left
+- **THEN** its status is reported as active
+
+#### Scenario: A tenancy ending within two weeks
+
+- **WHEN** a running lease's term ends in fourteen days or fewer
+- **THEN** its status is reported as due soon
+
+#### Scenario: A tenancy whose term has run out
+
+- **WHEN** a lease's agreed term has ended and no move-out is recorded
+- **THEN** its status is reported as overdue
+
+#### Scenario: A tenancy that has not started
+
+- **WHEN** a lease's start date is still in the future
+- **THEN** its status is reported as upcoming, whatever its term
+
+#### Scenario: A closed tenancy
+
+- **WHEN** a lease has recorded a move-out
+- **THEN** its status is reported as finalized, whether or not its term had ended
+
+#### Scenario: A cancelled tenancy
+
+- **WHEN** a lease has been cancelled
+- **THEN** its status is reported as cancelled, and neither its term nor its start date changes that
+
+#### Scenario: The expected end is reported
+
+- **WHEN** an owner retrieves a lease
+- **THEN** its expected end date is reported alongside its status
 
 ### Requirement: Owner can record a move-out
 The system SHALL allow an authenticated `owner` to record the date a tenant actually moved out together with the electricity meter reading taken at handover, which finalizes the lease and frees the room for a new one. The move-out date MUST NOT precede the lease start date. The closing meter reading MUST NOT be lower than the lease's starting reading, nor lower than the closing reading of that lease's most recent invoice. Finalizing a lease SHALL also mark its current occupants as departed on that date, so nobody is left recorded as living in a room that is no longer let, and SHALL issue the lease's final invoice charging the utilities of that month up to the departure. Where the departure falls after the lease's expected end date, an overdue invoice SHALL be issued alongside it, carrying charges the owner names for the days beyond the term. All of it SHALL be recorded together, so a tenancy is never closed without its closing bill. The closing reading SHALL both close the outgoing tenancy's electricity and provide the default starting point for the room's next lease.
@@ -367,74 +408,6 @@ The system SHALL allow an authenticated `owner` to record the date a tenant actu
 #### Scenario: Move-out may precede the expected end date
 - **WHEN** an authenticated owner records a move-out date earlier than the lease's expected end date
 - **THEN** the system accepts it and finalizes the lease, because tenants may leave before their agreed term ends
-
-### Requirement: Owner can list, filter, and retrieve leases
-
-The system SHALL allow an authenticated `owner` to retrieve a lease by id and to list leases filtered by room, **by building**, by the people who have occupied them, by whether they are active, and by whether their agreed term has run out without a move-out being recorded.
-
-Filtering by building exists because a room code identifies a room only within its building, so an owner holding several buildings cannot pick a room without first knowing which building it is in. Naming the rooms of a building one at a time is not a substitute: it is the caller reconstructing a grouping the system already holds. Listing SHALL be paginated using the shared paginated response contract, so the response carries a `data` array and a `meta` object describing the page and totals rather than a bare array.
-
-**Leases SHALL be listed most recently begun first.** The tenancy an owner has just signed, or is about to act on, is the recent one; ordering oldest-first puts it on the last page and makes the common case the hardest to reach. Where two leases begin on the same day, the more recently recorded SHALL come first, so the order is total and a lease cannot move between pages.
-
-A lease whose term has ended while no move-out is recorded SHALL be findable, because it needs attention: no further invoice can be issued for it, and its room stays held against a new tenancy until it is closed or renewed. Leaving such a lease discoverable only by inspecting each room in turn would make a state the system creates a state the owner cannot act on.
-
-This filter SHALL be combinable with the others, and SHALL be judged against the same exclusive reading of the term as billing uses.
-
-#### Scenario: Leases are listed most recently begun first
-
-- **WHEN** an authenticated owner lists leases
-- **THEN** the lease with the most recent start date appears first
-
-#### Scenario: Leases beginning on the same day have a stable order
-
-- **WHEN** two leases share a start date
-- **THEN** the more recently recorded appears first, and neither moves between pages as the list is paged through
-
-#### Scenario: Filtering to active leases
-- **WHEN** an authenticated owner lists leases filtered to active ones
-- **THEN** the response contains only leases with no move-out date
-
-#### Scenario: Filtering to leases whose term has run out
-- **WHEN** an authenticated owner lists leases filtered to those whose term has ended without a move-out
-- **THEN** the response contains only leases with no move-out date whose agreed term has already ended
-
-#### Scenario: A lease still within its term is not listed as overdue
-- **WHEN** an authenticated owner filters to overdue leases and a lease with no move-out is still inside its agreed term
-- **THEN** that lease is not included
-
-#### Scenario: A closed lease is not listed as overdue
-- **WHEN** an authenticated owner filters to overdue leases and a lease whose term ended has since recorded a move-out
-- **THEN** that lease is not included, because it needs no attention
-
-#### Scenario: The overdue filter combines with the others
-- **WHEN** an authenticated owner filters to overdue leases within a particular room
-- **THEN** the response contains only that room's leases matching both conditions
-
-#### Scenario: Filtering by building
-
-- **WHEN** an authenticated owner lists leases filtered by a building id
-- **THEN** the response contains every lease for a room in that building, and none for a room elsewhere
-
-#### Scenario: Building and room together
-
-- **WHEN** an authenticated owner filters by both a building and a room in it
-- **THEN** the response contains that room's leases
-
-#### Scenario: Filtering by person
-- **WHEN** an authenticated owner lists leases filtered by a customer id
-- **THEN** the response contains every lease that person has occupied, whether as primary occupant or not, including finalized ones
-
-#### Scenario: Retrieving a lease that does not exist
-- **WHEN** an authenticated owner requests a lease id that does not exist
-- **THEN** the system responds with HTTP 404
-
-#### Scenario: Lease listing is paginated
-- **WHEN** an authenticated owner lists leases
-- **THEN** the response is the shared paginated shape, with the leases in `data` and the page, page size, and totals in `meta`
-
-#### Scenario: Paging applies to filtered leases
-- **WHEN** an authenticated owner lists leases filtered to active ones and asks for a specific page
-- **THEN** the items and totals describe only the active leases
 
 ### Requirement: Owner can update lease terms
 The system SHALL allow an authenticated `owner` to update an active lease's occupant count and agreed duration. Changing the occupant count SHALL NOT alter any invoice already issued, because each invoice records the count it billed.
@@ -1091,3 +1064,121 @@ A failure to clear SHALL NOT fail the operation. The record is what the applicat
 - **WHEN** a page is confirmed for one tenancy
 - **THEN** objects belonging to any other tenancy are untouched
 
+### Requirement: Leases can be listed by when they began and when they ended
+
+The system SHALL allow an authenticated `owner` to list leases bounded by a from-date, a to-date, or both. Each bound constrains its own end of the tenancy:
+
+- **from** — the tenancy BEGAN on or after that day
+- **to** — the tenancy ENDED on or before that day
+- **both** — both hold, so only tenancies that ran entirely inside the period are listed
+
+Containment, not overlap. Asked for both bounds, an owner is asking which tenancies began and finished within the window — a tenancy that started years earlier and is still running is not one of them, and returning it would answer a different question.
+
+The END used for the to-bound SHALL be the recorded move-out where there is one, and the agreed end otherwise. A tenancy that ended early ended the day it ended; a running tenancy is judged on the term it agreed, which is the only end it has.
+
+A CANCELLED tenancy SHALL NOT match either bound. It covered no days, and its recorded dates describe an agreement rather than an occupancy — matching on them would place a tenancy inside a period the status exists to say it never occupied.
+
+The bounds SHALL combine with the other filters, and SHALL NOT change what the listing returns when neither is given.
+
+#### Scenario: From-date alone
+
+- **WHEN** an owner names only a from-date
+- **THEN** only tenancies that began on or after that day are listed, whenever they end
+
+#### Scenario: To-date alone
+
+- **WHEN** an owner names only a to-date
+- **THEN** only tenancies that ended on or before that day are listed, whenever they began
+
+#### Scenario: Both bounds
+
+- **WHEN** an owner names a period of two months
+- **THEN** only tenancies that both began and ended inside it are listed
+
+#### Scenario: A tenancy spanning the whole period
+
+- **WHEN** a tenancy began before the from-date and ends after the to-date
+- **THEN** it is not listed, because it is not contained by the period
+
+#### Scenario: A tenancy that began inside but has not ended
+
+- **WHEN** a tenancy began inside the period and its agreed end falls after the to-date
+- **THEN** it is not listed
+
+#### Scenario: A tenancy that ended early
+
+- **WHEN** a tenancy agreed to run until December recorded a move-out in June
+- **THEN** it is judged on June: it matches a to-date in July and not one in May
+
+#### Scenario: A cancelled tenancy matches nothing
+
+- **WHEN** a cancelled tenancy's agreed dates fall inside the named period
+- **THEN** it is not listed
+
+#### Scenario: Neither bound given
+
+- **WHEN** an owner lists leases without naming a period
+- **THEN** the listing behaves exactly as it did before
+
+### Requirement: Owner can list leases by status, in the order they need attention
+
+The system SHALL allow an authenticated `owner` to retrieve a lease by id and to list leases filtered by room, by building, by the people who have occupied them, and BY STATUS. Listing SHALL use the shared paginated response contract.
+
+Filtering by building exists because a room code identifies a room only within its building, so an owner holding several buildings cannot pick a room without first knowing which building it is in.
+
+**Leases SHALL be ordered by what needs doing**, not by when they were signed:
+
+1. overdue
+2. dueSoon
+3. active
+4. upcoming
+5. finalized
+6. cancelled
+
+Within the first three, the one with the LEAST time left SHALL come first — an overdue tenancy that ran out a month ago before one that ran out yesterday, and a running one ending on Friday before one ending next year. Those three are a single sequence by end date, which is what "least time left" means once the groups are in that order.
+
+Within every other group, the most recently signed SHALL come first.
+
+The order SHALL be total, with the record's id deciding where every other key ties, so no lease can move between pages as pages are fetched.
+
+Ordering SHALL be applied by the system. The response is one page of a larger set, so a page ordered after it arrives is the wrong rows in the wrong order.
+
+#### Scenario: Overdue tenancies come first
+
+- **WHEN** an owner lists leases without naming a status
+- **THEN** every overdue lease appears before every due-soon one, which appear before every running one
+
+#### Scenario: Least time left first
+
+- **WHEN** two running leases end on different days
+- **THEN** the one ending sooner is listed first
+
+#### Scenario: The closed and cancelled sink
+
+- **WHEN** the list contains finalized and cancelled leases
+- **THEN** they appear after every lease that has not ended, cancelled last
+
+#### Scenario: Most recently signed within a group
+
+- **WHEN** two finalized leases are listed
+- **THEN** the more recently signed comes first
+
+#### Scenario: Filtering by status
+
+- **WHEN** an owner lists leases filtered to one status
+- **THEN** only leases in that state are listed
+
+#### Scenario: Filtering combines with the others
+
+- **WHEN** an owner filters by building and by status
+- **THEN** only leases of that status in that building are listed
+
+#### Scenario: The order is total
+
+- **WHEN** two leases tie on every key of the order
+- **THEN** their relative order is decided by id and does not change between requests
+
+#### Scenario: Listing is paginated
+
+- **WHEN** an owner lists leases
+- **THEN** the response is the shared paginated shape, with the leases in `data` and the page, page size and totals in `meta`
