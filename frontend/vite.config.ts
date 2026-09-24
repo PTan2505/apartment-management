@@ -47,6 +47,15 @@ export default defineConfig(({ mode, command }) => {
 
     define: {
       __API_URL__: JSON.stringify(apiUrl),
+      /*
+        Where the tenant portal is served from, for the links the owner sends.
+
+        Empty is the ordinary case and the default: `/portal` is a route in this
+        same bundle, so the application builds the link from its own origin.
+        Set it only where the portal is deployed separately — otherwise every
+        link an owner copies would point at a host that does not serve it.
+      */
+      __PORTAL_URL__: JSON.stringify(env.VITE_PORTAL_URL ?? ''),
     },
 
     resolve: {

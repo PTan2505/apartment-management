@@ -124,7 +124,6 @@ export type BackendErrorCode =
   | 'PHONE_ALREADY_IN_USE'
   | 'PHONE_BELONGS_TO_ANOTHER'
   | 'PORTAL_LINK_NONE'
-  | 'PORTAL_LINK_ONLY_FOR_CUSTOMER'
   | 'PORTAL_NOT_FOUND'
   | 'PRIMARY_OCCUPANT_MUST_TRANSFER'
   | 'QUERY_INVALID'
@@ -168,4 +167,4 @@ export type BackendErrorCode =
   | 'VACANCY_READING_BELOW_LAST'
   | 'VACANCY_ROOM_WAS_LET'
 
-export const BACKEND_ERROR_CODES = 160 as const
+export const BACKEND_ERROR_CODES = 159 as const

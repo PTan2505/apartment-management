@@ -235,8 +235,7 @@ const MESSAGES: Record<BackendErrorCode, string> = {
 
   // ── Cổng thông tin người thuê ────────────────────────────────────────────
   PORTAL_NOT_FOUND: 'Liên kết không còn hiệu lực.',
-  PORTAL_LINK_NONE: 'Khách này chưa có liên kết xem hoá đơn.',
-  PORTAL_LINK_ONLY_FOR_CUSTOMER: 'Chỉ khách thuê mới được cấp liên kết xem hoá đơn.',
+  PORTAL_LINK_NONE: 'Hợp đồng này chưa có link thanh toán.',
 }
 
 /**

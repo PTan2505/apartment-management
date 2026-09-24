@@ -155,7 +155,14 @@ export interface PortalInvoice {
 }
 
 export interface PortalOverview {
-  tenant: { fullName: string; phone: string | null }
+  /*
+    Who the bills are addressed to — which may be nobody. A link belongs to the
+    tenancy, and a tenancy can run with no signatory named on it; the API
+    reports null rather than inventing a name for a page about money.
+  */
+  tenant: { fullName: string | null; phone: string | null }
+  /** The room this link is for, reported by the API rather than read off the bills. */
+  room: { roomCode: string; buildingName: string }
   invoices: PortalInvoice[]
 }
 

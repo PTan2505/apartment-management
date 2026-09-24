@@ -226,3 +226,39 @@ export function useTransferPrimary() {
     onSuccess: invalidate,
   })
 }
+
+/**
+ * The tenancy's payment link.
+ *
+ * Fetched on its own rather than carried on the lease: the token is a
+ * credential, and putting it on the response every screen already asks for
+ * would spread it through the list, the cache and every future caller that
+ * only wanted a room code.
+ */
+export function usePortalLink(leaseId: number) {
+  return useQuery({
+    queryKey: [...LEASES_KEY, leaseId, 'portal-link'],
+    queryFn: () => leasesApi.getPortalLink(leaseId),
+  })
+}
+
+export function useReissuePortalLink(leaseId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => leasesApi.reissuePortalLink(leaseId),
+    // The new link comes back from the request that made it; writing it
+    // straight into the cache means the owner never sees an empty box between
+    // issuing a link and it arriving.
+    onSuccess: (link) =>
+      queryClient.setQueryData([...LEASES_KEY, leaseId, 'portal-link'], link),
+  })
+}
+
+export function useRevokePortalLink(leaseId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => leasesApi.revokePortalLink(leaseId),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: [...LEASES_KEY, leaseId, 'portal-link'] }),
+  })
+}

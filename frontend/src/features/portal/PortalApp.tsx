@@ -17,7 +17,7 @@ import {
 } from '@/features/portal/api'
 import { InvoiceCard, PayButton } from '@/features/portal/InvoiceCard'
 import { PaymentPanel } from '@/features/portal/PaymentPanel'
-import { resolveToken } from '@/features/portal/token'
+import { fragmentHasToken, resolveToken } from '@/features/portal/token'
 
 /**
  * How often to ask whether a bill has been paid, and for how long.
@@ -97,6 +97,30 @@ export function PortalApp() {
     const slowTimer = window.setTimeout(() => setSlow(true), SLOW_AFTER_MS)
     void load().finally(() => window.clearTimeout(slowTimer))
     return () => window.clearTimeout(slowTimer)
+  }, [load])
+
+  /**
+   * A different link, opened in the same tab.
+   *
+   * Only the fragment differs between two portal links, and a browser treats
+   * that as staying on the same page: no reload, and nothing here would read
+   * the new token. The tenant most likely to hit this is the one who was SENT a
+   * replacement because the old link stopped working — so the screen they would
+   * be stuck on is the one saying their link is dead.
+   */
+  useEffect(() => {
+    function onFragmentChange() {
+      if (!fragmentHasToken()) return
+      resolveToken()
+      setLinkInvalid(false)
+      setLoadFailed(false)
+      setOverview(null)
+      // Which bill is open belongs to the previous link, not this one.
+      setExpandedId(undefined)
+      void load()
+    }
+    window.addEventListener('hashchange', onFragmentChange)
+    return () => window.removeEventListener('hashchange', onFragmentChange)
   }, [load])
 
   // Opened once, on the first load that brings bills. Not on every load: the
@@ -218,33 +242,31 @@ export function PortalApp() {
     )
   }
 
-  const rooms = [...new Set(overview.invoices.map((invoice) => invoice.roomCode))]
 
   return (
     <Container maxWidth="sm" sx={{ py: 3 }}>
       <Stack spacing={2}>
         {/*
-          The rooms these bills are for, and who they are addressed to.
+          The room this link is for, and who the bills are addressed to.
 
-          A tenant may hold bills for more than one room, and the card list
-          alone made them scan for it. Deliberately built from the bills
-          themselves: the payload reports no building, so this says nothing
-          about where the rooms are — see the change's proposal for what the API
-          does not report, and `api-portal-detail` for where that is recorded.
+          Read from the payload rather than off the bills. A link belongs to one
+          tenancy, so there is exactly one room — and it is known even before
+          the first bill exists, which the derived version could not say.
+
+          The name can be absent: a tenancy may have nobody named on it. The
+          room then carries the heading on its own, rather than a blank line
+          where a name should be.
         */}
         <Box>
           <Typography variant="overline" color="text.secondary">
             Hoá đơn của bạn
           </Typography>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            {overview.tenant.fullName}
+            {overview.tenant.fullName ?? `Phòng ${overview.room.roomCode}`}
           </Typography>
-          {rooms.length > 0 && (
-            <Typography variant="body2" color="text.secondary">
-              {rooms.length === 1 ? 'Phòng ' : 'Phòng: '}
-              {rooms.join(' · ')}
-            </Typography>
-          )}
+          <Typography variant="body2" color="text.secondary">
+            Phòng {overview.room.roomCode} · {overview.room.buildingName}
+          </Typography>
         </Box>
 
         {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}

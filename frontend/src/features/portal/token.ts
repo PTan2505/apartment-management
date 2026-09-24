@@ -60,6 +60,23 @@ export function resolveToken(): string | null {
   return window.sessionStorage.getItem(STORAGE_KEY)
 }
 
+/**
+ * Whether the address bar is currently carrying a token.
+ *
+ * Asked when the fragment CHANGES: opening a second link in a tab that already
+ * has the portal open changes nothing but the fragment, which a browser treats
+ * as staying on the same page — no reload, no new token read. A tenant sent a
+ * replacement link would go on looking at "liên kết không còn hiệu lực" from
+ * the old one with no way out.
+ *
+ * Separate from `resolveToken`, which would happily answer with the stored
+ * token from an earlier visit and make every unrelated fragment change look
+ * like a new link.
+ */
+export function fragmentHasToken(): boolean {
+  return readFragmentToken() !== null
+}
+
 /** Called when the API rejects the token, so a reload does not retry a dead one. */
 export function forgetToken(): void {
   window.sessionStorage.removeItem(STORAGE_KEY)

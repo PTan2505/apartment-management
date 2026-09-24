@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
+import { issueLeasePortalToken } from "@/modules/tenant-portal/service.js";
 import { paginate, toSkipTake } from "@/lib/pagination.js";
 import { findLatestKnownReading } from "@/lib/meter-history.js";
 import {
@@ -314,6 +315,11 @@ export async function createLease(input: CreateLeaseInput) {
         joinedAt: input.startDate,
       },
     });
+
+    // The link the tenant pays through, issued with the tenancy rather than on
+    // request. A tenancy without one is a tenancy whose bills cannot be paid,
+    // and nothing would say so until somebody went looking for a link to send.
+    await issueLeasePortalToken(tx, created.id);
 
     // The bill that starts the tenancy, written with the lease and its primary
     // occupant. A tenancy whose deposit was never charged is not a tenancy
@@ -770,6 +776,10 @@ export async function extendLease(id: number, input: ExtendLeaseInput) {
       where: { id: successor.id },
       data: { reference: buildLeaseReference(room.roomCode, successor.startDate, successor.id) },
     });
+
+    // A renewal is a different tenancy, so it gets its own link. The
+    // predecessor keeps its own, which still reaches its own unpaid bills.
+    await issueLeasePortalToken(tx, successor.id);
 
     for (const occupant of continuingOccupants) {
       await tx.leaseOccupant.create({

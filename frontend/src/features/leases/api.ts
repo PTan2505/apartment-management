@@ -338,3 +338,36 @@ export async function refundDeposit(leaseId: number, refundedAt: string): Promis
   })
   return data
 }
+
+/**
+ * The link a tenancy is paid through.
+ *
+ * `token` and `hasLink` answer different questions, and the pair of them says
+ * which of three situations this is: no link at all, a link that can be shown,
+ * or a link that exists and cannot be read back because the API's secret has
+ * changed since it was issued. That last one still WORKS for whoever holds it,
+ * which is why it is not reported as absent.
+ */
+export interface LeasePortalLink {
+  leaseId: number
+  hasLink: boolean
+  token: string | null
+  issuedAt: string | null
+  lastUsedAt: string | null
+}
+
+export async function getPortalLink(leaseId: number): Promise<LeasePortalLink> {
+  const { data } = await apiClient.get<LeasePortalLink>(`/leases/${leaseId}/portal-link`)
+  return data
+}
+
+/** Issues a new link. Whatever the tenancy had stops working immediately. */
+export async function reissuePortalLink(leaseId: number): Promise<LeasePortalLink> {
+  const { data } = await apiClient.post<LeasePortalLink>(`/leases/${leaseId}/portal-link`)
+  return data
+}
+
+/** Leaves the tenancy with no working link at all. Answers 404 if it has none. */
+export async function revokePortalLink(leaseId: number): Promise<void> {
+  await apiClient.delete(`/leases/${leaseId}/portal-link`)
+}

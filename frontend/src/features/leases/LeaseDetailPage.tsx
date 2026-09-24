@@ -43,6 +43,7 @@ import { ContractCard } from '@/features/leases/ContractCard'
 import { EditTermsDialog } from '@/features/leases/EditTermsDialog'
 import { LeaseInvoicesPanel } from '@/features/leases/LeaseInvoicesPanel'
 import { OccupantsCard } from '@/features/leases/OccupantsCard'
+import { PortalLinkCard } from '@/features/leases/PortalLinkCard'
 import { isLive, leaseStatusColor, leaseStatusLabel } from '@/features/leases/status'
 import type { Lease } from '@/features/leases/types'
 
@@ -562,6 +563,15 @@ export function LeaseDetailPage() {
         Two columns on a desktop, stacked on a phone with the billing history
         last: on a small screen the terms are what the screen was opened for,
         and the billing is what is scrolled to.
+
+        Each column is its own Stack, and that is not decoration. Left as bare
+        grid children, the cards were placed row by row — so the deposit card,
+        which appears only once a tenancy has closed, pushed the billing history
+        out of the right-hand column and into the left. Recording a move-out
+        rearranged the whole screen at the moment the owner least wants to
+        re-find things. Columns stated explicitly cannot do that: a card
+        appearing or disappearing changes the length of its own column and
+        nothing else.
       */}
       <Box
         sx={{
@@ -578,9 +588,23 @@ export function LeaseDetailPage() {
           {lease.tenant !== null && (
             <IdCardCard customerId={lease.tenant.id} name={lease.tenant.fullName} />
           )}
+          {/*
+            Beneath the tenancy's own papers: the link is one of the things an
+            owner hands to the tenant, like the contract above it.
+          */}
+          <PortalLinkCard lease={lease} />
         </Stack>
-        <DepositSettlementCard lease={lease} />
-        <LeaseInvoicesPanel lease={lease} />
+
+        <Stack spacing={2}>
+          <LeaseInvoicesPanel lease={lease} />
+          {/*
+            Under the bills it settles against. Nothing is shown here until a
+            move-out is recorded — the card renders nothing before that — and
+            when it appears it appears BELOW the billing history rather than
+            above it, so the bills stay where they were.
+          */}
+          <DepositSettlementCard lease={lease} />
+        </Stack>
       </Box>
 
       <Stack spacing={2} sx={{ mt: 2 }}>
