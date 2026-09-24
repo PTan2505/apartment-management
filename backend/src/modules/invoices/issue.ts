@@ -303,7 +303,18 @@ export async function issueOverdueInvoice(
 }
 
 /** The reading this lease's billing has reached, or where it started. */
-async function resolveOpeningReading(tx: Tx, leaseId: number, startMeterReading: number) {
+/**
+ * Where this tenancy's meter stands as far as its OWN bills are concerned: the
+ * reading its most recent invoice closed at, or the reading it opened from when
+ * nothing has been billed yet.
+ *
+ * Exported because it is also the floor a closing reading must clear, and the
+ * screens that ask for one have to be able to say so. Two implementations of
+ * that rule would be free to disagree, and the disagreement showed: the move-out
+ * dialog offered the room's last known reading, which ignored the tenancy's own
+ * invoices, so it suggested a figure the API then refused as too low.
+ */
+export async function resolveOpeningReading(tx: Tx, leaseId: number, startMeterReading: number) {
   const previous = await tx.invoice.findFirst({
     where: { leaseId, voidedAt: null, currentElectricityUse: { not: null } },
     orderBy: [{ year: "desc" }, { month: "desc" }],

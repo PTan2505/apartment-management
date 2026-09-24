@@ -87,7 +87,17 @@ export function MoveOutDialog({ open, lease, onClose }: MoveOutDialogProps) {
   }, [open])
 
   const soDien = Number(reading)
-  const ready = reading.trim() !== '' && Number.isFinite(soDien) && soDien >= 0 && leftOn !== ''
+  /*
+    The floor this tenancy's own bills have already established. Checked here as
+    well as by the API — not instead of it: a refusal that arrives after the
+    request is a refusal that arrives after the owner has committed, and this
+    one is knowable while they are still typing.
+  */
+  const sanToiThieu = lease.lastInvoicedMeterReading
+  const quaThap =
+    sanToiThieu !== null && reading.trim() !== '' && Number.isFinite(soDien) && soDien < sanToiThieu
+  const ready =
+    reading.trim() !== '' && Number.isFinite(soDien) && soDien >= 0 && leftOn !== '' && !quaThap
 
   /*
     The question asked between filling the form in and the tenancy actually
@@ -169,12 +179,25 @@ export function MoveOutDialog({ open, lease, onClose }: MoveOutDialogProps) {
                 htmlInput: { min: 0, step: 1 },
                 input: { endAdornment: <InputAdornment position="end">kWh</InputAdornment> },
               }}
+              /*
+                The floor the API enforces, not the room's last known reading.
+
+                Those are different figures on a tenancy that has been billed,
+                and the screen used to show the second: it offered 1.411 while
+                the September bill had already recorded 1.750, so an owner
+                entering 1.500 — above what the hint said — was refused.
+              */
+              error={quaThap}
               helperText={
-                meterQuery.isFetching
-                  ? 'Đang lấy số điện gần nhất…'
-                  : meterQuery.data?.reading !== null && meterQuery.data?.reading !== undefined
-                    ? `Số gần nhất của phòng: ${meterQuery.data.reading.toLocaleString('vi-VN')} kWh`
-                    : 'Số trên công tơ lúc nhận lại phòng'
+                quaThap
+                  ? `Thấp hơn số đã xuất hoá đơn (${sanToiThieu?.toLocaleString('vi-VN')} kWh). Công tơ không quay ngược được.`
+                  : sanToiThieu !== null
+                  ? `Đã xuất hoá đơn tới ${sanToiThieu.toLocaleString('vi-VN')} kWh — không nhập thấp hơn`
+                  : meterQuery.isFetching
+                    ? 'Đang lấy số điện gần nhất…'
+                    : meterQuery.data?.reading !== null && meterQuery.data?.reading !== undefined
+                      ? `Số gần nhất của phòng: ${meterQuery.data.reading.toLocaleString('vi-VN')} kWh`
+                      : 'Số trên công tơ lúc nhận lại phòng'
               }
             />
           </Stack>

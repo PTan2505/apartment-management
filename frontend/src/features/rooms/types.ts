@@ -88,5 +88,5 @@ export interface RoomMeterReading {
   reading: number | null
   /** When that reading was taken. */
   at: string | null
-  source: 'lease_start' | 'lease_end' | 'vacancy' | null
+  source: 'room_initial' | 'lease_start' | 'lease_end' | 'invoice' | 'vacancy' | null
 }

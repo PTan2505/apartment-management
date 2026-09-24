@@ -111,8 +111,13 @@ export function RenewLeaseDialog({ open, lease, onRenewed, onClose }: RenewLease
   const current = (occupantsQuery.data?.data ?? []).filter((o) => o.leftAt === null)
   const soThang = Number(months)
   const soDien = Number(reading)
+  // The same floor a move-out has to clear: a renewal closes this tenancy, and
+  // its final month is billed from this reading.
+  const sanToiThieu = lease.lastInvoicedMeterReading
+  const quaThap =
+    sanToiThieu !== null && reading.trim() !== '' && Number.isFinite(soDien) && soDien < sanToiThieu
   const ready =
-    reading.trim() !== '' && Number.isFinite(soDien) && soDien >= 0 && soThang >= 1
+    reading.trim() !== '' && Number.isFinite(soDien) && soDien >= 0 && soThang >= 1 && !quaThap
 
   // What the successor's deposit will be, against what is already held. The
   // rent drives it, so raising the rent moves it — which is exactly the case
@@ -181,7 +186,16 @@ export function RenewLeaseDialog({ open, lease, onRenewed, onClose }: RenewLease
                 htmlInput: { min: 0, step: 1 },
                 input: { endAdornment: <InputAdornment position="end">kWh</InputAdornment> },
               }}
-              helperText="Số trên công tơ lúc gia hạn. Tháng cuối của hợp đồng cũ tính theo số này."
+              // Same floor as a move-out: the renewal closes this tenancy, and
+              // its final month is billed from this figure.
+              error={quaThap}
+              helperText={
+                quaThap
+                  ? `Thấp hơn số đã xuất hoá đơn (${sanToiThieu?.toLocaleString('vi-VN')} kWh). Công tơ không quay ngược được.`
+                  : sanToiThieu !== null
+                    ? `Số trên công tơ lúc gia hạn — đã xuất hoá đơn tới ${sanToiThieu.toLocaleString('vi-VN')} kWh, không nhập thấp hơn.`
+                    : 'Số trên công tơ lúc gia hạn. Tháng cuối của hợp đồng cũ tính theo số này.'
+              }
             />
             <TextField
               label="Thời hạn mới"

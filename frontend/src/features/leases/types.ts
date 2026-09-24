@@ -108,6 +108,19 @@ export interface Lease {
    */
   cancellable: boolean
   /** Why cancellation is withheld on a running tenancy: it has been billed. */
+  /**
+   * The lowest closing reading this tenancy can be given: where its own
+   * invoices leave the meter, or the reading it opened from.
+   *
+   * Reported by the API rather than worked out here from the invoice list. It
+   * is the exact figure the API refuses below, and a second copy of that rule
+   * in the browser is free to disagree with it — which is what happened when
+   * the move-out dialog offered the ROOM's last known reading and the API
+   * rejected it as lower than what had already been billed.
+   *
+   * Null on a lease that came from the listing, which does not resolve it.
+   */
+  lastInvoicedMeterReading: number | null
   hasBilledMonth: boolean
   /**
    * Whether the signed contract is on file — never WHERE it is.

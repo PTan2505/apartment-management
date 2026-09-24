@@ -152,6 +152,12 @@ interface LeaseRow {
   occupants?: OccupantRow[];
   /** Monthly invoices issued against this tenancy, fetched capped at one. */
   invoices?: { id: number }[];
+  /**
+   * Where the meter stands according to this tenancy's own invoices. Resolved
+   * by the detail path only — the listing has no use for it and it costs a
+   * query per tenancy.
+   */
+  lastInvoicedMeterReading?: number;
 }
 
 /**
@@ -280,6 +286,20 @@ export function toLeaseResponse(lease: LeaseRow) {
      * that is not there.
      */
     hasBilledMonth: (lease.invoices?.length ?? 0) > 0,
+    /**
+     * The lowest closing reading this tenancy can be given, and the figure a
+     * screen should offer beside a field asking for one.
+     *
+     * It is the reading the tenancy's latest invoice closed at, falling back to
+     * the reading it opened from. Reported rather than left to the client to
+     * work out from the invoice list: it is the exact value the API refuses
+     * below, and a second implementation of that rule in the browser would be
+     * free to disagree with it — which is precisely what went wrong when the
+     * screen showed the ROOM's last known reading instead.
+     *
+     * Null on the listing, which does not resolve it.
+     */
+    lastInvoicedMeterReading: lease.lastInvoicedMeterReading ?? null,
     /**
      * Whether this tenancy can be recorded as never having taken place.
      *

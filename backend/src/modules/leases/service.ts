@@ -15,6 +15,7 @@ import {
   issueFinalInvoice,
   issueMoveInInvoice,
   issueOverdueInvoice,
+  resolveOpeningReading,
 } from "@/modules/invoices/issue.js";
 import { carryHolding, deductFromDeposit } from "@/modules/deposits/holding.js";
 import { addMonths, DUE_SOON_DAYS } from "./mapper.js";
@@ -131,7 +132,19 @@ async function findLeaseOrThrow(id: number) {
   if (!lease) {
     throw new NotFoundError("LEASE_NOT_FOUND", "Lease not found");
   }
-  return lease;
+  /*
+    Where this tenancy's meter stands according to its own bills — the floor any
+    closing reading has to clear.
+
+    Resolved by the SAME function the final invoice resolves it with, so the
+    figure a screen offers and the figure the API refuses below are one value
+    and not two. Only on this path: the listing has no field for it and would
+    pay a query per row for something no list shows.
+  */
+  return {
+    ...lease,
+    lastInvoicedMeterReading: await resolveOpeningReading(prisma, id, lease.startMeterReading),
+  };
 }
 
 /**
