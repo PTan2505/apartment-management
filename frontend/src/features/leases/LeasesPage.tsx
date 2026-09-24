@@ -84,19 +84,39 @@ function LeaseCount({
       }}
     >
       <CardActionArea onClick={onClick} sx={{ px: 2, py: 1.5 }}>
-        <Typography variant="overline" color="text.secondary">
-          {label}
-        </Typography>
-        <Typography
-          variant="h4"
-          sx={{ fontWeight: 600, lineHeight: 1.2 }}
-          color={count > 0 ? `${color}.main` : "text.disabled"}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            columnGap: 2,
+            rowGap: 0.5,
+          }}
         >
-          {pending ? "…" : count}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {selected ? "Đang lọc — bấm để bỏ lọc" : hint}
-        </Typography>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 0.5,
+              minWidth: 0,
+            }}
+          >
+            <Typography variant="overline" color="text.secondary">
+              {label}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {selected ? "Đang lọc — bấm để bỏ lọc" : hint}
+            </Typography>
+          </Box>
+          <Typography
+            variant="h4"
+            sx={{ fontWeight: 600, lineHeight: 1.2, fontSize: "2rem" }}
+            color={count > 0 ? `${color}.main` : "text.disabled"}
+          >
+            {pending ? "…" : count}
+          </Typography>
+        </Box>
       </CardActionArea>
     </Card>
   );
