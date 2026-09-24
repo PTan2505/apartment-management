@@ -6,6 +6,11 @@ import {
   getSettlementHandler,
   refundDepositHandler,
 } from "@/modules/deposits/controller.js";
+import {
+  getLeasePortalLinkHandler,
+  reissueLeasePortalLinkHandler,
+  revokeLeasePortalLinkHandler,
+} from "@/modules/tenant-portal/controller.js";
 import { requireRole } from "@/middleware/require-role.js";
 import {
   createLeaseHandler,
@@ -63,3 +68,15 @@ leasesRouter.post("/:id/occupants/transfer-primary", transferPrimaryHandler);
 
 // Which of the building's service fees this lease agreed to.
 leasesRouter.use("/:id/service-fees", leaseServiceFeesRouter);
+
+/*
+  The link this tenancy is paid through. Handlers live in the tenant-portal
+  module; they hang here because they act on one tenancy.
+
+  GET returns the token itself, not merely its existence: an owner sending the
+  link a second time must not have to replace it, which would kill the copy the
+  tenant already has.
+*/
+leasesRouter.get("/:id/portal-link", getLeasePortalLinkHandler);
+leasesRouter.post("/:id/portal-link", reissueLeasePortalLinkHandler);
+leasesRouter.delete("/:id/portal-link", revokeLeasePortalLinkHandler);

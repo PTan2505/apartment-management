@@ -1,9 +1,7 @@
 ## Purpose
 
 The owner's screens for what a building costs them: recording a cost, correcting one, and closing off a month's empty rooms whose electricity nobody was billed for. Costs are the half of the revenue report that has no way in, so every figure it produces is too flattering until this exists.
-
 ## Requirements
-
 ### Requirement: The owner can record what a building cost them
 
 The application SHALL let the owner record a cost against a building, and optionally against a room within it.
@@ -117,3 +115,22 @@ The month-end round is the case that matters, for the same reason as billing: an
 
 - **WHEN** the owner opens the empty-rooms screen on a narrow viewport
 - **THEN** each room and its reading field are reachable without scrolling the page sideways
+
+### Requirement: A change to a cost's amount is confirmed before it is saved
+
+The application SHALL ask the owner to confirm saving a correction that changes what a cost is worth, showing the previous amount and the new one.
+
+A measured cost's quantity and rate are not editable once recorded — a correction changes its amount directly — so there is nothing else here to confirm.
+
+A correction that changes only a cost's description, kind or date SHALL be saved without a confirmation step. Those are how a cost is found and filed; the amount is what a month's spending is built from.
+
+#### Scenario: Correcting an amount
+
+- **WHEN** an owner changes a cost's amount and saves
+- **THEN** a confirmation shows the amount as old and new, and nothing is sent until it is confirmed
+
+#### Scenario: Correcting a description
+
+- **WHEN** an owner changes only a cost's description, kind or date and saves
+- **THEN** it is saved without a confirmation step
+

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as leasesApi from '@/features/leases/api'
 import type { CreateLeaseFormOutput, UpdateLeaseFormOutput } from '@/features/leases/schema'
-import type { ListLeasesParams } from '@/features/leases/types'
+import type { LeaseStatus, ListLeasesParams } from '@/features/leases/types'
 
 const LEASES_KEY = ['leases'] as const
 const ROOMS_KEY = ['rooms'] as const
@@ -15,20 +15,19 @@ export function useLeases(params: ListLeasesParams) {
 }
 
 /**
- * How many tenancies need attention, asked for on its own.
+ * How many tenancies are in one state, asked for on its own.
  *
- * The list marks them, but marking is not announcing: leases are ordered most
- * recently begun first, and a tenancy whose term ran out is usually an OLD one
- * — so it sinks to the last page, which is the page nobody opens. The very
- * record that needs chasing ends up the hardest to see.
+ * The list already marks each row, but marking is not announcing: a count
+ * stands where the owner is, whatever page the tenancies it counts are on.
  *
- * One row is fetched and thrown away; only `meta.total` is wanted, and the
- * shared paginated shape reports it whatever the page size.
+ * The listing itself asked with `pageSize=1` and read off `meta.total`, rather
+ * than a counting endpoint: the number has to agree with the list it leads to,
+ * and the surest way to agree with a query is to BE that query.
  */
-export function useOverdueLeaseCount() {
+export function useLeaseCount(status: LeaseStatus) {
   return useQuery({
-    queryKey: [...LEASES_KEY, 'overdue-count'],
-    queryFn: () => leasesApi.listLeases({ overdue: true, pageSize: 1 }),
+    queryKey: [...LEASES_KEY, 'count', status],
+    queryFn: () => leasesApi.listLeases({ status, pageSize: 1 }),
     select: (page) => page.meta.total,
   })
 }
@@ -107,6 +106,53 @@ export function useUpdateLease() {
  * without it the room the cancellation just released would still be missing
  * from the create form's list of rooms that can be let.
  */
+/** Renewing: one request that closes a tenancy and opens its successor. */
+export function useExtendLease() {
+  const invalidate = useInvalidateLeases()
+  return useMutation({
+    mutationFn: ({ id, input }: { id: number; input: leasesApi.ExtendLeaseInput }) =>
+      leasesApi.extendLease(id, input),
+    onSuccess: invalidate,
+  })
+}
+
+/** Closing a tenancy: the tenant left, the final bill goes out, the room frees. */
+export function useRecordMoveOut() {
+  const invalidate = useInvalidateLeases()
+  return useMutation({
+    mutationFn: ({ id, input }: { id: number; input: leasesApi.MoveOutInput }) =>
+      leasesApi.recordMoveOut(id, input),
+    onSuccess: invalidate,
+  })
+}
+
+/** What the deposit settles to. Only asked for once a tenancy has closed. */
+export function useDepositSettlement(leaseId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: [...LEASES_KEY, leaseId, 'deposit-settlement'],
+    queryFn: () => leasesApi.getDepositSettlement(leaseId),
+    enabled,
+  })
+}
+
+export function useRefundDeposit() {
+  const invalidate = useInvalidateLeases()
+  return useMutation({
+    mutationFn: ({ id, refundedAt }: { id: number; refundedAt: string }) =>
+      leasesApi.refundDeposit(id, refundedAt),
+    onSuccess: invalidate,
+  })
+}
+
+/** The building's fee catalogue, for naming charges beyond a term. */
+export function useBuildingServiceFees(buildingId: number | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['buildings', buildingId, 'service-fees'],
+    queryFn: () => leasesApi.listBuildingServiceFees(buildingId!),
+    enabled: buildingId !== undefined && enabled,
+  })
+}
+
 export function useCancelLease() {
   const invalidate = useInvalidateLeases()
   return useMutation({
@@ -178,5 +224,41 @@ export function useTransferPrimary() {
     mutationFn: ({ leaseId, customerId }: { leaseId: number; customerId: number }) =>
       leasesApi.transferPrimary(leaseId, customerId),
     onSuccess: invalidate,
+  })
+}
+
+/**
+ * The tenancy's payment link.
+ *
+ * Fetched on its own rather than carried on the lease: the token is a
+ * credential, and putting it on the response every screen already asks for
+ * would spread it through the list, the cache and every future caller that
+ * only wanted a room code.
+ */
+export function usePortalLink(leaseId: number) {
+  return useQuery({
+    queryKey: [...LEASES_KEY, leaseId, 'portal-link'],
+    queryFn: () => leasesApi.getPortalLink(leaseId),
+  })
+}
+
+export function useReissuePortalLink(leaseId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => leasesApi.reissuePortalLink(leaseId),
+    // The new link comes back from the request that made it; writing it
+    // straight into the cache means the owner never sees an empty box between
+    // issuing a link and it arriving.
+    onSuccess: (link) =>
+      queryClient.setQueryData([...LEASES_KEY, leaseId, 'portal-link'], link),
+  })
+}
+
+export function useRevokePortalLink(leaseId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => leasesApi.revokePortalLink(leaseId),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: [...LEASES_KEY, leaseId, 'portal-link'] }),
   })
 }

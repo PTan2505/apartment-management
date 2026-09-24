@@ -41,5 +41,5 @@
 - [x] 7.2 A page opens full size
 - [x] 7.3 Adding later joins rather than replaces
 - [x] 7.4 Removing one asks first, then leaves the others
-- [ ] 7.5 A failure mid-run names the page and keeps the others — NOT exercised in the browser; the sequential upload and its message are in place but no failure was provoked mid-batch
+- [x] 7.5 A failure mid-run names the page and keeps the others — three pages with an oversized one in the middle: two attached, two objects in the bucket, and the screen said which count failed
 - [x] 7.6 390px

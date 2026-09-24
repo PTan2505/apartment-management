@@ -12,10 +12,12 @@ import DialogTitle from '@mui/material/DialogTitle'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { MoneyInput } from '@/components/MoneyField'
 import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { useCancelLease } from '@/features/leases/hooks'
+import { UnpaidInvoicesWarning } from '@/features/leases/UnpaidInvoicesWarning'
 import type { Lease } from '@/features/leases/types'
 
 interface CancelLeaseDialogProps {
@@ -90,6 +92,13 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
   // worse way to learn it than being told while there is still a field to fix.
   const blocked = hasHolding && !accountsForHolding
 
+  /*
+    Asked between filling the form in and the cancellation happening. This one
+    states that a tenancy never took place, which is the hardest of the three
+    to undo: there is no action on this screen that un-cancels one.
+  */
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
   async function handleConfirm() {
     setError(null)
     try {
@@ -99,8 +108,10 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
           ? { depositReturned: returnedValue ?? 0, depositKept: keptValue ?? 0 }
           : null,
       })
+      setConfirmOpen(false)
       onClose()
     } catch (cause) {
+      setConfirmOpen(false)
       setError(errorMessage(cause))
     }
   }
@@ -125,6 +136,11 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
           </DialogContentText>
 
           {error && <Alert severity="error">{error}</Alert>}
+
+          <UnpaidInvoicesWarning
+            leaseId={lease.id}
+            action="Huỷ hợp đồng là ghi nhận nó chưa từng diễn ra, nên khoản nợ này cũng không còn ai để đòi. Nếu khách đã từng ở thật thì hãy dùng “Kết thúc hợp đồng”."
+          />
 
           {hasHolding ? (
             <>
@@ -205,13 +221,30 @@ export function CancelLeaseDialog({ open, lease, onClose }: CancelLeaseDialogPro
         <Button
           variant="contained"
           color="error"
-          onClick={() => void handleConfirm()}
+          onClick={() => setConfirmOpen(true)}
           disabled={isSubmitting || blocked}
           startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
           {isSubmitting ? 'Đang huỷ…' : 'Huỷ hợp đồng'}
         </Button>
       </DialogActions>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Huỷ hợp đồng này?"
+        description={`Ghi nhận hợp đồng ${roomLabel} chưa từng diễn ra và trả phòng về trạng thái trống ngay. Không hoàn tác được — hợp đồng đã huỷ thì không mở lại được.`}
+        confirmLabel="Huỷ hợp đồng"
+        busyLabel="Đang huỷ…"
+        destructive
+        busy={isSubmitting}
+        onConfirm={() => void handleConfirm()}
+        onClose={() => setConfirmOpen(false)}
+      >
+        <UnpaidInvoicesWarning
+          leaseId={lease.id}
+          action="Khoản này sẽ thuộc về một hợp đồng được ghi là chưa từng diễn ra."
+        />
+      </ConfirmDialog>
     </Dialog>
   )
 }

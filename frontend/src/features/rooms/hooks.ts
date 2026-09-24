@@ -6,10 +6,13 @@ import type { ListRoomsParams } from '@/features/rooms/types'
 
 const ROOMS_KEY = ['rooms'] as const
 
-export function useRooms(params: ListRoomsParams) {
+export function useRooms(params: ListRoomsParams, enabled = true) {
   return useQuery({
     queryKey: [...ROOMS_KEY, 'list', params],
     queryFn: () => roomsApi.listRooms(params),
+    // Off until the caller has what the question needs — the signing form
+    // cannot ask which rooms fit a date before a date is chosen.
+    enabled,
   })
 }
 
@@ -64,6 +67,19 @@ export function useRestoreRoom() {
  * `enabled` keeps it from firing with no room: the lease form mounts before one
  * is picked, and requesting `/rooms/undefined/...` would 400 on every open.
  */
+/**
+ * One room. Used where a screen needs the room's CURRENT rent — renewing, where
+ * a price rise takes effect — which the lease deliberately does not carry: a
+ * tenancy is governed by the rent it agreed, not by what the room asks now.
+ */
+export function useRoom(id: number | undefined, enabled = true) {
+  return useQuery({
+    queryKey: [...ROOMS_KEY, 'one', id],
+    queryFn: () => roomsApi.getRoom(id!),
+    enabled: id !== undefined && enabled,
+  })
+}
+
 export function useRoomMeterReading(roomId: number | undefined) {
   return useQuery({
     queryKey: [...ROOMS_KEY, 'meter', roomId],

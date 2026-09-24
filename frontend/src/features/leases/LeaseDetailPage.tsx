@@ -15,7 +15,9 @@ import Link from '@mui/material/Link'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import EditIcon from '@mui/icons-material/Edit'
+import AutorenewIcon from '@mui/icons-material/Autorenew'
 import EventBusyIcon from '@mui/icons-material/EventBusy'
+import LogoutIcon from '@mui/icons-material/Logout'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 
 import { isApiError } from '@/lib/api-error'
@@ -27,23 +29,23 @@ import {
   departureAgainstTerm,
   formatCoveredThrough,
   formatDate,
+  formatOverdueTerm,
   formatRemainingTerm,
   isTermRunOut,
 } from '@/features/leases/dates'
 import { useLease } from '@/features/leases/hooks'
 import { CancelLeaseDialog } from '@/features/leases/CancelLeaseDialog'
+import { DepositSettlementCard } from '@/features/leases/DepositSettlementCard'
+import { MoveOutDialog } from '@/features/leases/MoveOutDialog'
+import { RenewLeaseDialog } from '@/features/leases/RenewLeaseDialog'
 import { IdCardCard } from '@/features/customers/IdCardCard'
 import { ContractCard } from '@/features/leases/ContractCard'
 import { EditTermsDialog } from '@/features/leases/EditTermsDialog'
 import { LeaseInvoicesPanel } from '@/features/leases/LeaseInvoicesPanel'
 import { OccupantsCard } from '@/features/leases/OccupantsCard'
+import { PortalLinkCard } from '@/features/leases/PortalLinkCard'
+import { isLive, leaseStatusColor, leaseStatusLabel } from '@/features/leases/status'
 import type { Lease } from '@/features/leases/types'
-
-/** The three states a tenancy can be in, as an owner would name them. */
-function statusLabel(status: Lease['status']): string {
-  if (status === 'active') return 'Đang thuê'
-  return status === 'cancelled' ? 'Đã huỷ' : 'Đã kết thúc'
-}
 
 /** A labelled fact. Enough of them that a component beats repeating the markup. */
 function Field({
@@ -101,10 +103,22 @@ function BandFact({ label, value }: { label: string; value: string }) {
  * down a list of equal-weight rows is a summary the screen declined to give.
  */
 function SummaryBand({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
-  const remaining = formatRemainingTerm(lease)
+  /*
+    How near the end it is, or how far past it — the same measurement pointing
+    two ways, so one field says both. Emphasised only in the two states that
+    need acting on: a mark that applies to every tenancy marks none of them.
+  */
+  const standing = formatOverdueTerm(lease) ?? formatRemainingTerm(lease)
+  const standingColor =
+    lease.status === 'overdue'
+      ? 'error.main'
+      : lease.status === 'dueSoon'
+        ? 'warning.main'
+        : 'text.primary'
+  const standingEmphasis = lease.status === 'overdue' || lease.status === 'dueSoon'
   const tenantName =
     lease.tenant?.fullName ??
-    (lease.status === 'active' ? 'Chưa ai đứng tên' : 'Không có người đứng tên')
+    (isLive(lease.status) ? 'Chưa ai đứng tên' : 'Không có người đứng tên')
 
   return (
     <Card variant="outlined" sx={{ mb: 2 }}>
@@ -134,7 +148,7 @@ function SummaryBand({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
                   component="span"
                   sx={{
                     color:
-                      !lease.tenant?.fullName && lease.status === 'active'
+                      !lease.tenant?.fullName && isLive(lease.status)
                         ? 'warning.main'
                         : 'inherit',
                   }}
@@ -149,19 +163,15 @@ function SummaryBand({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
               */}
               <Chip
                 size="small"
-                label={statusLabel(lease.status)}
-                color={
-                  lease.status === 'active'
-                    ? 'success'
-                    : lease.status === 'cancelled'
-                      ? 'error'
-                      : 'default'
+                label={leaseStatusLabel(lease.status)}
+                color={leaseStatusColor(lease.status)}
+                variant={
+                  lease.status === 'finalized' || lease.status === 'upcoming'
+                    ? 'outlined'
+                    : 'filled'
                 }
-                variant={lease.status === 'finalized' ? 'outlined' : 'filled'}
+                icon={lease.status === 'overdue' ? <WarningAmberIcon /> : undefined}
               />
-              {isTermRunOut(lease) && (
-                <Chip size="small" color="warning" icon={<WarningAmberIcon />} label="Hết hạn" />
-              )}
             </Stack>
 
             <Stack
@@ -183,17 +193,26 @@ function SummaryBand({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
             sx={{ alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', rowGap: 1 }}
           >
             {/*
-              Only while the tenancy is running. "Còn 0 tháng" on a tenancy that
-              ended in March states something false, and there is no honest
-              number to put here — so there is no field.
+              Only while the tenancy is live. "Còn 0 tháng" on a tenancy that
+              ended in March states something false, and "quá hạn" on one that
+              was handed back states something falser — so there is no field.
             */}
-            {remaining !== null && (
+            {standing !== null && (
               <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
+                {/*
+                  One label for both readings. "Thời hạn" would collide with the
+                  field of that name in the terms card below, which says how
+                  many months were agreed — a different fact entirely.
+                */}
                 <Typography variant="overline" color="text.secondary">
                   Thời gian hiệu lực
                 </Typography>
-                <Typography variant="h6" component="p">
-                  {remaining}
+                <Typography
+                  variant="h6"
+                  component="p"
+                  sx={{ color: standingColor, fontWeight: standingEmphasis ? 700 : undefined }}
+                >
+                  {standing}
                 </Typography>
               </Box>
             )}
@@ -202,7 +221,7 @@ function SummaryBand({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
               the API answers 409, and a control that cannot work is worse than
               no control.
             */}
-            {lease.status === 'active' && (
+            {isLive(lease.status) && (
               <Button variant="contained" startIcon={<EditIcon />} onClick={onEdit}>
                 Chỉnh sửa hợp đồng
               </Button>
@@ -462,6 +481,8 @@ export function LeaseDetailPage() {
   const leaseQuery = useLease(leaseId)
   const [editOpen, setEditOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
+  const [renewOpen, setRenewOpen] = useState(false)
+  const [moveOutOpen, setMoveOutOpen] = useState(false)
 
   if (leaseQuery.isPending) {
     return (
@@ -542,6 +563,15 @@ export function LeaseDetailPage() {
         Two columns on a desktop, stacked on a phone with the billing history
         last: on a small screen the terms are what the screen was opened for,
         and the billing is what is scrolled to.
+
+        Each column is its own Stack, and that is not decoration. Left as bare
+        grid children, the cards were placed row by row — so the deposit card,
+        which appears only once a tenancy has closed, pushed the billing history
+        out of the right-hand column and into the left. Recording a move-out
+        rearranged the whole screen at the moment the owner least wants to
+        re-find things. Columns stated explicitly cannot do that: a card
+        appearing or disappearing changes the length of its own column and
+        nothing else.
       */}
       <Box
         sx={{
@@ -558,8 +588,23 @@ export function LeaseDetailPage() {
           {lease.tenant !== null && (
             <IdCardCard customerId={lease.tenant.id} name={lease.tenant.fullName} />
           )}
+          {/*
+            Beneath the tenancy's own papers: the link is one of the things an
+            owner hands to the tenant, like the contract above it.
+          */}
+          <PortalLinkCard lease={lease} />
         </Stack>
-        <LeaseInvoicesPanel lease={lease} />
+
+        <Stack spacing={2}>
+          <LeaseInvoicesPanel lease={lease} />
+          {/*
+            Under the bills it settles against. Nothing is shown here until a
+            move-out is recorded — the card renders nothing before that — and
+            when it appears it appears BELOW the billing history rather than
+            above it, so the bills stay where they were.
+          */}
+          <DepositSettlementCard lease={lease} />
+        </Stack>
       </Box>
 
       <Stack spacing={2} sx={{ mt: 2 }}>
@@ -568,6 +613,55 @@ export function LeaseDetailPage() {
           `cancellable` carries the rule so this screen does not keep a second
           copy of it that could drift.
         */}
+        {/*
+          The most ordinary thing that happens to a tenancy: the tenant stays.
+          It existed only in the API — an owner reaching the same outcome by
+          hand would re-enter the occupants, settle and re-collect the deposit,
+          re-choose the fees, leave a gap between the two agreements, and record
+          no link between them.
+
+          Offered while the tenancy is running. A closed or cancelled one has
+          nothing to renew, and the API refuses both.
+        */}
+        {isLive(lease.status) && (
+          <Box>
+            <Button
+              variant="outlined"
+              startIcon={<AutorenewIcon />}
+              onClick={() => setRenewOpen(true)}
+            >
+              Gia hạn hợp đồng
+            </Button>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+              Khách ở tiếp sau khi hết hạn. Đóng hợp đồng này đúng ngày kết thúc và mở hợp đồng
+              mới ngay hôm đó, giữ nguyên người ở và tiền cọc.
+            </Typography>
+          </Box>
+        )}
+
+        {/*
+          How a tenancy actually ends. It existed only in the API, so the only
+          ending an owner could reach was cancelling — which records a tenancy
+          as never having happened, and on a tenant who lived here for a year
+          would erase the year.
+        */}
+        {isLive(lease.status) && (
+          <Box>
+            <Button
+              color="error"
+              variant="outlined"
+              startIcon={<LogoutIcon />}
+              onClick={() => setMoveOutOpen(true)}
+            >
+              Kết thúc hợp đồng
+            </Button>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+              Khách đã dọn đi thật. Chốt số điện, xuất hoá đơn tháng cuối, và trả phòng về trạng
+              thái trống.
+            </Typography>
+          </Box>
+        )}
+
         {lease.cancellable && (
           <Box>
             <Button
@@ -591,7 +685,7 @@ export function LeaseDetailPage() {
           to close a tenancy that has been billed needs telling what to look for
           instead — otherwise they hunt for a control that was never there.
         */}
-        {lease.status === 'active' && !lease.cancellable && lease.hasBilledMonth && (
+        {isLive(lease.status) && !lease.cancellable && lease.hasBilledMonth && (
           <Alert severity="info">
             <AlertTitle>Không huỷ được hợp đồng này</AlertTitle>
             Đã xuất hoá đơn tháng, tức là đã có người ở. Hợp đồng đã xuất hoá đơn thì
@@ -601,6 +695,20 @@ export function LeaseDetailPage() {
       </Stack>
 
       <EditTermsDialog open={editOpen} lease={lease} onClose={() => setEditOpen(false)} />
+      <MoveOutDialog open={moveOutOpen} lease={lease} onClose={() => setMoveOutOpen(false)} />
+
+      <RenewLeaseDialog
+        open={renewOpen}
+        lease={lease}
+        onRenewed={(successorId) => {
+          setRenewOpen(false)
+          // Straight to the successor: it is the tenancy that now exists, and
+          // it already names the one it renewed.
+          navigate(`/leases/${successorId}`)
+        }}
+        onClose={() => setRenewOpen(false)}
+      />
+
       <CancelLeaseDialog open={cancelOpen} lease={lease} onClose={() => setCancelOpen(false)} />
     </Box>
   )

@@ -289,9 +289,11 @@ This reports only whether a tenancy is running, not which one. A room's represen
 
 ### Requirement: A room's opening reading counts as a known meter position
 
-The system SHALL treat a room's recorded opening reading as one of the sources for that room's current meter position, alongside the reading a lease opened from, the reading a lease closed at, and any vacancy record. The most recent of them SHALL win, exactly as it does today.
+The system SHALL treat a room's recorded opening reading as one of the sources for that room's current meter position, alongside the reading a lease opened from, the reading a lease closed at, any reading already recorded on an invoice for that room, and any vacancy record. The most recent of them SHALL win.
 
-Adding it as a fourth source rather than a special case is what makes it disappear from every later calculation. On a room that has been let, the tenancy's readings are newer and the opening figure is simply never the most recent. On a room that has never been let, it is the only one there is — which is the situation this exists for.
+Adding it as one more source rather than a special case is what makes it disappear from every later calculation. On a room that has been let, the tenancy's readings are newer and the opening figure is simply never the most recent. On a room that has never been let, it is the only one there is — which is the situation this exists for.
+
+An invoiced reading is dated at the end of the period it billed, which is when the meter was read. Leaving it out made the room's position lag behind its own bills: a tenancy billed through September reported the reading it opened from in June, and the move-out screen offered that figure while the API refused anything below what September had already invoiced — the hint and the rule consulting different histories of one meter.
 
 A room with no recorded opening reading and no tenancy history SHALL continue to report no known position, because it genuinely has none.
 
@@ -305,6 +307,16 @@ A room with no recorded opening reading and no tenancy history SHALL continue to
 - **WHEN** a room created with an opening reading is later let, and that tenancy records readings of its own
 - **THEN** the room's known position comes from the tenancy, because those readings are more recent
 
+#### Scenario: A billed reading supersedes the one a tenancy opened from
+
+- **WHEN** a running tenancy has been billed for a month, recording a closing reading on that invoice
+- **THEN** the room's known position is that invoiced reading, not the reading the tenancy opened from
+
+#### Scenario: What the screen offers is never below what the API will accept
+
+- **WHEN** an owner is shown the room's known reading while recording a move-out
+- **THEN** entering that figure is not refused for being below what has already been invoiced
+
 #### Scenario: A room with nothing recorded at all
 
 - **WHEN** a room has neither an opening reading nor any tenancy history
@@ -315,3 +327,107 @@ A room with no recorded opening reading and no tenancy history SHALL continue to
 - **WHEN** an authenticated owner creates the first lease for a room that has an opening reading, without supplying a starting reading
 - **THEN** the lease starts from the room's recorded reading, rather than being refused for having nothing to fall back on
 
+### Requirement: Rooms can be listed by the date they are free from
+
+The system SHALL allow an authenticated `owner` to list rooms available on a NAMED DATE: rooms in service, holding no open tenancy, whose most recent tenancy ended on or before that date.
+
+"Vacant" answers a different question — free right now — and it is the wrong question when signing. A room whose tenant leaves on the 30th can take a tenancy beginning the 1st, and a room free today cannot take one beginning last month. A caller that asks "which rooms are free now" while the owner is signing for November gets both answers wrong in the same list.
+
+The date SHALL be compared the way the tenancy rule compares it: an ending date is the first day no longer covered, so a room whose previous tenancy ends exactly on the named date IS available — it abuts, with neither gap nor overlap.
+
+A CANCELLED tenancy SHALL be ignored in this comparison. It covered no days, so its dates hold no room; counting them would hide the very room a cancellation was performed to free.
+
+This filter SHALL be combinable with the others, and SHALL NOT change what the listing returns when it is not given.
+
+#### Scenario: A room whose tenancy ends before the date
+
+- **WHEN** an owner lists rooms available on a date after the room's last tenancy ended
+- **THEN** that room is listed
+
+#### Scenario: A room whose tenancy ends exactly on the date
+
+- **WHEN** an owner lists rooms available on the very day the room's last tenancy ends
+- **THEN** that room is listed, because an ending date is the first day no longer covered
+
+#### Scenario: A room still let on that date
+
+- **WHEN** an owner lists rooms available on a date while a tenancy of that room is still running
+- **THEN** that room is not listed
+
+#### Scenario: A room whose last tenancy ends after the date
+
+- **WHEN** an owner lists rooms available on a date earlier than the day the room's last tenancy ends
+- **THEN** that room is not listed
+
+#### Scenario: A cancelled tenancy holds no room
+
+- **WHEN** a room's only tenancy was cancelled
+- **THEN** the room is listed as available on any date
+
+#### Scenario: A retired room is never available
+
+- **WHEN** an owner lists rooms available on a date
+- **THEN** rooms taken out of service are not listed
+
+#### Scenario: The filter is optional
+
+- **WHEN** an owner lists rooms without naming a date
+- **THEN** the listing behaves exactly as it did before
+
+### Requirement: A let room names the tenancy holding it and when it frees up
+
+A room reported as let SHALL also report the IDENTITY of the tenancy holding it and the day that tenancy covers to — the recorded move-out where there is one, the agreed end otherwise. A room that is not let SHALL report neither.
+
+A room has said only WHETHER it is let, and deliberately: a room's response must not carry the tenancy's terms, its tenant or its rent, because that is the tenancy's own record and a copy of it goes stale on the first change.
+
+An identifier and a date are not that copy. They are the two things a rooms screen cannot answer without them — "when does this room come free" and "which tenancy is in it" — and the alternative is a request per row, which is what a listing exists to avoid.
+
+Nothing further SHALL be added. No tenant name, no rent, no status of the tenancy: each is available by following the id, and each would be a second place for a fact that already has one.
+
+#### Scenario: A let room reports its tenancy
+
+- **WHEN** an authenticated owner retrieves a room with a running tenancy
+- **THEN** the response names that tenancy's id and the day it covers to
+
+#### Scenario: A tenancy that ended early
+
+- **WHEN** the tenancy holding a room recorded a move-out before its agreed end
+- **THEN** the room reports the move-out date, because that is the day it comes free
+
+#### Scenario: A vacant room reports neither
+
+- **WHEN** an authenticated owner retrieves a room with no running tenancy
+- **THEN** the response carries no tenancy id and no end date
+
+#### Scenario: Listed rooms report it too
+
+- **WHEN** an authenticated owner lists rooms
+- **THEN** each let room carries the same two facts it carries when retrieved singly
+
+#### Scenario: Nothing else comes with it
+
+- **WHEN** a room reports the tenancy holding it
+- **THEN** it carries no tenant, no rent and no terms from that tenancy
+
+### Requirement: A tenancy reports the floor its closing reading must clear
+
+A tenancy SHALL report where its own invoices leave the meter: the reading its most recent invoice closed at, or the reading the tenancy opened from when nothing has been billed yet.
+
+It SHALL be resolved by the same rule the API refuses a closing reading below, so that the figure a screen offers and the figure the API accepts are one value rather than two. The screen previously offered the ROOM's last known position, which ignores the tenancy's own bills — an owner was shown 1.411, entered 1.500, and was refused because September had already invoiced 1.750.
+
+A screen asking for a closing reading SHALL state that floor, and SHALL refuse a lower figure before sending it.
+
+#### Scenario: The figure offered is the figure enforced
+
+- **WHEN** the owner opens the move-out or renewal dialog for a tenancy that has been billed
+- **THEN** it states the reading already invoiced, and that a lower one cannot be entered
+
+#### Scenario: A lower reading is refused on the screen
+
+- **WHEN** the owner types a reading below what has been invoiced
+- **THEN** the field says so and the action cannot be submitted
+
+#### Scenario: A tenancy with no bills yet
+
+- **WHEN** the tenancy has not been billed at all
+- **THEN** the floor is the reading it opened from

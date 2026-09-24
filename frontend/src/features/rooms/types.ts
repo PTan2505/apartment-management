@@ -41,6 +41,15 @@ export interface Room {
    * tenancy.
    */
   isLet: boolean
+  /**
+   * The tenancy holding this room, and the day it comes free.
+   *
+   * An identifier and a date, never the tenancy's terms or its tenant: those
+   * belong to the tenancy, and a copy would go stale on the first change. Null
+   * on a room that is not let.
+   */
+  currentLeaseId: number | null
+  freeFrom: string | null
   createdAt: string
   updatedAt: string
 }
@@ -58,6 +67,14 @@ export interface ListRoomsParams {
   status?: ActiveStatus
   /** Only rooms with no running tenancy — the ones that can be let. */
   vacant?: boolean
+  /**
+   * Which rooms can take a tenancy BEGINNING on this date (YYYY-MM-DD).
+   *
+   * Different from `vacant`, which is "free right now": a room whose tenancy
+   * ends on the 30th is available from the 30th, and a room free today is not
+   * available for a date before the previous tenancy ended.
+   */
+  availableOn?: string
 }
 
 /**
@@ -71,5 +88,5 @@ export interface RoomMeterReading {
   reading: number | null
   /** When that reading was taken. */
   at: string | null
-  source: 'lease_start' | 'lease_end' | 'vacancy' | null
+  source: 'room_initial' | 'lease_start' | 'lease_end' | 'invoice' | 'vacancy' | null
 }

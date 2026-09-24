@@ -1,94 +1,112 @@
-import { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
-import { NotFoundError, ValidationError } from "@/lib/errors.js";
-import { generateOpaqueToken, hashOpaqueToken } from "@/lib/opaque-token.js";
+import { NotFoundError } from "@/lib/errors.js";
+import {
+  decryptToken,
+  encryptToken,
+  generateOpaqueToken,
+  hashOpaqueToken,
+} from "@/lib/opaque-token.js";
+import type { Prisma } from "@/generated/prisma/client.js";
 import { createGatewayPayment } from "@/modules/payment-gateway/service.js";
 import { toPortalInvoice } from "./mapper.js";
 
 /* ------------------------------------------------------------------ */
-/* The owner's half: issuing and withdrawing a link                    */
+/* The owner's half: issuing, showing and withdrawing a link           */
 /* ------------------------------------------------------------------ */
 
 /**
- * Issues a portal link for a customer, returning the token ONCE.
+ * Creates a tenancy's link, revoking whatever it had.
  *
- * Any previous token is revoked in the same transaction. Replacing a link an
- * owner suspects has been shared is then one action rather than two, and there
- * is never a moment where both work.
+ * Takes a transaction client so a tenancy and its link are created together:
+ * a tenancy that exists without one is a tenancy whose tenant cannot pay,
+ * discovered later by somebody wondering why there is no link to send.
+ *
+ * The token is stored twice over — hashed to be FOUND, encrypted to be SHOWN.
+ * See `opaque-token.ts` for why each is the shape it is.
  */
-export async function issuePortalLink(customerId: number) {
-  const user = await prisma.user.findUnique({
-    where: { id: customerId },
-    select: { id: true, role: true, fullName: true },
-  });
-  if (!user) {
-    throw new NotFoundError("CUSTOMER_NOT_FOUND", "Customer not found");
-  }
-  // An owner signs in with a password. A portal link is for somebody who
-  // cannot, and handing one to an owner account would be a second, weaker way
-  // into an account that already has a real one.
-  if (user.role !== "customer") {
-    throw new ValidationError("PORTAL_LINK_ONLY_FOR_CUSTOMER", "A portal link can only be issued to a customer");
-  }
-
+export async function issueLeasePortalToken(
+  tx: Prisma.TransactionClient,
+  leaseId: number,
+): Promise<string> {
   const token = generateOpaqueToken();
 
-  const created = await prisma.$transaction(async (tx) => {
-    await tx.tenantAccessToken.updateMany({
-      where: { userId: customerId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-
-    return tx.tenantAccessToken.create({
-      data: { userId: customerId, tokenHash: hashOpaqueToken(token) },
-    });
+  await tx.leasePortalToken.updateMany({
+    where: { leaseId, revokedAt: null },
+    data: { revokedAt: new Date() },
   });
 
+  await tx.leasePortalToken.create({
+    data: { leaseId, tokenHash: hashOpaqueToken(token), tokenCipher: encryptToken(token) },
+  });
+
+  return token;
+}
+
+async function findLease(leaseId: number) {
+  const lease = await prisma.lease.findUnique({ where: { id: leaseId }, select: { id: true } });
+  if (!lease) {
+    throw new NotFoundError("LEASE_NOT_FOUND", "Lease not found");
+  }
+  return lease;
+}
+
+/** Replaces a tenancy's link. The previous one stops working immediately. */
+export async function reissueLeasePortalLink(leaseId: number) {
+  await findLease(leaseId);
+  const token = await prisma.$transaction((tx) => issueLeasePortalToken(tx, leaseId));
+  return getLeasePortalLink(leaseId, token);
+}
+
+/**
+ * The tenancy's current link, as the owner needs it: the token itself, when it
+ * was issued, and whether anybody has ever opened it.
+ *
+ * `token` is null in two different situations, told apart by `hasLink`: there
+ * is no link at all, or there is one that cannot be decrypted because the
+ * application secret has changed since. The second still WORKS — a presented
+ * token is found by its hash — so the honest report is "it exists and cannot be
+ * shown", and reissuing gives one that can.
+ */
+export async function getLeasePortalLink(leaseId: number, justIssued?: string) {
+  await findLease(leaseId);
+
+  const active = await prisma.leasePortalToken.findFirst({
+    where: { leaseId, revokedAt: null },
+    orderBy: { createdAt: "desc" },
+    select: { tokenCipher: true, createdAt: true, lastUsedAt: true },
+  });
+
+  if (!active) {
+    return { leaseId, hasLink: false, token: null, issuedAt: null, lastUsedAt: null };
+  }
+
   return {
-    customerId: user.id,
-    fullName: user.fullName,
-    issuedAt: created.createdAt,
-    // The only time this is ever returned. It is stored hashed, so there is no
-    // way to show it again — which is the point.
-    token,
+    leaseId,
+    hasLink: true,
+    token: justIssued ?? decryptToken(active.tokenCipher),
+    issuedAt: active.createdAt,
+    lastUsedAt: active.lastUsedAt,
   };
 }
 
-export async function revokePortalLink(customerId: number) {
-  const active = await prisma.tenantAccessToken.findFirst({
-    where: { userId: customerId, revokedAt: null },
+/** Leaves the tenancy with no working link at all. */
+export async function revokeLeasePortalLink(leaseId: number) {
+  await findLease(leaseId);
+
+  const active = await prisma.leasePortalToken.findFirst({
+    where: { leaseId, revokedAt: null },
+    orderBy: { createdAt: "desc" },
   });
   if (!active) {
-    throw new NotFoundError("PORTAL_LINK_NONE", "That customer has no portal link");
+    throw new NotFoundError("PORTAL_LINK_NONE", "That tenancy has no portal link");
   }
 
-  await prisma.tenantAccessToken.update({
+  await prisma.leasePortalToken.update({
     where: { id: active.id },
     data: { revokedAt: new Date() },
   });
 
-  return { customerId, revokedAt: new Date() };
-}
-
-/**
- * What the owner can see about a link: that it exists, when it was issued, and
- * whether anyone has used it. Never the token.
- *
- * `lastUsedAt` is the only signal there is that a link is being used by someone
- * who should not have it — the portal is public and nothing throttles it.
- */
-export async function getPortalLinkStatus(customerId: number) {
-  const active = await prisma.tenantAccessToken.findFirst({
-    where: { userId: customerId, revokedAt: null },
-    select: { createdAt: true, lastUsedAt: true },
-  });
-
-  return {
-    customerId,
-    hasLink: active !== null,
-    issuedAt: active?.createdAt ?? null,
-    lastUsedAt: active?.lastUsedAt ?? null,
-  };
+  return { leaseId, revokedAt: new Date() };
 }
 
 /* ------------------------------------------------------------------ */
@@ -96,7 +114,11 @@ export async function getPortalLinkStatus(customerId: number) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Resolves a presented token to the customer it belongs to, and records the use.
+ * Resolves a presented token to the tenancy it belongs to, and records the use.
+ *
+ * By HASH alone: nothing is decrypted on a public request, so the encryption
+ * key is never touched by a stranger's call and the lookup stays one indexed
+ * equality.
  *
  * A token that is unknown, revoked, or not a token at all produces the same
  * NotFoundError. The distinction somebody probing wants is exactly the one
@@ -105,71 +127,69 @@ export async function getPortalLinkStatus(customerId: number) {
  * indistinguishable.
  */
 async function resolveToken(token: string) {
-  const row = await prisma.tenantAccessToken.findUnique({
+  const row = await prisma.leasePortalToken.findUnique({
     where: { tokenHash: hashOpaqueToken(token) },
-    include: { user: { select: { id: true, fullName: true, phone: true } } },
+    select: {
+      id: true,
+      leaseId: true,
+      revokedAt: true,
+      lease: {
+        select: {
+          id: true,
+          /*
+            Who signed, if anyone still holds it. A tenancy has no `tenant`
+            column — the signatory is the occupant carrying `isPrimary`, and on
+            a closed tenancy that is whoever held it at the end. Both are
+            wanted here: the portal outlives the tenancy it belongs to, because
+            the final bill is issued as the tenancy closes.
+          */
+          occupants: {
+            where: { isPrimary: true },
+            select: { leftAt: true, user: { select: { fullName: true, phone: true } } },
+            orderBy: { joinedAt: "desc" },
+          },
+          room: { select: { roomCode: true, building: { select: { displayName: true } } } },
+        },
+      },
+    },
   });
 
   if (!row || row.revokedAt !== null) {
     throw new NotFoundError("PORTAL_NOT_FOUND", "Portal not found");
   }
 
-  await prisma.tenantAccessToken.update({
+  await prisma.leasePortalToken.update({
     where: { id: row.id },
     data: { lastUsedAt: new Date() },
   });
 
-  return row.user;
+  return row.lease;
 }
 
 /**
- * The tenant's own bills.
+ * What a link may see: the bills of its own tenancy, and nothing else.
  *
- * What they can see is derived from occupancy rather than from the lease:
+ * One rule, used by both the reading and the paying — a token that cannot show
+ * an invoice must not be able to pay one, and two copies of this would
+ * eventually disagree about which.
  *
- *   - every invoice of a tenancy they occupy NOW, paid or not;
- *   - only the UNPAID invoices of a tenancy they have left.
- *
- * The looser rule — everything you ever occupied — leaks: the room is re-let,
- * new bills are issued, and the previous tenant keeps watching them. The
- * stricter one — current tenancies only — hides the final invoice, which is
- * issued at the moment a move-out is recorded and is therefore always addressed
- * to somebody who has just stopped being a current occupant.
- *
- * Restricting past tenancies to what is unpaid answers both: what you still owe
- * stays visible, what the next tenant owes never becomes visible.
+ * Every invoice of the tenancy, paid and unpaid. The occupancy-derived version
+ * this replaces had to carve out an exception for the final bill, issued at the
+ * moment somebody stops being an occupant; a link that belongs to the tenancy
+ * needs no exception, because moving out does not change which tenancy it is
+ * for.
  */
-/**
- * The one place that decides what a token may see.
- *
- * Written once and used by both the reading and the paying: a token that cannot
- * show an invoice must not be able to pay one, and two copies of this rule
- * would eventually disagree about which.
- */
-async function visibleInvoiceFilter(userId: number): Promise<Prisma.InvoiceWhereInput> {
-  const occupancies = await prisma.leaseOccupant.findMany({
-    where: { userId },
-    select: { leaseId: true, leftAt: true },
-  });
-
-  const currentLeaseIds = occupancies.filter((o) => o.leftAt === null).map((o) => o.leaseId);
-  const pastLeaseIds = occupancies.filter((o) => o.leftAt !== null).map((o) => o.leaseId);
-
-  return {
-    // Withdrawn bills are not shown. They were withdrawn.
-    voidedAt: null,
-    OR: [
-      { leaseId: { in: currentLeaseIds } },
-      { leaseId: { in: pastLeaseIds }, paymentStatus: "pending" },
-    ],
-  };
+function visibleInvoiceFilter(leaseId: number): Prisma.InvoiceWhereInput {
+  // Withdrawn bills are not shown. They were withdrawn.
+  return { leaseId, voidedAt: null };
 }
 
 export async function getPortalOverview(token: string) {
-  const user = await resolveToken(token);
+  const lease = await resolveToken(token);
+  const signatory = (lease.occupants.find((o) => o.leftAt === null) ?? lease.occupants[0])?.user;
 
   const invoices = await prisma.invoice.findMany({
-    where: await visibleInvoiceFilter(user.id),
+    where: visibleInvoiceFilter(lease.id),
     select: {
       id: true,
       type: true,
@@ -221,13 +241,26 @@ export async function getPortalOverview(token: string) {
   });
 
   return {
-    tenant: { fullName: user.fullName, phone: user.phone },
+    /*
+      Who the bills are addressed to, which may be nobody: a tenancy can run
+      with no signatory named. Reported as null rather than filled in with
+      something plausible — this page is about money, and a name invented for
+      the sake of a non-empty field is a statement nobody made.
+    */
+    tenant: {
+      fullName: signatory?.fullName ?? null,
+      phone: signatory?.phone ?? null,
+    },
+    room: {
+      roomCode: lease.room.roomCode,
+      buildingName: lease.room.building.displayName,
+    },
     invoices: invoices.map(toPortalInvoice),
   };
 }
 
 /**
- * Starts a payment for one of the tenant's own unpaid bills.
+ * Starts a payment for one of this tenancy's unpaid bills.
  *
  * The bills payable are exactly the bills visible, resolved by the same filter
  * the overview uses — so a request to pay an invoice the token cannot see fails
@@ -238,10 +271,10 @@ export async function startPortalPayment(
   invoiceId: number,
   urls: { returnUrl: string; cancelUrl: string },
 ) {
-  const user = await resolveToken(token);
+  const lease = await resolveToken(token);
 
   const visible = await prisma.invoice.findFirst({
-    where: { AND: [{ id: invoiceId }, await visibleInvoiceFilter(user.id)] },
+    where: { AND: [{ id: invoiceId }, visibleInvoiceFilter(lease.id)] },
     select: { id: true },
   });
   // Indistinguishable from an invoice that does not exist. A tenant learning

@@ -1,9 +1,7 @@
 ## Purpose
 
 Turns a tenancy into a monthly bill: metered electricity, per-person water, and rent for the days occupied, recorded with the rates that were applied so the bill stays a faithful record of what was charged.
-
 ## Requirements
-
 ### Requirement: Owner can generate an invoice for a lease and month
 The system SHALL allow an authenticated `owner` to generate a monthly invoice for a lease and a calendar month, supplying the closing electricity meter reading for that period. The invoice SHALL record the meter readings it spans, the period it covers, its line items, and the total. Each rate and count applied — the electricity rate, the water rate, the base rent, and the occupant count — SHALL be recorded on the line item it produced, so that a charge and the figures behind it are read together.
 
@@ -236,7 +234,16 @@ Invoices voided before reasons were recorded SHALL report no reason, rather than
 - **THEN** the system responds with HTTP 409
 
 ### Requirement: Owner can list, filter, and retrieve invoices
-The system SHALL allow an authenticated `owner` to retrieve an invoice by id and to list invoices filtered by building, room, lease, billed month, and payment status. Listing SHALL use the shared paginated response contract.
+
+The system SHALL allow an authenticated `owner` to retrieve an invoice by id and to list invoices filtered by building, room, lease, billed month, payment status, **and kind**. Listing SHALL use the shared paginated response contract.
+
+The caller SHALL be able to choose the ORDER: by what is owed (unpaid before paid), by issue date newest first, or by issue date oldest first. Ordering SHALL be applied by the system, not left to the caller, because the response is one page of a larger set — a page sorted after it arrives is thirty rows of two hundred in the wrong order.
+
+Within any chosen order, invoices that are still live SHALL come before withdrawn ones. A withdrawn bill is a record of what was cancelled; it is never the row an owner is looking for, and it should not sit between two that are.
+
+**The default order SHALL be what is owed, then newest first.** An owner opens this list to act on money — this month's bills, and whatever is still unpaid. Ordering oldest first puts both on the last page, which is the same defect the tenancy listing already records.
+
+Ordering SHALL be total: where two invoices sort equally on every chosen key, their ids SHALL decide, so no invoice can move between pages as pages are fetched.
 
 #### Scenario: Filtering by month
 - **WHEN** an authenticated owner lists invoices for a given year and month
@@ -249,6 +256,26 @@ The system SHALL allow an authenticated `owner` to retrieve an invoice by id and
 #### Scenario: Filtering by building
 - **WHEN** an authenticated owner lists invoices filtered by a building id
 - **THEN** the response contains only invoices for rooms in that building
+
+#### Scenario: Filtering by kind
+- **WHEN** an authenticated owner lists invoices filtered to one kind
+- **THEN** the response contains only invoices of that kind
+
+#### Scenario: The default order puts money owed first
+- **WHEN** an authenticated owner lists invoices without naming an order
+- **THEN** unpaid invoices come before paid ones, and within each the most recently issued comes first
+
+#### Scenario: Ordering by issue date
+- **WHEN** an authenticated owner lists invoices ordered oldest first
+- **THEN** the earliest issued invoice is first, regardless of whether it is paid
+
+#### Scenario: Withdrawn bills sort last
+- **WHEN** an authenticated owner lists invoices including withdrawn ones
+- **THEN** every live invoice comes before every withdrawn one, in whichever order was chosen
+
+#### Scenario: The order is total
+- **WHEN** two invoices are equal on every key of the chosen order
+- **THEN** their relative order is decided by id, and does not change between requests
 
 #### Scenario: Retrieving an invoice that does not exist
 - **WHEN** an authenticated owner requests an invoice id that does not exist
@@ -670,6 +697,7 @@ A lease SHALL have at most one overdue invoice.
 
 - **WHEN** an authenticated owner names a charge referring to a service fee belonging to a different building
 - **THEN** the system responds with HTTP 400 and neither invoice is issued
+
 ### Requirement: Owner can issue an ad-hoc invoice for charges they decide
 
 The system SHALL allow an authenticated `owner` to issue an invoice against a lease carrying charges the owner names, prices and categorises. This is for what cannot be calculated: a lost key, a room left dirty, a broken window, a penalty, a late-payment fee. Every other charge in this system follows from an agreement and a measurement; these follow from a judgement, and the system SHALL make it rather than pretend to derive it.
@@ -838,3 +866,78 @@ The alternative — a caller fetching each building to assemble it — is a requ
 
 - **WHEN** an invoice is issued for a tenancy that appeared in the report
 - **THEN** the rate the invoice records is the one the report gave for it
+
+### Requirement: A tenancy's charges use the rates that tenancy was signed at
+Every charge raised against a tenancy SHALL be computed from the rates recorded on that tenancy — its rent, its electricity rate and its water rate — and SHALL NOT read the building's current rates.
+
+This SHALL hold for every invoice a tenancy can carry: its move-in invoice, its monthly invoices, and any invoice issued for it after its building's rates were changed.
+
+The rate applied SHALL continue to be recorded on the line item it produced, so a bill remains readable as what was charged and why.
+
+Electricity for a room standing EMPTY SHALL keep using the building's current rate, because no tenancy exists to have agreed anything and the cost is the owner's own.
+
+#### Scenario: A monthly invoice after a rate change
+- **GIVEN** a tenancy signed at one electricity rate, and a building whose electricity rate was raised afterwards
+- **WHEN** the owner generates a monthly invoice for that tenancy
+- **THEN** the electricity charge uses the rate the tenancy was signed at, and the line item records that rate
+
+#### Scenario: Water after a rate change
+- **GIVEN** a tenancy signed at one water rate, and a building whose water rate was changed afterwards
+- **WHEN** the owner generates a monthly invoice for that tenancy
+- **THEN** the water charge uses the rate the tenancy was signed at
+
+#### Scenario: A tenancy signed after the change
+- **GIVEN** a building whose rates were changed
+- **WHEN** a tenancy is signed afterwards and billed
+- **THEN** its charges use the changed rates
+
+#### Scenario: Vacancy electricity follows the building
+- **GIVEN** a room with no tenancy running
+- **WHEN** the owner records a vacancy meter reading for it
+- **THEN** the cost is computed from the building's current electricity rate
+
+### Requirement: Withdrawing an invoice retires its unfinished gateway payments
+
+When an owner withdraws an invoice, the system SHALL mark every gateway payment on it that is still pending as cancelled, in the same transaction as the withdrawal, and SHALL then ask the gateway to cancel each of those links.
+
+A withdrawn bill is no longer owed, but the link a tenant was already given still accepts money until the gateway is told otherwise. Leaving it open invites a payment for a debt that no longer exists.
+
+The gateway request SHALL be made after the withdrawal is committed and SHALL NOT be able to undo it. A transaction cannot be held open across a call to somebody else's server, and a gateway that is slow, unreachable or refuses does not change the owner's decision to withdraw the bill. Where the gateway reports that the link was already paid, the money SHALL be recorded as having arrived for a withdrawn invoice.
+
+#### Scenario: Withdrawing a bill with a pending gateway payment
+
+- **WHEN** an owner withdraws an invoice that has a pending gateway payment
+- **THEN** the invoice is withdrawn, the payment is recorded as cancelled, and the gateway is asked to cancel its link
+
+#### Scenario: The gateway cannot be reached
+
+- **WHEN** the gateway cannot be reached while retiring the link
+- **THEN** the invoice is still withdrawn and the payment still recorded as cancelled
+
+#### Scenario: The link had already been paid
+
+- **WHEN** the gateway refuses to cancel the link because it was already paid
+- **THEN** the money is recorded as having arrived for the withdrawn invoice, and the invoice stays withdrawn
+
+### Requirement: An invoice reports money received after it was withdrawn
+
+An invoice SHALL report whether money arrived for it after it was withdrawn, and how much, while that money has not been returned.
+
+A withdrawn invoice with money on it is the one state an owner must act on — the tenant paid for something they no longer owe. Reporting it from the invoice itself means every screen that shows the invoice can say so, and none has to work it out from payment states.
+
+Because withdrawal is refused while an invoice is paid, and a cancelled tenancy withdraws only unpaid invoices, any succeeded payment on a withdrawn invoice arrived after withdrawal.
+
+#### Scenario: Money arrived for a withdrawn invoice
+
+- **WHEN** a withdrawn invoice carries a succeeded payment
+- **THEN** it reports that money arrived after withdrawal, and the amount
+
+#### Scenario: The money has been returned
+
+- **WHEN** that payment is reversed
+- **THEN** the invoice no longer reports money awaiting return
+
+#### Scenario: An ordinary withdrawn invoice
+
+- **WHEN** a withdrawn invoice carries no succeeded payment
+- **THEN** it reports no money received after withdrawal

@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
+import { issueLeasePortalToken } from "@/modules/tenant-portal/service.js";
 import { paginate, toSkipTake } from "@/lib/pagination.js";
 import { findLatestKnownReading } from "@/lib/meter-history.js";
 import {
@@ -14,9 +15,10 @@ import {
   issueFinalInvoice,
   issueMoveInInvoice,
   issueOverdueInvoice,
+  resolveOpeningReading,
 } from "@/modules/invoices/issue.js";
 import { carryHolding, deductFromDeposit } from "@/modules/deposits/holding.js";
-import { addMonths } from "./mapper.js";
+import { addMonths, DUE_SOON_DAYS } from "./mapper.js";
 import { HOLDS_ITS_ROOM, roomOccupiedBy } from "./occupancy.js";
 import type {
   AddOccupantInput,
@@ -130,7 +132,19 @@ async function findLeaseOrThrow(id: number) {
   if (!lease) {
     throw new NotFoundError("LEASE_NOT_FOUND", "Lease not found");
   }
-  return lease;
+  /*
+    Where this tenancy's meter stands according to its own bills — the floor any
+    closing reading has to clear.
+
+    Resolved by the SAME function the final invoice resolves it with, so the
+    figure a screen offers and the figure the API refuses below are one value
+    and not two. Only on this path: the listing has no field for it and would
+    pay a query per row for something no list shows.
+  */
+  return {
+    ...lease,
+    lastInvoicedMeterReading: await resolveOpeningReading(prisma, id, lease.startMeterReading),
+  };
 }
 
 /**
@@ -315,6 +329,11 @@ export async function createLease(input: CreateLeaseInput) {
       },
     });
 
+    // The link the tenant pays through, issued with the tenancy rather than on
+    // request. A tenancy without one is a tenancy whose bills cannot be paid,
+    // and nothing would say so until somebody went looking for a link to send.
+    await issueLeasePortalToken(tx, created.id);
+
     // The bill that starts the tenancy, written with the lease and its primary
     // occupant. A tenancy whose deposit was never charged is not a tenancy
     // anybody has actually started, so a failure here takes all three back.
@@ -391,46 +410,202 @@ async function overdueLeaseIds(): Promise<number[]> {
   return rows.map((row) => row.id);
 }
 
+/**
+ * The ids of RUNNING tenancies whose agreed end falls on or before a date.
+ *
+ * `expectedEndDate` is not a column: it is `startDate` plus `durationMonths`,
+ * computed in the mapper. Prisma cannot compare against arithmetic over two
+ * columns, and neither a per-row filter in JavaScript nor a fetch-then-slice
+ * would survive pagination — the page would be filtered after it was chosen.
+ *
+ * So the arithmetic happens where the rows are. One extra query, only when a
+ * to-bound is given, over the tenancies that are still open.
+ */
+async function openLeasesEndingBy(to: Date): Promise<number[]> {
+  const rows = await prisma.$queryRaw<{ id: number }[]>`
+    SELECT "id" FROM "Lease"
+    WHERE "moveOutDate" IS NULL
+      AND "cancelledAt" IS NULL
+      AND "startDate" + make_interval(months => "durationMonths") <= ${to}
+  `;
+  return rows.map((row) => row.id);
+}
+
+/**
+ * The two date bounds, as a `where` fragment.
+ *
+ * `from` compares `startDate`. `to` compares the day the tenancy COVERS TO,
+ * which is the recorded move-out where there is one and the agreed end
+ * otherwise — a tenancy that left in June ended in June, whatever it agreed.
+ *
+ * A CANCELLED tenancy matches neither bound. It covered no days, so its dates
+ * describe an agreement rather than an occupancy, and placing it inside a
+ * period would assert the one thing that status denies.
+ */
+async function periodWhere(query: ListLeasesQuery): Promise<Prisma.LeaseWhereInput> {
+  if (query.from === undefined && query.to === undefined) return {};
+
+  return {
+    cancelledAt: null,
+    ...(query.from ? { startDate: { gte: query.from } } : {}),
+    ...(query.to
+      ? {
+          OR: [
+            { moveOutDate: { not: null, lte: query.to } },
+            { id: { in: await openLeasesEndingBy(query.to) } },
+          ],
+        }
+      : {}),
+  };
+}
+
+/**
+ * One page of lease ids, in the order the screen needs them.
+ *
+ * ── Why this is SQL and not an `orderBy` ────────────────────────────────────
+ *
+ * The order is by STATE — overdue, then due soon, then running, then upcoming,
+ * finished, cancelled — and by how little time is left within the first three.
+ * Neither is a column: the state comes from three dates compared against today,
+ * and the time left from `startDate + durationMonths`. Prisma can order by
+ * columns, not by arithmetic over them or by a rank derived from them.
+ *
+ * ── Why the first three share one key ───────────────────────────────────────
+ *
+ * They are one sequence by term end: overdue ended before today, due-soon ends
+ * within the window, running ends later. Sorting them by term end ascending
+ * produces exactly that order, and "least time left first" inside each group
+ * falls out of the same key. So the rank distinguishes four things, not six.
+ *
+ * ── Why the ids come from Prisma first ──────────────────────────────────────
+ *
+ * The filters — building, room, occupant, period — already exist there, with
+ * their joins right. Rewriting them in SQL would put the same rules in two
+ * places, and the copies would drift. So Prisma decides WHICH leases, and this
+ * decides in what order they come back.
+ */
+async function orderedPage(
+  ids: number[],
+  status: ListLeasesQuery["status"],
+  skip: number,
+  take: number,
+): Promise<number[]> {
+  if (ids.length === 0) return [];
+
+  const rows = await prisma.$queryRaw<{ id: number }[]>`
+    WITH ranked AS (
+      SELECT
+        "id",
+        "createdAt",
+        "startDate" + make_interval(months => "durationMonths") AS term_end,
+        CASE
+          WHEN "cancelledAt" IS NOT NULL THEN 6
+          WHEN "moveOutDate" IS NOT NULL THEN 5
+          WHEN "startDate" > now() THEN 4
+          ELSE 1
+        END AS rank
+      FROM "Lease"
+      WHERE "id" = ANY(${ids})
+    )
+    SELECT "id" FROM ranked
+    WHERE ${status ?? null}::text IS NULL OR rank = CASE
+      WHEN ${status ?? null}::text IN ('overdue', 'dueSoon', 'active') THEN 1
+      WHEN ${status ?? null}::text = 'upcoming' THEN 4
+      WHEN ${status ?? null}::text = 'finalized' THEN 5
+      ELSE 6
+    END
+    ORDER BY
+      rank ASC,
+      -- The running sequence orders by when it ends; everything else by when it
+      -- was signed. The id comes last, so the order is TOTAL: without a final
+      -- tiebreak two rows tying on every key have no defined order, and the
+      -- database may return them differently per page: one row on two pages, or none.
+      CASE WHEN rank = 1 THEN term_end END ASC,
+      CASE WHEN rank <> 1 THEN "createdAt" END DESC,
+      "id" DESC
+    OFFSET ${skip} LIMIT ${take}
+  `;
+  return rows.map((row) => row.id);
+}
+
+/**
+ * The ids of leases in one of the three RUNNING states, which the rank above
+ * cannot tell apart on its own — it groups them as one.
+ *
+ * Same arithmetic as the status in the mapper, and the same window, so a lease
+ * cannot be listed as due soon while its own row says otherwise.
+ */
+async function runningStateIds(state: "overdue" | "dueSoon" | "active"): Promise<number[]> {
+  const rows = await prisma.$queryRaw<{ id: number }[]>`
+    SELECT "id" FROM "Lease"
+    WHERE "cancelledAt" IS NULL
+      AND "moveOutDate" IS NULL
+      AND "startDate" <= now()
+      AND CASE
+        WHEN ${state} = 'overdue'
+          THEN "startDate" + make_interval(months => "durationMonths") <= now()
+        WHEN ${state} = 'dueSoon'
+          THEN "startDate" + make_interval(months => "durationMonths") > now()
+           AND "startDate" + make_interval(months => "durationMonths")
+               <= now() + make_interval(days => ${DUE_SOON_DAYS})
+        ELSE "startDate" + make_interval(months => "durationMonths")
+             > now() + make_interval(days => ${DUE_SOON_DAYS})
+      END
+  `;
+  return rows.map((row) => row.id);
+}
+
 export async function listLeases(query: ListLeasesQuery) {
-  // Resolved before the where clause is built, so it composes with every other
-  // filter rather than replacing them.
-  const overdueIds = query.overdue ? await overdueLeaseIds() : null;
+  // The three running states are not distinguishable by the rank alone, so
+  // their ids are resolved first and composed with every other filter.
+  const stateIds =
+    query.status === "overdue" || query.status === "dueSoon" || query.status === "active"
+      ? await runningStateIds(query.status)
+      : null;
 
   const where = {
+    ...(await periodWhere(query)),
     ...(query.roomId ? { roomId: query.roomId } : {}),
     // Narrows through the room rather than duplicating a building id onto the
     // lease. Combines with `roomId`: naming both is a room within a building,
     // which matches nothing if they disagree — correct, and better than
     // silently ignoring one of them.
     ...(query.buildingId ? { room: { buildingId: query.buildingId } } : {}),
-    // "Active" is the running tenancies — which a cancelled one is not, so it
-    // falls on the same side of this filter as one that ended.
-    ...(query.active === undefined
-      ? {}
-      : query.active
-        ? HOLDS_ITS_ROOM
-        : { OR: [{ moveOutDate: { not: null } }, { cancelledAt: { not: null } }] }),
     // Matches any lease the person occupied, primary or not.
     ...(query.customerId ? { occupants: { some: { userId: query.customerId } } } : {}),
-    ...(overdueIds === null ? {} : { id: { in: overdueIds } }),
+    ...(query.status === "finalized" ? { moveOutDate: { not: null }, cancelledAt: null } : {}),
+    ...(query.status === "cancelled" ? { cancelledAt: { not: null } } : {}),
+    ...(query.status === "upcoming"
+      ? { ...HOLDS_ITS_ROOM, startDate: { gt: new Date() } }
+      : {}),
+    ...(stateIds === null ? {} : { id: { in: stateIds } }),
   };
 
-  return paginate(
-    query,
-    prisma.lease.findMany({
-      where,
-      include: leaseInclude,
-      // Most recently begun first: the tenancy an owner has just signed, or is
-      // about to act on, is the recent one. `createdAt` breaks a tie so the
-      // order is TOTAL — without a tiebreak, two leases sharing a start date
-      // have no defined order between them, and the database is free to return
-      // them differently for each page. A row can then appear on two pages, or
-      // on none.
-      orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
-      ...toSkipTake(query),
-    }),
-    prisma.lease.count({ where }),
+  const matching = await prisma.lease.findMany({ where, select: { id: true } });
+  const ids = await orderedPage(
+    matching.map((row) => row.id),
+    query.status,
+    (query.page - 1) * query.pageSize,
+    query.pageSize,
   );
+
+  const rows = await prisma.lease.findMany({ where: { id: { in: ids } }, include: leaseInclude });
+  // `findMany` answers in its own order, so the page is put back into the order
+  // it was chosen in — otherwise the ranking above would be thrown away here.
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const page = ids.map((id) => byId.get(id)!).filter(Boolean);
+
+  // Rows, not responses: the controller maps them, as it does for every other
+  // listing. Mapping here too would shape them twice.
+  return {
+    data: page,
+    meta: {
+      page: query.page,
+      pageSize: query.pageSize,
+      total: matching.length,
+      totalPages: matching.length === 0 ? 0 : Math.ceil(matching.length / query.pageSize),
+    },
+  };
 }
 
 export async function getLeaseById(id: number) {
@@ -614,6 +789,10 @@ export async function extendLease(id: number, input: ExtendLeaseInput) {
       where: { id: successor.id },
       data: { reference: buildLeaseReference(room.roomCode, successor.startDate, successor.id) },
     });
+
+    // A renewal is a different tenancy, so it gets its own link. The
+    // predecessor keeps its own, which still reaches its own unpaid bills.
+    await issueLeasePortalToken(tx, successor.id);
 
     for (const occupant of continuingOccupants) {
       await tx.leaseOccupant.create({
@@ -1212,7 +1391,7 @@ export async function departOccupant(
   if (otherCurrent.length === 0 && lease.moveOutDate === null) {
     throw new ConflictError(
       "LAST_OCCUPANT_CANNOT_DEPART",
-      "This is the only person living here. Record the tenancy's move-out instead — that is what ends it",
+      "This is the only person living here. Close the tenancy instead — that is what ends it",
     );
   }
 

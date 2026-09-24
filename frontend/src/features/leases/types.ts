@@ -26,7 +26,13 @@ export interface LeaseTenant {
  * and ended, and showing them alike presents as history something that never
  * happened.
  */
-export type LeaseStatus = 'active' | 'finalized' | 'cancelled'
+export type LeaseStatus =
+  | 'overdue'
+  | 'dueSoon'
+  | 'active'
+  | 'upcoming'
+  | 'finalized'
+  | 'cancelled'
 
 export interface Lease {
   id: number
@@ -102,6 +108,19 @@ export interface Lease {
    */
   cancellable: boolean
   /** Why cancellation is withheld on a running tenancy: it has been billed. */
+  /**
+   * The lowest closing reading this tenancy can be given: where its own
+   * invoices leave the meter, or the reading it opened from.
+   *
+   * Reported by the API rather than worked out here from the invoice list. It
+   * is the exact figure the API refuses below, and a second copy of that rule
+   * in the browser is free to disagree with it — which is what happened when
+   * the move-out dialog offered the ROOM's last known reading and the API
+   * rejected it as lower than what had already been billed.
+   *
+   * Null on a lease that came from the listing, which does not resolve it.
+   */
+  lastInvoicedMeterReading: number | null
   hasBilledMonth: boolean
   /**
    * Whether the signed contract is on file — never WHERE it is.
@@ -155,8 +174,21 @@ export interface ListLeasesParams {
   /** Every tenancy in a building, without naming its rooms one at a time. */
   buildingId?: number
   customerId?: number
-  /** Absent means both running and ended. */
-  active?: boolean
-  /** Term ended with no move-out recorded. */
-  overdue?: boolean
+  /**
+   * One of the six states. Absent means every state.
+   *
+   * Replaces the `active` boolean and the `overdue` one: both were filters
+   * standing in for a status the row could not report.
+   */
+  status?: LeaseStatus
+  /**
+   * Two independent bounds on WHEN a tenancy ran.
+   *
+   * `from` — began on or after that day. `to` — ended on or before it. Given
+   * both, only tenancies contained in the window. Not an overlap filter: a
+   * tenancy that began years earlier and is still running did not begin and
+   * end inside the period.
+   */
+  from?: string
+  to?: string
 }

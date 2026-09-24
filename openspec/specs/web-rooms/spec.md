@@ -161,45 +161,6 @@ When the API rejects a submission, the reason SHALL be reported against the fiel
 - **WHEN** an owner opens the form on a narrow viewport
 - **THEN** it is usable at that width, with every field reachable and the form dismissible
 
-### Requirement: The owner can take a room out of service and back
-
-The application SHALL let the owner retire a room and restore a retired one. Retiring SHALL require confirmation; restoring SHALL NOT.
-
-Two distinct refusals are possible, and each SHALL be reported in the API's own words rather than as a generic failure, because each is an expected outcome of a reasonable action:
-
-- retiring a room that still has an active lease
-- restoring a room whose code has since been taken by another room in service
-
-#### Scenario: Retiring a room
-
-- **WHEN** an owner retires a room and confirms
-- **THEN** the room is marked retired and leaves the default list
-
-#### Scenario: Retiring is confirmed first
-
-- **WHEN** an owner starts to retire a room and does not confirm
-- **THEN** the room remains in service
-
-#### Scenario: Retiring a room that still has a tenant
-
-- **WHEN** an owner confirms retiring a room that has an active lease
-- **THEN** the reason the API gave is reported and the room remains in service
-
-#### Scenario: Restoring a retired room
-
-- **WHEN** an owner restores a retired room whose code is free
-- **THEN** it is marked in service again and reappears in the default list
-
-#### Scenario: Restoring a room whose code was taken
-
-- **WHEN** an owner restores a retired room whose code has since been taken by another room in service in the same building
-- **THEN** the reason the API gave is reported and the room remains retired
-
-#### Scenario: Restore needs no confirmation
-
-- **WHEN** an owner restores a retired room whose code is free
-- **THEN** it is restored without a confirmation step
-
 ### Requirement: A building's rooms are reachable from the building
 
 The application SHALL provide a view of a single building showing the building itself and the rooms that belong to it.
@@ -350,3 +311,94 @@ The screen SHALL offer the in-service status as a choice of three — everything
 - **WHEN** the owner chooses a status and reloads the page
 - **THEN** the same status is still chosen and the same rooms are listed
 
+### Requirement: Taking a room out of service and putting it back are both confirmed
+
+The application SHALL let the owner retire a room and restore a retired one, and SHALL confirm both before sending anything: retiring because the room leaves the default list, restoring because the room returns to the lists and becomes available to sign a tenancy against. Restoring is reversible, which is not the same as harmless — it is offered beside ordinary actions, and an owner who has to undo a mis-click has already been surprised.
+
+Two distinct refusals are possible, and each SHALL be reported in the API's own words rather than as a generic failure, because each is an expected outcome of a reasonable action:
+
+- retiring a room that still has an active lease
+- restoring a room whose code has since been taken by another room in service
+
+#### Scenario: Retiring a room
+
+- **WHEN** an owner retires a room and confirms
+- **THEN** the room is marked retired and leaves the default list
+
+#### Scenario: Retiring is confirmed first
+
+- **WHEN** an owner starts to retire a room and does not confirm
+- **THEN** the room remains in service
+
+#### Scenario: Retiring a room that still has a tenant
+
+- **WHEN** an owner confirms retiring a room that has an active lease
+- **THEN** the reason the API gave is reported and the room remains in service
+
+#### Scenario: Restoring a retired room
+
+- **WHEN** an owner restores a retired room whose code is free and confirms
+- **THEN** it is marked in service again and reappears in the default list
+
+#### Scenario: Restoring a room whose code was taken
+
+- **WHEN** an owner confirms restoring a retired room whose code has since been taken by another room in service in the same building
+- **THEN** the reason the API gave is reported and the room remains retired
+
+#### Scenario: Restoring is confirmed first
+
+- **WHEN** an owner starts to restore a retired room and does not confirm
+- **THEN** no request is sent and the room remains retired
+
+### Requirement: A change to a room's rent is confirmed before it is saved
+
+The application SHALL ask the owner to confirm saving a room whose rent has changed, showing the previous rent and the new one, and SHALL say that the new rent applies to tenancies signed from now on rather than to one already running.
+
+Saving a room whose rent is unchanged SHALL NOT be confirmed.
+
+#### Scenario: Saving a changed rent
+
+- **WHEN** an owner changes a room's rent and saves
+- **THEN** a confirmation shows the rent as old and new, and nothing is sent until it is confirmed
+
+#### Scenario: Saving without touching the rent
+
+- **WHEN** an owner edits a room without changing its rent and saves
+- **THEN** the change is saved without a confirmation step
+
+#### Scenario: The confirmation says what the new rent applies to
+
+- **WHEN** an owner is asked to confirm a changed rent
+- **THEN** the confirmation says it applies to tenancies signed from now on, not to a running one
+
+### Requirement: A let room shows when it comes free and opens its tenancy
+
+The rooms screen SHALL show, for every room currently let, the day it comes free — the recorded move-out where there is one, the agreed end otherwise.
+
+"Đang thuê" answers whether the room is free today. It does not answer the question an owner actually has in front of a waiting tenant: WHEN. Without the date, the only way to find out is to open the tenancy list and look the room up there.
+
+Opening a room that is let SHALL open the TENANCY holding it, not the room's own record. There is nothing on a room's record that an owner clicking a let room is looking for — the terms, the tenant, the bills and the dates are all on the tenancy, and the room is how they got there.
+
+A room that is NOT let SHALL keep the behaviour it has: it shows no date, and opening it does whatever it does today.
+
+The date SHALL be shown in the same form as elsewhere in the application, and SHALL make clear it is the day the room frees rather than a day already passed.
+
+#### Scenario: A let room shows its end date
+
+- **WHEN** the owner opens the rooms screen and a room is let
+- **THEN** that row shows the day the room comes free
+
+#### Scenario: Opening a let room
+
+- **WHEN** the owner opens a room that is let
+- **THEN** the tenancy holding it is opened
+
+#### Scenario: A vacant room
+
+- **WHEN** a room is not let
+- **THEN** no date is shown for it and opening it behaves as before
+
+#### Scenario: A tenancy that ended early
+
+- **WHEN** the tenancy holding a room recorded a move-out before its agreed end
+- **THEN** the room shows the move-out date

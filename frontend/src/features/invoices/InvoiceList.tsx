@@ -46,7 +46,12 @@ function StatusChips({ invoice, wrap = false }: { invoice: Invoice; wrap?: boole
       useFlexGap
       sx={{ flexWrap: wrap ? 'wrap' : 'nowrap', justifyContent: wrap ? 'flex-end' : undefined, gap: 0.5 }}
     >
-      <Chip size="small" variant="outlined" label={invoiceTypeLabel(invoice.type)} />
+      {/*
+        The kind used to be a chip here, beside the state. It has its own column
+        now — and its own line on the card — because "what kind of bill" and
+        "what has happened to it" are different questions, and a reader scanning
+        for one had to read past the other.
+      */}
       {invoice.voidedAt !== null ? (
         <>
           <Chip size="small" color="default" variant="filled" label="Đã thu hồi" />
@@ -74,15 +79,17 @@ function StatusChips({ invoice, wrap = false }: { invoice: Invoice; wrap?: boole
 /**
  * What period a bill is about.
  *
- * A monthly invoice has a month; a move-in or ad-hoc one has none, and shows
- * the day it was issued instead. Rendering a dash there would suggest a missing
- * value rather than a bill that genuinely covers no month.
+ * A monthly invoice has a month; a move-in, closing or one-off bill has none.
+ * It used to fall back to the issue date here, which put two different facts in
+ * one column — now that the date has a column of its own, the absence is said
+ * instead. "Không theo tháng" is a fact about the bill; a dash would read as a
+ * value nobody filled in.
  */
 function periodLabel(invoice: Invoice): string {
   if (invoice.year !== null && invoice.month !== null) {
     return monthLabel(invoice.year, invoice.month)
   }
-  return `Xuất ${formatDate(invoice.issueDate)}`
+  return 'Không theo tháng'
 }
 
 export function InvoiceList({ invoices, onOpen }: InvoiceListProps) {
@@ -93,7 +100,14 @@ export function InvoiceList({ invoices, onOpen }: InvoiceListProps) {
         <Table size="small">
           <TableHead>
             <TableRow>
+              {/*
+                What kind of bill, first: five kinds look identical as an
+                amount, and a reader who cannot tell them apart has to open the
+                row to find out what it is.
+              */}
+              <TableCell>Loại</TableCell>
               <TableCell>Kỳ</TableCell>
+              <TableCell sx={{ whiteSpace: 'nowrap' }}>Ngày tạo</TableCell>
               <TableCell>Hợp đồng</TableCell>
               <TableCell align="right">Số tiền</TableCell>
               {/*
@@ -116,7 +130,17 @@ export function InvoiceList({ invoices, onOpen }: InvoiceListProps) {
               >
                 <TableCell>
                   <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    {invoiceTypeLabel(invoice.type)}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" color="text.secondary">
                     {periodLabel(invoice)}
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    {formatDate(invoice.issueDate)}
                   </Typography>
                 </TableCell>
                 <TableCell>
@@ -152,9 +176,15 @@ export function InvoiceList({ invoices, onOpen }: InvoiceListProps) {
                       gap: 1,
                     }}
                   >
-                    <Typography sx={{ fontWeight: 600 }}>{periodLabel(invoice)}</Typography>
+                    {/* The kind identifies the row, so it leads the card. */}
+                    <Typography sx={{ fontWeight: 600 }}>
+                      {invoiceTypeLabel(invoice.type)}
+                    </Typography>
                     <StatusChips invoice={invoice} wrap />
                   </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    {periodLabel(invoice)} · Xuất {formatDate(invoice.issueDate)}
+                  </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Hợp đồng #{invoice.leaseId}
                   </Typography>

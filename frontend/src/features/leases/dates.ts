@@ -1,3 +1,6 @@
+import { isLive } from '@/features/leases/status'
+import type { LeaseStatus } from '@/features/leases/types'
+
 /**
  * Turning the API's dates into the days a reader acts on.
  *
@@ -86,11 +89,14 @@ export function formatCoveredThrough(exclusiveEnd: string | null | undefined): s
  * free to disagree with the first.
  */
 export function remainingTerm(lease: {
-  status: string
+  status: LeaseStatus
   expectedEndDate: string
   moveOutDate: string | null
 }): { months: number; days: number } | null {
-  if (lease.status !== 'active' || lease.moveOutDate !== null) return null
+  // Every live tenancy, not only the ones with more than a fortnight left: a
+  // tenancy ending next week is exactly the one an owner wants the countdown
+  // for. One already past its term falls out below, where the date is checked.
+  if (!isLive(lease.status) || lease.moveOutDate !== null) return null
 
   // The last day covered, not the exclusive boundary — a tenancy running
   // through today has a day left, not none.
@@ -115,9 +121,54 @@ export function remainingTerm(lease: {
   return { months, days }
 }
 
+/**
+ * How long a tenancy has been past its agreed term, in the same units.
+ *
+ * Counted from the last day covered, like everything else here: a tenancy
+ * covered through the 30th is one day past its term on the 1st, not zero. The
+ * state decides whether to count at all — it is the API that says a tenancy is
+ * overdue, and working it out again from the dates would let this figure and
+ * the chip beside it disagree.
+ */
+export function overdueTerm(lease: {
+  status: LeaseStatus
+  expectedEndDate: string
+}): { months: number; days: number } | null {
+  if (lease.status !== 'overdue') return null
+
+  const end = coveredThrough(lease.expectedEndDate)
+  const now = new Date()
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  if (end.getTime() >= today) return null
+
+  let months = 0
+  const cursor = new Date(end)
+  for (;;) {
+    const next = new Date(cursor)
+    next.setUTCMonth(next.getUTCMonth() + 1)
+    if (next.getTime() > today) break
+    cursor.setTime(next.getTime())
+    months += 1
+  }
+  const days = Math.round((today - cursor.getTime()) / (24 * 60 * 60 * 1000))
+  return { months, days }
+}
+
+/** How long past its term, as an owner would say it, or null when it is not. */
+export function formatOverdueTerm(lease: {
+  status: LeaseStatus
+  expectedEndDate: string
+}): string | null {
+  const past = overdueTerm(lease)
+  if (past === null) return null
+  if (past.months === 0) return `Quá hạn ${past.days} ngày`
+  if (past.days === 0) return `Quá hạn ${past.months} tháng`
+  return `Quá hạn ${past.months} tháng ${past.days} ngày`
+}
+
 /** The remaining term as an owner would say it, or null when there is none. */
 export function formatRemainingTerm(lease: {
-  status: string
+  status: LeaseStatus
   expectedEndDate: string
   moveOutDate: string | null
 }): string | null {
@@ -132,18 +183,14 @@ export function formatRemainingTerm(lease: {
 /**
  * Whether a running tenancy's agreed term has already run out.
  *
- * Judged against the same exclusive boundary the API uses for its own overdue
- * filter, so the mark shown in the list and the rows that filter returns cannot
- * disagree. A tenancy that has recorded a move-out is never overdue however
- * long ago its term ended — it has been closed, and needs nothing.
+ * Read off the state the API reports rather than recomputed from the dates.
+ * The rule — which is a decision about a boundary, not arithmetic — belongs to
+ * the server, and a second implementation of a decision is free to disagree
+ * with the first: the mark shown here and the rows `status=overdue` returns
+ * would then be answering the same question differently.
  */
-export function isTermRunOut(lease: {
-  status: string
-  expectedEndDate: string
-  moveOutDate: string | null
-}): boolean {
-  if (lease.status !== 'active' || lease.moveOutDate !== null) return false
-  return new Date(lease.expectedEndDate).getTime() <= Date.now()
+export function isTermRunOut(lease: { status: LeaseStatus }): boolean {
+  return lease.status === 'overdue'
 }
 
 /**

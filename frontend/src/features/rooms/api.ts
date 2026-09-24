@@ -17,6 +17,7 @@ function toQuery(params: ListRoomsParams): Record<string, string | number> {
   if (params.status && params.status !== 'active') query.status = params.status
   // Likewise: absent means every room, let or not.
   if (params.vacant) query.vacant = 'true'
+  if (params.availableOn) query.availableOn = params.availableOn
   return query
 }
 
@@ -48,6 +49,12 @@ export async function restoreRoom(id: number): Promise<Room> {
 }
 
 /** Asked for one room at a time — see the note on the endpoint. */
+/** One room, for a screen that needs what it asks TODAY rather than what a tenancy agreed. */
+export async function getRoom(id: number): Promise<Room> {
+  const { data } = await apiClient.get<Room>(`/rooms/${id}`)
+  return data
+}
+
 export async function getRoomMeterReading(id: number): Promise<RoomMeterReading> {
   const { data } = await apiClient.get<RoomMeterReading>(`/rooms/${id}/latest-meter-reading`)
   return data

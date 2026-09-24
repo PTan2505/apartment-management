@@ -166,17 +166,28 @@ export const listLeasesQuerySchema = z.object({
   // means nothing until you know which building it is in.
   buildingId: z.coerce.number().int().positive().optional(),
   customerId: z.coerce.number().int().positive().optional(),
-  active: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((value) => (value === undefined ? undefined : value === "true")),
-  // Leases whose agreed term has run out while no move-out was recorded. These
-  // need attention: no further invoice can be issued for them, and their room
-  // stays held against a new tenancy until they are closed or renewed.
-  overdue: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((value) => value === "true"),
+  /*
+    Which of the six states to list.
+
+    Replaces the `active` boolean and the `overdue` one. Both were filters
+    standing in for a status the row did not report: "active" hid four states,
+    and "overdue" answered a question the row itself could not.
+  */
+  status: z
+    .enum(["overdue", "dueSoon", "active", "upcoming", "finalized", "cancelled"])
+    .optional(),
+  /*
+    Two independent bounds, each constraining its own end of a tenancy: `from`
+    the day it began, `to` the day it covers to. Given both, they mean
+    containment — the tenancies that began AND ended inside the window, which
+    is what an owner naming a window is asking for.
+
+    Deliberately not an overlap filter. A tenancy that began years earlier and
+    is still running did not begin and end inside the period; returning it
+    would answer a different question from the one the two dates ask.
+  */
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
 });
 
 export const addOccupantSchema = z.object({

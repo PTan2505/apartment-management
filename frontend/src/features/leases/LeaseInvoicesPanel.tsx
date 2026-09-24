@@ -1,25 +1,22 @@
-import { Link as RouterLink } from 'react-router'
-import Alert from '@mui/material/Alert'
-import AlertTitle from '@mui/material/AlertTitle'
-import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import Card from '@mui/material/Card'
-import CardContent from '@mui/material/CardContent'
-import Chip from '@mui/material/Chip'
-import CircularProgress from '@mui/material/CircularProgress'
-import Divider from '@mui/material/Divider'
-import Stack from '@mui/material/Stack'
-import Typography from '@mui/material/Typography'
-import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import { alpha } from '@mui/material/styles'
+import Alert from "@mui/material/Alert";
+import AlertTitle from "@mui/material/AlertTitle";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import CircularProgress from "@mui/material/CircularProgress";
+import Divider from "@mui/material/Divider";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
+import { useState } from "react";
 
-import { isApiError } from '@/lib/api-error'
-import { errorMessage } from '@/lib/error-messages'
-import { formatMoney } from '@/lib/format'
-import { useInvoices } from '@/features/invoices/hooks'
-import { invoiceTypeLabel, monthLabel } from '@/features/invoices/labels'
-import type { Invoice } from '@/features/invoices/types'
-import type { Lease } from '@/features/leases/types'
+import { useInvoices } from "@/features/invoices/hooks";
+import { AllInvoicesDialog } from "@/features/leases/AllInvoicesDialog";
+import { LeaseInvoiceRow } from "@/features/leases/LeaseInvoiceRow";
+import type { Lease } from "@/features/leases/types";
+import { isApiError } from "@/lib/api-error";
+import { errorMessage } from "@/lib/error-messages";
+import { formatMoney } from "@/lib/format";
 
 /**
  * How many invoices this panel asks for at once.
@@ -37,24 +34,7 @@ import type { Lease } from '@/features/leases/types'
  * The real fix is an API that reports the balance. It is named in this change's
  * proposal, under what the backend does not yet hold.
  */
-const PAGE_SIZE = 100
-
-/** What settles an invoice, as an owner would name it. */
-function PaymentChip({ invoice }: { invoice: Invoice }) {
-  if (invoice.voidedAt !== null) {
-    // Money that landed after withdrawal is the one thing here the owner must
-    // act on, so it is named in place of the plain withdrawn state.
-    return invoice.receivedAfterWithdrawal !== null ? (
-      <Chip size="small" color="error" variant="filled" label="Có tiền cần trả lại" />
-    ) : (
-      <Chip size="small" variant="outlined" label="Đã thu hồi" />
-    )
-  }
-  if (invoice.paymentStatus === 'paid') {
-    return <Chip size="small" color="success" variant="outlined" label="Đã thu đủ" />
-  }
-  return <Chip size="small" color="warning" variant="outlined" label="Chưa thu" />
-}
+const PAGE_SIZE = 100;
 
 /**
  * What this tenancy has been billed.
@@ -68,23 +48,66 @@ function PaymentChip({ invoice }: { invoice: Invoice }) {
  * screen to read a clause can still read it while this panel is retrying.
  */
 export function LeaseInvoicesPanel({ lease }: { lease: Lease }) {
-  const query = useInvoices({ leaseId: lease.id, pageSize: PAGE_SIZE, includeVoided: true })
+  /*
+    What is still owed, asked for as such rather than filtered out of
+    everything. A tenancy is opened to see what is left to collect; a bill
+    settled four months ago is history, and history belongs behind "Xem tất cả".
+
+    `paymentStatus: "pending"` with voided bills left out is the same rule
+    `isOwed` states for a bill already in hand — a withdrawn bill is not money
+    owed, it was withdrawn.
+  */
+  const query = useInvoices({
+    leaseId: lease.id,
+    pageSize: PAGE_SIZE,
+    paymentStatus: "pending",
+  });
+  /*
+    And how many bills exist altogether. One row fetched and thrown away: only
+    `meta.total` is wanted, so the panel can account for the bills it is NOT
+    showing rather than letting them be silently absent.
+  */
+  const countQuery = useInvoices({
+    leaseId: lease.id,
+    pageSize: 1,
+    includeVoided: true,
+  });
+  /*
+    And how many were actually collected — which is NOT "all of them minus what
+    is owed". A withdrawn bill is neither: it was taken back. Without this the
+    card told a tenancy whose only invoice had been withdrawn that it had been
+    paid in full, which is money that never arrived being reported as received.
+  */
+  const paidQuery = useInvoices({
+    leaseId: lease.id,
+    pageSize: 1,
+    paymentStatus: "paid",
+  });
+  const [allOpen, setAllOpen] = useState(false);
 
   function body() {
     if (query.isPending) {
       return (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+        <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
           <CircularProgress />
         </Box>
-      )
+      );
     }
 
     if (query.error) {
       return (
         <Alert
-          severity={isApiError(query.error) && query.error.isTransport ? 'warning' : 'error'}
+          severity={
+            isApiError(query.error) && query.error.isTransport
+              ? "warning"
+              : "error"
+          }
           action={
-            <Button color="inherit" size="small" onClick={() => void query.refetch()}>
+            <Button
+              color="inherit"
+              size="small"
+              onClick={() => void query.refetch()}
+            >
               Thử lại
             </Button>
           }
@@ -92,42 +115,39 @@ export function LeaseInvoicesPanel({ lease }: { lease: Lease }) {
           <AlertTitle>Không tải được hoá đơn của hợp đồng này</AlertTitle>
           {errorMessage(query.error)}
         </Alert>
-      )
+      );
     }
 
-    const invoices = query.data.data
-    const total = query.data.meta.total
+    const owedInvoices = query.data.data;
+    const owedTotal = query.data.meta.total;
+    const allTotal = countQuery.data?.meta.total ?? 0;
+    const paidTotal = paidQuery.data?.meta.total ?? 0;
 
-    if (invoices.length === 0) {
+    if (allTotal === 0) {
       // Said out loud. An empty area reads as a panel that failed to load, and
       // "not billed yet" is a real state of a tenancy that has just started.
       return (
         <Typography variant="body2" color="text.secondary">
           Chưa xuất hoá đơn nào cho hợp đồng này.
         </Typography>
-      )
+      );
     }
 
     // Newest period first: a dispute is almost always about a recent one. Bills
     // carrying no period — a move-in, a final — are ordered by when they were
     // issued, which is the only date they have.
-    const ordered = [...invoices].sort((a, b) => {
-      const ay = a.year ?? 0
-      const by = b.year ?? 0
-      if (ay !== by) return by - ay
-      const am = a.month ?? 0
-      const bm = b.month ?? 0
-      if (am !== bm) return bm - am
-      return new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime()
-    })
+    const ordered = [...owedInvoices].sort((a, b) => {
+      const ay = a.year ?? 0;
+      const by = b.year ?? 0;
+      if (ay !== by) return by - ay;
+      const am = a.month ?? 0;
+      const bm = b.month ?? 0;
+      if (am !== bm) return bm - am;
+      return new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime();
+    });
 
-    // A voided bill is history, never money owed — so it is listed, and it is
-    // not counted.
-    const owed = ordered
-      .filter((invoice) => invoice.voidedAt === null && invoice.paymentStatus !== 'paid')
-      .reduce((sum, invoice) => sum + invoice.totalAmount, 0)
-
-    const partial = total > invoices.length
+    const owed = ordered.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+    const partial = owedTotal > owedInvoices.length;
 
     return (
       <Stack spacing={1.5}>
@@ -138,25 +158,32 @@ export function LeaseInvoicesPanel({ lease }: { lease: Lease }) {
         */}
         <Box
           sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
+            display: "flex",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
             columnGap: 2,
             rowGap: 0.5,
           }}
         >
           <Typography variant="body2" color="text.secondary">
-            Tổng cộng {total} hoá đơn phát sinh
+            {owedTotal > 0
+              ? `${owedTotal} hoá đơn đang nợ trên tổng ${allTotal}`
+              : paidTotal > 0
+                ? `${allTotal} hoá đơn, đã thu đủ`
+                : `${allTotal} hoá đơn, đều đã thu hồi`}
           </Typography>
           {/*
             Stated as a figure. A total the reader has to add up from the rows
             is a total the screen declined to give.
           */}
           <Typography variant="body2" color="text.secondary">
-            Dư nợ:{' '}
+            Dư nợ:{" "}
             <Box
               component="span"
-              sx={{ color: owed > 0 ? 'error.main' : 'text.primary', fontWeight: 600 }}
+              sx={{
+                color: owed > 0 ? "error.main" : "text.primary",
+                fontWeight: 600,
+              }}
             >
               {formatMoney(owed)}
             </Box>
@@ -165,80 +192,83 @@ export function LeaseInvoicesPanel({ lease }: { lease: Lease }) {
 
         <Divider />
 
-        <Stack divider={<Divider flexItem />}>
-          {ordered.map((invoice) => (
-            <Box
-              key={invoice.id}
-              component={RouterLink}
-              to={`/invoices/${invoice.id}`}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5,
-                py: 1.25,
-                textDecoration: 'none',
-                color: 'inherit',
-                '&:hover': {
-                  backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.04),
-                },
-              }}
-            >
-              <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5 }}
-                >
-                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                    {invoice.year !== null && invoice.month !== null
-                      ? `Kỳ ${monthLabel(invoice.year, invoice.month).replace('Tháng ', '')}`
-                      : invoiceTypeLabel(invoice.type)}
-                  </Typography>
-                  <PaymentChip invoice={invoice} />
-                </Stack>
-                <Typography variant="caption" color="text.secondary">
-                  {invoiceTypeLabel(invoice.type)}
-                </Typography>
-              </Box>
-              <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
-                {formatMoney(invoice.totalAmount)}
-              </Typography>
-              <ChevronRightIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-            </Box>
-          ))}
-        </Stack>
+        {/*
+          Nothing owed is an answer, not an empty list. Without this the card
+          reads exactly like a tenancy that was never billed — the opposite
+          state, and the one it would be alarming to confuse this with.
+        */}
+        {ordered.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            {paidTotal > 0
+              ? "Đã thu đủ mọi hoá đơn của hợp đồng này. Bấm “Xem tất cả” để xem lại các hoá đơn đã thu."
+              : "Không còn hoá đơn nào đang nợ — hoá đơn của hợp đồng này đều đã bị thu hồi."}
+          </Typography>
+        ) : (
+          <Stack divider={<Divider flexItem />}>
+            {ordered.map((invoice) => (
+              <LeaseInvoiceRow key={invoice.id} invoice={invoice} />
+            ))}
+          </Stack>
+        )}
 
         {/*
           Never present a partial list as the whole of it.
 
-          There is deliberately NO link out of here. The invoice screen filters
-          by building, room, period and payment status — not by tenancy — so a
-          link to it would answer a different question while wearing this one's
-          label. A room outlives its tenancies, and showing a previous tenant's
-          bills as this agreement's history is worse than showing fewer.
-
-          Saying the count plainly is what this panel can honestly do. Sending
-          the reader somewhere that filters by tenancy needs either that filter
-          or a balance from the API — both named in the proposal.
+          This used to end there, with nowhere to send the reader: the invoice
+          screen filters by building, room, period and payment status and never
+          by tenancy, and a room outlives its tenancies — a link to it would
+          have shown a previous tenant's bills under this agreement's heading.
+          The dialog this now points at asks the API for one tenancy's bills,
+          which is the question that was missing rather than a link to a
+          different one.
         */}
         {partial && (
           <Alert severity="info">
-            Đang hiện {invoices.length} trong {total} hoá đơn. Dư nợ ở trên chỉ tính
-            trên phần đang hiện, chưa phải toàn bộ hợp đồng.
+            Đang hiện {owedInvoices.length} trong {owedTotal} hoá đơn đang nợ. Dư
+            nợ ở trên chỉ tính trên phần đang hiện — bấm “Xem tất cả” để xem đủ.
           </Alert>
         )}
       </Stack>
-    )
+    );
   }
+
+  const total = countQuery.data?.meta.total ?? 0;
 
   return (
     <Card variant="outlined">
       <CardContent>
         <Stack spacing={2}>
-          <Typography variant="h6">Danh sách hoá đơn theo kỳ</Typography>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 1,
+              flexWrap: "wrap",
+            }}
+          >
+            <Typography variant="h6">Danh sách hoá đơn theo kỳ</Typography>
+            {/*
+              Offered whenever there is anything to open. Not only when the list
+              is truncated: an owner looking for one bill among twenty wants a
+              pageable list of them, and a button that appears at the hundredth
+              invoice is a button nobody has ever seen.
+            */}
+            {total > 0 && (
+              <Button size="small" onClick={() => setAllOpen(true)}>
+                Xem tất cả ({total})
+              </Button>
+            )}
+          </Box>
           {body()}
         </Stack>
       </CardContent>
+
+      <AllInvoicesDialog
+        open={allOpen}
+        lease={lease}
+        onClose={() => setAllOpen(false)}
+      />
     </Card>
-  )
+  );
 }

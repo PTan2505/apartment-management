@@ -63,6 +63,15 @@ export const listRoomsQuerySchema = z.object({
     .enum(["true", "false"])
     .optional()
     .transform((value) => value === "true"),
+  /*
+    Which rooms can take a tenancy BEGINNING on this date.
+    
+    A different question from `vacant`, which answers "free right now". A room
+    whose tenant leaves on the 30th can take a tenancy from the 1st, and a room
+    free today cannot take one starting last month — so a form asking `vacant`
+    while the owner signs for November gets both answers wrong.
+  */
+  availableOn: z.coerce.date().optional(),
 });
 
 export type CreateRoomInput = z.infer<typeof createRoomSchema>;

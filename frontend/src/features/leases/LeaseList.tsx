@@ -15,7 +15,8 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 
 import { formatMoney } from '@/lib/format'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
-import { formatCoveredThrough, formatDate, isTermRunOut } from '@/features/leases/dates'
+import { formatCoveredThrough, formatDate } from '@/features/leases/dates'
+import { isLive, leaseStatusColor, leaseStatusLabel } from '@/features/leases/status'
 import type { Lease } from '@/features/leases/types'
 
 interface LeaseListProps {
@@ -43,64 +44,60 @@ function roomLabel(lease: Lease): string {
  */
 function tenantLabel(lease: Lease): string {
   if (lease.tenant?.fullName) return lease.tenant.fullName
-  return lease.status === 'active' ? 'Chưa ai đứng tên' : 'Không có người đứng tên'
+  return isLive(lease.status) ? 'Chưa ai đứng tên' : 'Không có người đứng tên'
 }
 
 function tenantColor(lease: Lease): 'text.primary' | 'text.secondary' | 'warning.main' {
   if (lease.tenant?.fullName) return 'text.primary'
-  return lease.status === 'active' ? 'warning.main' : 'text.secondary'
+  return isLive(lease.status) ? 'warning.main' : 'text.secondary'
 }
 
 /**
- * The status of a tenancy, and the one thing that has to be visible without
- * being asked for.
- *
- * A running tenancy whose agreed term has passed with no move-out needs
- * attention and nothing announces it: no further invoice can be issued against
- * it, and its room stays held against a new tenancy. It is marked here, in the
- * list, rather than only being reachable through a filter — a filter finds
- * these for an owner who already suspects they exist, which is precisely the
- * owner who does not need finding them.
+ * The status of a tenancy — the one thing that has to be visible without being
+ * asked for, so it is a chip on every row rather than something a filter finds.
+ * A filter finds these for an owner who already suspects they exist, which is
+ * precisely the owner who does not need finding them.
  */
 function StatusChips({ lease }: { lease: Lease }) {
   return (
     <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-      {/*
-        Three labels, not two. A cancelled tenancy shown as "Ended" would be
-        counted among the times a room was let and a person rented — history
-        that never happened, and unrecoverable once it reads that way.
-      */}
       <Chip
         size="small"
-        label={
-          lease.status === 'active'
-            ? 'Đang thuê'
-            : lease.status === 'cancelled'
-              ? 'Đã huỷ'
-              : 'Đã kết thúc'
+        label={leaseStatusLabel(lease.status)}
+        color={leaseStatusColor(lease.status)}
+        variant={
+          lease.status === 'finalized' || lease.status === 'upcoming' ? 'outlined' : 'filled'
         }
-        color={
-          lease.status === 'active'
-            ? 'success'
-            : lease.status === 'cancelled'
-              ? 'error'
-              : 'default'
-        }
-        variant={lease.status === 'finalized' ? 'outlined' : 'filled'}
+        icon={lease.status === 'overdue' ? <WarningAmberIcon /> : undefined}
       />
-      {isTermRunOut(lease) && (
-        <Chip
-          size="small"
-          color="warning"
-          icon={<WarningAmberIcon />}
-          label="Hết hạn"
-        />
-      )}
     </Stack>
   )
 }
 
 /** What the tenancy covers, always as the last day covered — never the boundary. */
+/**
+ * The day a tenancy covers to, and which kind of day it is.
+ *
+ * "Ended in June" and "agreed to end in June" are different claims about a
+ * tenancy, and a column that flattened them would let a reader take one for
+ * the other. A cancelled tenancy gets neither: it covered no days.
+ */
+function endCell(lease: Lease): { value: string; note: string | null } {
+  if (lease.status === 'cancelled') {
+    return { value: `Huỷ ngày ${formatDate(lease.cancelledAt)}`, note: null }
+  }
+  if (lease.moveOutDate !== null) {
+    return { value: formatCoveredThrough(lease.moveOutDate), note: 'Đã trả phòng' }
+  }
+  return { value: formatCoveredThrough(lease.expectedEndDate), note: 'Theo hợp đồng' }
+}
+
+function startCell(lease: Lease): string {
+  // A cancelled tenancy never began. Printing its agreed start under a heading
+  // about occupancy would state the one thing the status denies.
+  return lease.status === 'cancelled' ? '—' : formatDate(lease.startDate)
+}
+
 function coverLabel(lease: Lease): string {
   // A cancelled tenancy covered no days at all, so it gets no range. Printing
   // its agreed dates in a column headed "Covers" would state as occupancy the
@@ -127,9 +124,16 @@ export function LeaseList({ leases, onOpen }: LeaseListProps) {
           <TableHead>
             <TableRow>
               <TableCell>Phòng</TableCell>
+              {/*
+                The building is its own column, not a suffix: two buildings may
+                each hold a room with the same code, and a reader comparing
+                rooms down the page cannot line up "Q54299A · Trọ thủ đức".
+              */}
+              <TableCell>Toà nhà</TableCell>
               <TableCell>Người đứng tên</TableCell>
               <TableCell>Giá thuê</TableCell>
-              <TableCell>Thời gian ở</TableCell>
+              <TableCell sx={{ whiteSpace: 'nowrap' }}>Bắt đầu</TableCell>
+              <TableCell sx={{ whiteSpace: 'nowrap' }}>Kết thúc</TableCell>
               <TableCell>Trạng thái</TableCell>
             </TableRow>
           </TableHead>
@@ -138,7 +142,12 @@ export function LeaseList({ leases, onOpen }: LeaseListProps) {
               <TableRow key={lease.id} hover sx={{ cursor: 'pointer' }} onClick={() => onOpen(lease)}>
                 <TableCell>
                   <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                    {roomLabel(lease)}
+                    {lease.room?.roomCode ?? `Phòng #${lease.roomId}`}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" color="text.secondary">
+                    {lease.room?.building?.displayName ?? '—'}
                   </Typography>
                 </TableCell>
                 <TableCell>
@@ -149,8 +158,16 @@ export function LeaseList({ leases, onOpen }: LeaseListProps) {
                 <TableCell>
                   <Typography variant="body2">{formatMoney(lease.baseRent)} / tháng</Typography>
                 </TableCell>
-                <TableCell>
-                  <Typography variant="body2">{coverLabel(lease)}</Typography>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                  <Typography variant="body2">{startCell(lease)}</Typography>
+                </TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                  <Typography variant="body2">{endCell(lease).value}</Typography>
+                  {endCell(lease).note && (
+                    <Typography variant="caption" color="text.secondary">
+                      {endCell(lease).note}
+                    </Typography>
+                  )}
                 </TableCell>
                 <TableCell>
                   <StatusChips lease={lease} />

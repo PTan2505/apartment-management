@@ -93,6 +93,20 @@ export const listInvoicesQuerySchema = z.object({
   year: z.coerce.number().int().min(2000).max(2200).optional(),
   month: z.coerce.number().int().min(1).max(12).optional(),
   paymentStatus: z.enum(["pending", "paid"]).optional(),
+  // What KIND of bill. Five kinds look identical as an amount, and an owner
+  // asking for "the one-off charges I raised" had no way to ask.
+  type: z.enum(["moveIn", "monthly", "final", "overdue", "adhoc"]).optional(),
+  /*
+    The order, chosen by the caller and applied by the system.
+
+    Not left to the caller to apply: the response is one page of a larger set,
+    so a page sorted after it arrives is thirty rows of two hundred in the wrong
+    order — which looks sorted, and is the worse failure.
+
+    `owing` is the default: an owner opens this list to act on money, and both
+    the unpaid and the recent are what they came for.
+  */
+  sort: z.enum(["owing", "newest", "oldest"]).default("owing"),
   // Voided invoices are excluded by default — they are an audit trail, not a
   // live bill — but remain retrievable when explicitly asked for.
   includeVoided: z

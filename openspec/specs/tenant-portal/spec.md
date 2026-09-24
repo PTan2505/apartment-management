@@ -1,55 +1,8 @@
 ## Purpose
 
-Lets a tenant see their own bills through a link the owner sends them once, with no account and no password, while giving the owner the means to issue, replace and withdraw those links.
+Lets a tenant see and pay the bills of the tenancy they were sent a link for, with no account and no password, while giving the owner the means to read that link back, replace it, and withdraw it.
 
 ## Requirements
-
-### Requirement: Owner can issue a portal link for a tenant
-
-The system SHALL allow an authenticated `owner` to generate a portal access token for a `customer`, and SHALL return the token itself **once**, in that response and never again.
-
-The token SHALL be stored hashed. Storing it in the clear would mean a copy of the database is a copy of every tenant's link.
-
-A customer SHALL have at most one usable token at a time. Generating a new one SHALL revoke the previous one, so an owner who suspects a link has been shared can replace it in one action rather than two.
-
-The owner SHALL also be able to revoke a token outright, leaving the customer with no working link.
-
-Issuing a token for a user who is not a `customer` SHALL be refused. An owner signs in with a password; a portal link is for someone who cannot.
-
-#### Scenario: Generating a link
-
-- **WHEN** an authenticated owner generates a portal link for a customer
-- **THEN** the response carries the token, and the customer has a usable link
-
-#### Scenario: The token is shown once
-
-- **WHEN** an authenticated owner retrieves a customer after generating their link
-- **THEN** the response reports that a link exists and when it was issued, and does not carry the token
-
-#### Scenario: Regenerating replaces the previous link
-
-- **WHEN** an authenticated owner generates a second portal link for a customer
-- **THEN** the new token works and the previous one no longer does
-
-#### Scenario: Revoking a link
-
-- **WHEN** an authenticated owner revokes a customer's portal link
-- **THEN** that token no longer works and the customer has no usable link
-
-#### Scenario: Revoking when there is no link
-
-- **WHEN** an authenticated owner revokes a portal link for a customer who has none
-- **THEN** the system responds with HTTP 404 and nothing changes
-
-#### Scenario: A link for an owner account
-
-- **WHEN** an authenticated owner generates a portal link for a user whose role is `owner`
-- **THEN** the system responds with HTTP 400 and no token is created
-
-#### Scenario: Issuing requires an authenticated owner
-
-- **WHEN** a portal link is generated or revoked without an access token whose role is `owner`
-- **THEN** the system responds with HTTP 401 or 403 and nothing is created or changed
 
 ### Requirement: A portal token is unguessable
 
@@ -71,9 +24,9 @@ A token SHALL NOT encode the identity it grants access to. What it unlocks is a 
 
 ### Requirement: A tenant can open the portal without an account
 
-The system SHALL allow anyone presenting a valid portal token to retrieve the tenant's own details and bills, with no access token, no password and no session.
+The system SHALL allow anyone presenting a valid portal token to retrieve the tenancy's details and bills, with no access token, no password and no session.
 
-The token SHALL be accepted in a request header rather than in the URL path or query string. A token in the URL is written into the server's request log on every call, and a log is ordinarily less protected than the database the token is deliberately hashed inside.
+The token SHALL be accepted in a request header rather than in the URL path or query string. A token in the URL is written into the server's request log on every call, and a log is ordinarily less protected than the database the token is deliberately encrypted inside.
 
 An unknown token, a revoked token and a malformed one SHALL all produce the same response. Answering them differently tells someone probing which of their guesses was once real.
 
@@ -82,7 +35,7 @@ The system SHALL record when a token was last used, so an owner can see whether 
 #### Scenario: Opening the portal
 
 - **WHEN** a valid portal token is presented
-- **THEN** the response carries the tenant's name and their bills
+- **THEN** the response carries the room the tenancy is for, the name of whoever signed it if there is one, and that tenancy's bills
 
 #### Scenario: An unknown token
 
@@ -108,54 +61,6 @@ The system SHALL record when a token was last used, so an owner can see whether 
 
 - **WHEN** a tenant opens the portal
 - **THEN** the token records that it was used, and the owner can see when
-
-### Requirement: A tenant sees their own tenancies and nothing else
-
-A portal token SHALL grant sight of:
-
-- every invoice of a tenancy the holder currently occupies, and
-- every **unpaid** invoice of a tenancy the holder has left.
-
-It SHALL NOT grant sight of invoices issued for a tenancy after the holder left it. Somebody who has moved out has no claim on the bills of the people who moved in.
-
-The unpaid invoices of a former tenancy are included because they are still owed. This also covers the final bill, which is issued at the moment a move-out is recorded and would otherwise become invisible to the person it is addressed to.
-
-Voided invoices SHALL NOT be shown. They were withdrawn.
-
-#### Scenario: Seeing the bills of a current tenancy
-
-- **WHEN** a tenant with a running tenancy opens the portal
-- **THEN** they see every invoice of that tenancy, paid and unpaid
-
-#### Scenario: Seeing an unpaid bill after moving out
-
-- **WHEN** a tenant who has moved out still owes for their final month
-- **THEN** they see that invoice
-
-#### Scenario: Not seeing the bills of a room they left
-
-- **WHEN** an invoice is issued for a tenancy after the holder left it
-- **THEN** they do not see it
-
-#### Scenario: Not seeing another tenant's bills
-
-- **WHEN** a tenant opens the portal
-- **THEN** they see no invoice belonging to a tenancy they have never occupied
-
-#### Scenario: A tenant sharing a room sees its bills
-
-- **WHEN** an occupant who is not the lease signatory opens the portal
-- **THEN** they see the invoices of the tenancy they occupy, because the bill covers the room they live in
-
-#### Scenario: Voided invoices are hidden
-
-- **WHEN** an invoice a tenant could otherwise see has been voided
-- **THEN** it is absent from their portal
-
-#### Scenario: A tenant with no tenancy
-
-- **WHEN** a customer who has never occupied a tenancy opens the portal
-- **THEN** the response carries their details and no invoices, rather than an error
 
 ### Requirement: The portal reports a bill in full, in its own shape
 
@@ -331,3 +236,126 @@ Where a bill is settled but no payment carries a date, the portal SHALL report t
 
 - **WHEN** a bill is settled but the payment that settled it carries no date
 - **THEN** the settlement date is reported as absent rather than guessed
+
+### Requirement: Every tenancy carries its own payment link
+
+The system SHALL issue a portal token for a tenancy when the tenancy is created,
+and SHALL allow an authenticated `owner` to reissue or withdraw it.
+
+A tenancy SHALL have at most one usable token at a time. Reissuing SHALL revoke
+the previous token in the same operation, so an owner who believes a link has
+gone astray replaces it in one action and there is never a moment when both
+work.
+
+A renewal is a different tenancy and SHALL therefore receive its own link. The
+previous tenancy keeps its own, which still reaches its own unpaid bills.
+
+Whoever holds a tenancy's link SHALL be able to see and pay that tenancy's
+bills. It is a payment link rather than a sign-in: there is no identity behind
+it to check, and the owner's alternative — a link per occupant — was declined.
+
+#### Scenario: A tenancy is signed
+
+- **WHEN** an owner creates a tenancy
+- **THEN** it has a usable payment link straight away, with no further action
+
+#### Scenario: Reissuing replaces the previous link
+
+- **WHEN** an owner reissues a tenancy's link
+- **THEN** the new token works and the previous one no longer does
+
+#### Scenario: Withdrawing a link
+
+- **WHEN** an owner withdraws a tenancy's link
+- **THEN** that token no longer works and the tenancy has no usable link
+
+#### Scenario: Withdrawing a link that is not there
+
+- **WHEN** an owner withdraws the link of a tenancy that has none
+- **THEN** the system responds with HTTP 404 and nothing changes
+
+#### Scenario: A renewal gets its own link
+
+- **WHEN** a tenancy is renewed
+- **THEN** the new tenancy has its own link and the previous link still reaches the previous tenancy
+
+#### Scenario: Issuing requires an authenticated owner
+
+- **WHEN** a tenancy's link is reissued or withdrawn without an access token whose role is `owner`
+- **THEN** the system responds with HTTP 401 or 403 and nothing changes
+
+### Requirement: An issued link can be shown again
+
+The system SHALL allow an authenticated `owner` to read back the token of a
+tenancy's current link, so a link can be sent again without replacing it.
+
+The token SHALL NOT be stored in the clear. It SHALL be kept encrypted under a
+key derived from the application's own secret, so that a copy of the database
+alone is not a copy of every tenancy's link — the property the earlier
+hashed-only storage existed to protect, kept while making the token readable to
+the one party entitled to read it.
+
+Lookup of a presented token SHALL NOT decrypt anything: a stored hash SHALL
+remain the means of finding the row, so a public request costs one indexed
+equality and never a key operation.
+
+Where a stored token cannot be decrypted — the application secret has been
+rotated since it was issued — the system SHALL report that the link exists but
+cannot be shown, rather than failing the request or inventing a token. The link
+itself still works, and reissuing produces one that can be shown.
+
+#### Scenario: Showing an existing link
+
+- **WHEN** an owner asks for a tenancy's payment link
+- **THEN** the response carries the token itself, and asking again returns the same one
+
+#### Scenario: Finding a presented token
+
+- **WHEN** a tenant presents a token
+- **THEN** it is found by its stored hash, with nothing decrypted
+
+#### Scenario: A token that can no longer be read
+
+- **WHEN** the application secret has changed since a token was issued
+- **THEN** the owner is told the link exists but cannot be shown, and reissuing gives a readable one
+
+### Requirement: A link shows the bills of the tenancy it was issued for
+
+A portal token SHALL grant sight of every invoice of the tenancy it was issued
+for, paid and unpaid, and of no invoice of any other tenancy.
+
+Voided invoices SHALL NOT be shown. They were withdrawn.
+
+The bills payable SHALL be exactly the bills visible, decided by one rule used
+by both the reading and the paying — a token that cannot show a bill must not be
+able to pay one.
+
+#### Scenario: The bills of that tenancy
+
+- **WHEN** a link is opened
+- **THEN** it shows every invoice of its tenancy, paid and unpaid
+
+#### Scenario: Nothing from another tenancy
+
+- **WHEN** a link is opened
+- **THEN** no invoice of any other tenancy appears, including one for the same room under a later tenancy
+
+#### Scenario: A final bill stays reachable
+
+- **WHEN** a move-out is recorded and the final bill is issued
+- **THEN** the tenancy's link still shows it, because the link belongs to the tenancy rather than to who currently lives there
+
+#### Scenario: Voided invoices are hidden
+
+- **WHEN** an invoice of the tenancy has been voided
+- **THEN** it is absent from the portal
+
+#### Scenario: A tenancy with no bills yet
+
+- **WHEN** a link is opened for a tenancy that has not been billed
+- **THEN** the response carries the tenancy's details and no invoices, rather than an error
+
+#### Scenario: Paying a bill the token cannot see
+
+- **WHEN** a payment is started for an invoice belonging to another tenancy
+- **THEN** the system responds with HTTP 404, the same answer an invoice that does not exist would produce

@@ -30,8 +30,9 @@ import { IdCardPicker } from '@/features/customers/IdCardPicker'
 import * as customersApi from '@/features/customers/api'
 import { useCreateCustomer, useCustomers } from '@/features/customers/hooks'
 import type { Customer } from '@/features/customers/types'
-import { useRoomMeterReading, useRooms } from '@/features/rooms/hooks'
+import { useRoom, useRoomMeterReading, useRooms } from '@/features/rooms/hooks'
 import { attachContractPages, CONTRACT_ACCEPT } from '@/features/leases/api'
+import { formatDate } from '@/features/leases/dates'
 import { useCreateLease } from '@/features/leases/hooks'
 import { createLeaseFormSchema, type CreateLeaseFormValues } from '@/features/leases/schema'
 import type { Lease } from '@/features/leases/types'
@@ -74,6 +75,9 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
   const [formError, setFormError] = useState<string | null>(null)
   const isSubmitting = createMutation.isPending
 
+  /** Set only when the tenancy was created but a file did not attach. */
+  const [createdLease, setCreatedLease] = useState<Lease | null>(null)
+
   /**
    * Only rooms that can be let.
    *
@@ -91,12 +95,6 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
    */
   const [pickerBuildingId, setPickerBuildingId] = useState<number | ''>('')
 
-  const roomsQuery = useRooms({
-    pageSize: 200,
-    vacant: true,
-    buildingId: pickerBuildingId === '' ? undefined : pickerBuildingId,
-  })
-  const vacantRooms = roomsQuery.data?.data ?? []
   const buildingsQuery = useBuildings({ pageSize: 200 })
   const customersQuery = useCustomers({ pageSize: 200 })
   const customers = customersQuery.data?.data ?? []
@@ -139,7 +137,65 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
    * A room never let before has no reading to offer, and the field stays empty
    * and required: there is genuinely nothing to fall back on.
    */
+  /*
+    The rooms that can take a tenancy BEGINNING on the chosen date.
+
+    Not `vacant`, which answers "free right now" — a different question, and the
+    wrong one here. A room whose tenant leaves at the end of the month can take
+    a tenancy from the 1st, and a room free today cannot take one starting last
+    month. Asking the wrong question got both wrong, and the owner met the
+    difference as a refusal after filling in the whole form.
+  */
+  const startDate = useWatch({ control, name: 'startDate' })
+  const roomsQuery = useRooms(
+    {
+      pageSize: 200,
+      availableOn: startDate || undefined,
+      buildingId: pickerBuildingId === '' ? undefined : pickerBuildingId,
+    },
+    Boolean(startDate),
+  )
+  const vacantRooms = roomsQuery.data?.data ?? []
   const chosenRoomId = useWatch({ control, name: 'roomId' })
+  /**
+   * A room chosen under one date that the new date cannot take.
+   *
+   * Cleared, and said out loud. Carrying it silently would move the refusal to
+   * the submission — the exact failure asking for the date first removes — and
+   * clearing it without a word would leave the owner submitting a form they
+   * believe still names a room.
+   */
+  const [roomDropped, setRoomDropped] = useState<string | null>(null)
+  useEffect(() => {
+    if (!open || roomId || !startDate || roomsQuery.isPending) return
+    if (!chosenRoomId) return
+    /*
+      Not while submitting, and not once the tenancy exists.
+
+      Creating the tenancy takes the room — so the list refetches without it,
+      and this fired: "phòng đang chọn không trống", on a form that had just
+      succeeded. The room being gone from the list is the CONSEQUENCE of the
+      signing, not a problem with it.
+    */
+    if (isSubmitting || createdLease !== null) return
+    if (vacantRooms.some((room) => room.id === chosenRoomId)) return
+    setValue('roomId', 0)
+    setRoomDropped(`Phòng đang chọn không trống từ ${formatDate(startDate)}. Hãy chọn phòng khác.`)
+  }, [
+    open,
+    roomId,
+    startDate,
+    chosenRoomId,
+    vacantRooms,
+    roomsQuery.isPending,
+    isSubmitting,
+    createdLease,
+    setValue,
+  ])
+  // A fresh choice answers the message.
+  useEffect(() => {
+    if (chosenRoomId) setRoomDropped(null)
+  }, [chosenRoomId])
   const meterQuery = useRoomMeterReading(chosenRoomId || undefined)
 
   // Which room's reading has already been written in, so a value the owner has
@@ -236,8 +292,6 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
   const [contractFiles, setContractFiles] = useState<File[]>([])
   const contractInput = useRef<HTMLInputElement>(null)
 
-  /** Set only when the tenancy was created but a file did not attach. */
-  const [createdLease, setCreatedLease] = useState<Lease | null>(null)
 
   async function resolveSignatoryId(
     signatory: CreateLeaseFormValues['signatory'],
@@ -361,7 +415,22 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
     }
   }
 
-  const fixedRoom = roomId ? vacantRooms.find((room) => room.id === roomId) : undefined
+  /*
+    The room the form was opened with, looked up on its own.
+    
+    NOT found in the list above: that list is now "rooms free from the chosen
+    date", and a room the owner arrived from may not be in it — which would
+    have made the room silently disappear and the picker appear in its place.
+  */
+  const fixedRoomQuery = useRoom(roomId, open)
+  const fixedRoom = roomId ? fixedRoomQuery.data : undefined
+  // Whether that room can actually take a tenancy beginning then. The list is
+  // the authority; being absent from it is the answer.
+  const fixedRoomFits =
+    fixedRoom === undefined ||
+    !startDate ||
+    roomsQuery.isPending ||
+    vacantRooms.some((room) => room.id === fixedRoom.id)
 
   return (
     <Dialog
@@ -387,6 +456,44 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
           onSubmit={handleSubmit(onSubmit)}
           sx={{ mt: 1 }}
         >
+          {/*
+            The date leads, because it is what makes the room question
+            answerable. Asked after the room, as it was, the form offers the
+            rooms free TODAY — neither the question nor the answer — and the
+            refusal arrives only once everything else has been filled in.
+          */}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField
+              label="Ngày bắt đầu"
+              type="date"
+              fullWidth
+              slotProps={{ inputLabel: { shrink: true } }}
+              error={Boolean(errors.startDate)}
+              helperText={errors.startDate?.message ?? 'Ngày khách bắt đầu ở'}
+              {...register('startDate')}
+            />
+            {/*
+              Asked for here because this is the moment the paper is in the
+              owner's hand. It was previously only in the correction dialog —
+              a moment that rarely comes, so the date was recorded rarely.
+
+              Optional: a tenancy entered from an old paper file may have no
+              date anyone remembers, and demanding one turns missing history
+              into an obstacle.
+            */}
+            <TextField
+              label="Ngày ký hợp đồng"
+              type="date"
+              fullWidth
+              slotProps={{ inputLabel: { shrink: true } }}
+              error={Boolean(errors.handoverSignedAt)}
+              helperText={
+                errors.handoverSignedAt?.message ?? 'Ngày ký hợp đồng giấy. Để trống nếu chưa ký'
+              }
+              {...register('handoverSignedAt')}
+            />
+          </Stack>
+
           {fixedRoom ? (
             <TextField
               label="Phòng"
@@ -431,8 +538,18 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
                   onChange={(event) => field.onChange(Number(event.target.value))}
                   onBlur={field.onBlur}
                   inputRef={field.ref}
+                  disabled={!startDate}
                   error={Boolean(errors.roomId)}
-                  helperText={errors.roomId?.message ?? 'Chỉ những phòng chưa có hợp đồng đang chạy'}
+                  helperText={
+                    errors.roomId?.message ??
+                    (!startDate
+                      ? 'Chọn ngày bắt đầu trước, rồi mới chọn được phòng'
+                      : roomsQuery.isPending
+                        ? 'Đang tìm phòng trống cho ngày này…'
+                        : vacantRooms.length === 0
+                          ? 'Không có phòng nào trống từ ngày này'
+                          : `Phòng trống từ ${formatDate(startDate)}`)
+                  }
                 >
                   {vacantRooms.map((room) => (
                     <MenuItem key={room.id} value={String(room.id)}>
@@ -447,6 +564,20 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
               )}
             />
             </>
+          )}
+
+          {roomDropped && <Alert severity="warning">{roomDropped}</Alert>}
+
+          {/*
+            The room the owner arrived with, which the new date cannot take.
+            Said rather than silently kept: the API would refuse it, and the
+            refusal would arrive after everything else was filled in.
+          */}
+          {fixedRoom && !fixedRoomFits && (
+            <Alert severity="warning">
+              Phòng {fixedRoom.roomCode} không trống từ {formatDate(startDate)} — hợp đồng cũ của
+              phòng chưa kết thúc. Hãy chọn ngày khác.
+            </Alert>
           )}
 
           <Controller
@@ -621,37 +752,7 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
             </Alert>
           )}
 
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField
-              label="Ngày bắt đầu"
-              type="date"
-              fullWidth
-              slotProps={{ inputLabel: { shrink: true } }}
-              error={Boolean(errors.startDate)}
-              helperText={errors.startDate?.message ?? 'Ngày khách bắt đầu ở'}
-              {...register('startDate')}
-            />
-            {/*
-              Asked for here because this is the moment the paper is in the
-              owner's hand. It was previously only in the correction dialog —
-              a moment that rarely comes, so the date was recorded rarely.
 
-              Optional: a tenancy entered from an old paper file may have no
-              date anyone remembers, and demanding one turns missing history
-              into an obstacle.
-            */}
-            <TextField
-              label="Ngày ký hợp đồng"
-              type="date"
-              fullWidth
-              slotProps={{ inputLabel: { shrink: true } }}
-              error={Boolean(errors.handoverSignedAt)}
-              helperText={
-                errors.handoverSignedAt?.message ?? 'Ngày ký hợp đồng giấy. Để trống nếu chưa ký'
-              }
-              {...register('handoverSignedAt')}
-            />
-          </Stack>
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField

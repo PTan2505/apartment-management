@@ -11,7 +11,7 @@
 - [x] 2.2 `applyWebhook`: for a withdrawn invoice, accept `pending`, `cancelled` or `expired` after the signature and amount checks; `succeeded` still changes nothing
 - [x] 2.3 `voidInvoice`: one transaction — withdraw, and mark pending gateway payments cancelled
 - [x] 2.4 `payos.ts`: `cancelPaymentLink(config, orderCode, reason)` calling `POST {BASE_URL}/{orderCode}/cancel`; errors carry no credentials
-- [ ] 2.5 After the withdrawal commits, retire each link at the gateway; refused → fetch → `PAID` → `settle`; anything else logged, withdrawal stands — WRITTEN, NOT EXERCISED against PayOS: every withdrawal in verification went to an API instance with the gateway unconfigured (proven by a probe returning GATEWAY_NOT_CONFIGURED before any withdrawal), so the cancel call and its PAID fallback were never reached. Exercising them is 7.1
+- [x] 2.5 After the withdrawal commits, retire each link at the gateway; refused → fetch → `PAID` → `settle`; anything else logged, withdrawal stands — the cancel call is now exercised against real PayOS (see 7.1). The PAID fallback is still unexercised: reaching it needs a link PayOS refuses to cancel BECAUSE it was paid, which means paying one for real
 - [x] 2.6 `reversePayment`: withdrawn invoice → payment reversed only; no deposit release or restore, no status change
 - [x] 2.7 The invariant written beside `settle` and `reversePayment`
 - [x] 2.8 Invoice responses carry `receivedAfterWithdrawal`, computed in one mapper used by every return
@@ -47,8 +47,8 @@
 
 ## 7. Only with the owner's go-ahead
 
-- [ ] 7.1 Exercise the real PayOS cancel endpoint on a link created for the purpose
-- [ ] 7.2 Decide whether to cancel #63 on #390 at PayOS
+- [x] 7.1 Exercise the real PayOS cancel endpoint on a link created for the purpose — link created for invoice #400 (150.000 đ), PayOS reported PENDING; the invoice was then withdrawn FROM THE SCREEN; PayOS then reported CANCELLED and the local payment read `cancelled`
+- [x] 7.2 Decide whether to cancel #63 on #390 at PayOS — cancelled. #390 was withdrawn before this change existed, so its link stayed live: a QR that still took 4.908.500 đ for a bill nobody owed. PayOS now reports CANCELLED. The local row still reads `pending` (the withdrawal that would have set it ran before the code existed); correcting that one row was blocked and is noted for the owner
 
 ## 8. Found during implementation
 

@@ -18,14 +18,14 @@ enum Role {
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
+  id             Int      @id @default(autoincrement())
   // Optional: occupants such as children need a stable identity but may have no
   // phone. Postgres allows many NULLs under a unique index, so it stays unique
   // where present. Owners always have a phone (login identifier).
-  phone        String?  @unique
-  passwordHash String?
-  role         Role
-  fullName     String
+  phone          String?  @unique
+  passwordHash   String?
+  role           Role
+  fullName       String
   // A matching key derived from fullName, never entered by anyone and never
   // returned: lowercased with diacritics folded away, so 'Nguyễn Văn A' is
   // stored as 'nguyen van a' and a search typed without diacritics finds it.
@@ -44,47 +44,56 @@ model User {
   // Independent of each other: one side can be on file without the other.
   idCardFrontKey String?
   idCardBackKey  String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   refreshTokens  RefreshToken[]
-  portalTokens   TenantAccessToken[]
   leaseOccupants LeaseOccupant[]
 }
 
-/// A tenant's way into the portal: a link the owner sends once.
+/// The link a tenancy is paid through.
 ///
 /// Deliberately the same design as RefreshToken, for the same reason — it lives
 /// for the length of a tenancy and has to be killable the moment it is
 /// forwarded to somebody. A JWT cannot be withdrawn, which rules it out however
 /// convenient the stateless check would be.
 ///
-/// Belongs to a PERSON rather than a tenancy, so it survives a renewal and
-/// still works after a move-out. That last part matters: the final bill is
-/// issued at the moment the tenancy closes, and its addressee has by then
-/// stopped being a current occupant.
-model TenantAccessToken {
-  id     Int  @id @default(autoincrement())
-  userId Int
-  user   User @relation(fields: [userId], references: [id])
+/// Belongs to the TENANCY rather than to a person. A person renting two rooms
+/// holds two links, and a link keeps reaching its own tenancy's bills after the
+/// people have moved out — which is exactly when the final bill is issued.
+///
+/// It is a payment link, not a sign-in: whoever holds it can see and pay that
+/// tenancy's bills, and nothing behind it identifies them.
+model LeasePortalToken {
+  id      Int   @id @default(autoincrement())
+  leaseId Int
+  lease   Lease @relation(fields: [leaseId], references: [id])
 
-  /// SHA-256 of the token, never the token itself. A copy of this database is
-  /// deliberately not a copy of every tenant's link.
+  /// SHA-256 of the token: how a presented token is FOUND. Unique and indexed,
+  /// so a public request costs one equality and never a key operation.
   ///
   /// SHA-256 rather than bcrypt, as for a refresh token: the value is 256 bits
   /// of uniform randomness so there is no dictionary to slow down, and it has
   /// to be found by equality rather than compared one row at a time.
   tokenHash String @unique
 
+  /// The same token encrypted (AES-256-GCM, key derived from the application
+  /// secret): how the OWNER reads it back to send the link again.
+  ///
+  /// A copy of this database alone is still not a copy of every link — which is
+  /// what the hash-only storage existed to protect — while the one party
+  /// entitled to read it can.
+  tokenCipher String
+
   /// Set when the owner withdraws the link, or when they issue a replacement.
-  revokedAt DateTime?
+  revokedAt  DateTime?
   /// The only signal an owner has that a link is being used by someone who
   /// should not have it — there is no rate limit and no alerting.
   lastUsedAt DateTime?
 
   createdAt DateTime @default(now())
 
-  @@index([userId])
+  @@index([leaseId])
 }
 
 model RefreshToken {
@@ -126,11 +135,11 @@ model Building {
 }
 
 model Room {
-  id         Int      @id @default(autoincrement())
-  buildingId Int
-  building   Building @relation(fields: [buildingId], references: [id])
-  roomCode   String
-  baseRent   Decimal  @db.Decimal(12, 2)
+  id                  Int      @id @default(autoincrement())
+  buildingId          Int
+  building            Building @relation(fields: [buildingId], references: [id])
+  roomCode            String
+  baseRent            Decimal  @db.Decimal(12, 2)
   // Where the meter stood when this room was added.
   //
   // Every other reading in this system is one half of a difference —
@@ -147,9 +156,9 @@ model Room {
   // So null means "nobody has said" and 0 means "the meter reads zero". Those
   // are different facts, and only a nullable column can tell them apart.
   initialMeterReading Int?
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   leases   Lease[]
   expenses Expense[]
@@ -162,16 +171,16 @@ model Room {
 }
 
 model Lease {
-  id                Int       @id @default(autoincrement())
-  roomId            Int
-  room              Room      @relation(fields: [roomId], references: [id])
-  startDate         DateTime
-  durationMonths    Int
+  id                 Int       @id @default(autoincrement())
+  roomId             Int
+  room               Room      @relation(fields: [roomId], references: [id])
+  startDate          DateTime
+  durationMonths     Int
   // The rent this agreement fixed, defaulted from the room at creation and
   // overridable. Deliberately a copy: the room's rent is what it asks of the
   // next tenant, and changing it must not re-price a tenancy already agreed.
   // Same precision as Room.baseRent so the copy cannot lose or gain digits.
-  baseRent          Decimal   @db.Decimal(12, 2)
+  baseRent           Decimal   @db.Decimal(12, 2)
   // The utility rates this agreement was signed at, copied from the building
   // for the same reason the rent is copied from the room: editing a building
   // must not re-price a tenancy already agreed. Same precision as
@@ -180,18 +189,18 @@ model Lease {
   //
   // A room standing EMPTY has no agreement, so its electricity keeps costing
   // whatever the building charges now — see design.md.
-  electricityRate   Decimal   @db.Decimal(10, 2)
-  waterRatePerPerson Decimal  @db.Decimal(12, 2)
+  electricityRate    Decimal   @db.Decimal(10, 2)
+  waterRatePerPerson Decimal   @db.Decimal(12, 2)
   // The deposit in MONTHS of rent, not currency — that is how it is agreed, and
   // the amount is derived (depositMonths × baseRent) rather than stored, so the
   // two can never disagree. Zero is a real value: a lease taken without a
   // deposit, as distinct from one whose deposit was never recorded.
-  depositMonths     Int
+  depositMonths      Int
   // Manually maintained and authoritative for billing. Deliberately NOT derived
   // from LeaseOccupant rows: an owner may know five people live in a room while
   // holding details for only two. See design.md.
-  occupantCount     Int
-  moveOutDate       DateTime?
+  occupantCount      Int
+  moveOutDate        DateTime?
   // When the owner gave up on a tenancy that never took place, as distinct from
   // one that ran and ended. Recorded as a DATE rather than a flag for two
   // reasons: a cancelled tenancy would otherwise be unplaceable in time, and
@@ -204,15 +213,15 @@ model Lease {
   //
   // Nullable with no backfill: every lease predating this column is running or
   // finalized, and an empty column says exactly that.
-  cancelledAt       DateTime?
+  cancelledAt        DateTime?
   // The meter reading this tenancy starts from. Defaulted from the previous
   // lease's endMeterReading but overridable, so electricity used while the room
   // stood empty is not charged to the incoming tenant, and a meter replaced
   // between tenancies is just a lower number rather than a special case.
-  startMeterReading Int
+  startMeterReading  Int
   // Captured at move-out: closes this tenancy's electricity and becomes the
   // default starting point for the room's next lease.
-  endMeterReading   Int?
+  endMeterReading    Int?
 
   // --- terms of the agreement, as distinct from what it takes to bill it ---
   //
@@ -242,16 +251,16 @@ model Lease {
   /// UNIQUE, so a lease can be renewed at most once. A predecessor closes when
   /// it is renewed, and a closed lease cannot be renewed again; the index says
   /// so in the one place that cannot be bypassed.
-  renewedFromId     Int?      @unique
-  renewedFrom       Lease?    @relation("LeaseRenewal", fields: [renewedFromId], references: [id])
+  renewedFromId    Int?      @unique
+  renewedFrom      Lease?    @relation("LeaseRenewal", fields: [renewedFromId], references: [id])
   /// The lease that renewed this one. At most one, by the index above.
-  renewedTo         Lease?    @relation("LeaseRenewal")
+  renewedTo        Lease?    @relation("LeaseRenewal")
   /// The day the paper contract was signed with the tenant.
   ///
   /// A timestamp rather than a boolean: "whether" is the question and "when" is
   /// the useful answer, and a boolean that later needs a date is a migration
   /// while the reverse never is.
-  handoverSignedAt  DateTime?
+  handoverSignedAt DateTime?
   /// A human-readable name for this agreement, distinct from its id.
   ///
   /// An id is what the system uses; a reference is what two people say out loud
@@ -262,7 +271,7 @@ model Lease {
   /// one, a typo makes one unfindable, and the field becomes a place people
   /// write notes. Uniqueness is enforced HERE rather than by the generator,
   /// because a generator is what races with itself.
-  reference         String?   @unique
+  reference        String?   @unique
 
   // --- the deposit actually held, as distinct from the one the terms agreed ---
   //
@@ -277,13 +286,13 @@ model Lease {
   // invoice, and a top-up collected in cash was never charged at all. Every
   // write happens inside the transaction of the operation that moved the money
   // — see design.md.
-  depositHeld       Decimal   @default(0) @db.Decimal(14, 0)
+  depositHeld       Decimal @default(0) @db.Decimal(14, 0)
   // Of the above, how much arrived from a predecessor lease rather than being
   // paid. Kept so a holding can say where it came from.
-  depositCarriedIn  Decimal   @default(0) @db.Decimal(14, 0)
+  depositCarriedIn  Decimal @default(0) @db.Decimal(14, 0)
   // How much left to a successor lease at an extension. No money moved; only
   // which tenancy it is held against.
-  depositCarriedOut Decimal   @default(0) @db.Decimal(14, 0)
+  depositCarriedOut Decimal @default(0) @db.Decimal(14, 0)
 
   // Set together when the holding is closed out. The amount is the WHOLE
   // holding at the moment of return — there is nothing to decide — and it is
@@ -295,7 +304,7 @@ model Lease {
   // that part on an ad-hoc invoice, where the reason carries a category and an
   // amount. A second, weaker place to write the same fact would only compete
   // with it.
-  depositRefunded   Decimal?  @db.Decimal(14, 0)
+  depositRefunded   Decimal?            @db.Decimal(14, 0)
   depositRefundedAt DateTime?
   /// The photographed pages of the signed contract, oldest first.
   ///
@@ -304,12 +313,15 @@ model Lease {
   /// document elsewhere before the system would take it.
   pages             LeaseContractPage[]
 
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  occupants   LeaseOccupant[]
-  invoices    Invoice[]
-  serviceFees LeaseServiceFee[]
+  occupants    LeaseOccupant[]
+  invoices     Invoice[]
+  serviceFees  LeaseServiceFee[]
+  // The links this tenancy is paid through: at most one usable, the rest
+  // revoked. Kept as history so "when was this replaced" is answerable.
+  portalTokens LeasePortalToken[]
 
   // One ACTIVE lease per room is enforced by a partial unique index added
   // manually in the migration. Its predicate is "moveOutDate IS NULL AND
@@ -436,9 +448,9 @@ model Payment {
   /// The reference sent to the gateway, which must be unique per attempt. It is
   /// this row's own id — never the invoice's, because a link that expires and
   /// is replaced would otherwise reuse a reference the gateway has seen.
-  gatewayOrderCode Int? @unique
+  gatewayOrderCode     Int?    @unique
   /// What the gateway called this payment in reply.
-  gatewayPaymentId String?
+  gatewayPaymentId     String?
   /// What the tenant actually pays with, kept so a second visit hands back the
   /// SAME details rather than creating another attempt. One live link per bill
   /// is what makes the gateway's own dashboard readable.
@@ -456,12 +468,12 @@ model Payment {
   /// renders it. A tenant scanning it in their banking app never visits the
   /// gateway's page at all, which is why the page showing it has to find out
   /// the bill was paid by asking rather than by being returned to.
-  gatewayCheckoutUrl String?
-  gatewayQrCode      String?
+  gatewayCheckoutUrl   String?
+  gatewayQrCode        String?
   /// The confirmation exactly as it arrived, before interpretation. What the
   /// gateway really sends is the one thing that cannot be settled in advance,
   /// and the first field that differs will differ during a real payment.
-  gatewayPayload   Json?
+  gatewayPayload       Json?
 
   state      PaymentState @default(succeeded)
   /// When the money went back. Written together with `state`, never apart.
@@ -617,7 +629,7 @@ model InvoiceLineItem {
   invoiceId Int
   invoice   Invoice @relation(fields: [invoiceId], references: [id])
 
-  kind InvoiceLineKind
+  kind        InvoiceLineKind
   // Written for a reader of the bill, not for the system.
   description String
 
@@ -709,7 +721,7 @@ model BuildingServiceFee {
   buildingId Int
   building   Building @relation(fields: [buildingId], references: [id])
 
-  name String
+  name       String
   // Charged per unit of the thing: one motorbike, one internet connection. A
   // flat fee is simply one whose quantity is always 1.
   unitAmount Decimal @db.Decimal(12, 2)

@@ -1,9 +1,7 @@
 ## Purpose
 
 The owner's screens for billing: closing off a month across every tenancy at once, reading what a bill charged and why, and recording what has actually been collected. This is the work that repeats monthly for every occupied room, so it is designed around getting through a building rather than around a single invoice.
-
 ## Requirements
-
 ### Requirement: The owner can close off a month across every tenancy at once
 
 The application SHALL present, for a chosen month and building, every tenancy that is due to be billed for that month and has not been, as one list the owner works down.
@@ -70,11 +68,15 @@ A voided invoice SHALL be shown as voided wherever it appears, never silently om
 
 ### Requirement: The owner can find the bills they are looking for
 
-The application SHALL let the owner narrow invoices by building, by room, by month, and by whether they are settled.
+The application SHALL let the owner narrow invoices by building, by room, by month, by whether they are settled, **and by what kind of bill they are**.
 
 Unpaid is the filter this exists for. An owner chasing money asks "who has not paid", and that question has no answer in a list ordered by anything else.
 
-Voided invoices SHALL be excluded unless asked for. They are a record of what was withdrawn, not a bill anybody owes, and mixing them into a list of outstanding money makes that list wrong.
+Kind is the filter that makes a row readable. A move-in bill, a month, a closing bill, an overdue bill and a one-off charge are different things that look identical as an amount, and an owner looking for "the one-off charges I raised" has no way to ask for them.
+
+The application SHALL let the owner choose the ORDER of the list: what is owed first, newest first, or oldest first. The order SHALL be requested from the API rather than applied to the page in the browser: the list is paginated, and reordering the rows that happen to be on screen produces a list that looks sorted and is not.
+
+Voided invoices SHALL be excluded unless asked for. They are a record of what was withdrawn, not a bill anybody owes, and mixing them into a list of outstanding money makes that list wrong. Where they are asked for, they SHALL sort after the live ones.
 
 #### Scenario: Chasing what is owed
 
@@ -85,6 +87,16 @@ Voided invoices SHALL be excluded unless asked for. They are a record of what wa
 
 - **WHEN** the owner filters by building and month
 - **THEN** only invoices for tenancies in that building, for that month, are listed
+
+#### Scenario: Narrowing to one kind
+
+- **WHEN** the owner filters to one kind of bill
+- **THEN** only bills of that kind are listed, and the filter says which kind is showing
+
+#### Scenario: Choosing the order
+
+- **WHEN** the owner chooses to see the oldest first
+- **THEN** the list is re-fetched in that order rather than reordered in the browser
 
 #### Scenario: Voided bills stay out of the way
 
@@ -369,3 +381,109 @@ Confirming from the keyboard SHALL do exactly what the row's own control does, i
 
 - **WHEN** the owner confirms from the keyboard a reading below the one the row opens from
 - **THEN** nothing is issued, and the screen says why — as it does for the row's own control
+
+### Requirement: Reversing a payment is confirmed before it is sent
+
+The application SHALL ask the owner to confirm reversing a payment, and SHALL send nothing until they do.
+
+The confirmation SHALL name the amount and the date the payment was received, and SHALL say that the invoice returns to unpaid. Both facts matter at that moment: an invoice can carry more than one payment, so the amount is how the owner knows which one they are about to reverse, and the invoice's return to unpaid is a consequence of the action rather than something the button says.
+
+The confirmation SHALL NOT be offered for a payment already reversed.
+
+#### Scenario: Reversing is confirmed first
+
+- **WHEN** the owner starts to reverse a payment and does not confirm
+- **THEN** no request is sent, the payment stands, and the invoice stays as it was
+
+#### Scenario: The confirmation names the payment
+
+- **WHEN** the owner is asked to confirm reversing a payment
+- **THEN** the question names that payment's amount and the date it was received
+
+#### Scenario: The confirmation names the consequence
+
+- **WHEN** the owner is asked to confirm reversing a payment
+- **THEN** the question says the invoice returns to unpaid
+
+#### Scenario: Confirming reverses it
+
+- **WHEN** the owner confirms
+- **THEN** the payment is reversed, the invoice returns to unpaid, and both the payment and its reversal remain visible
+
+### Requirement: A withdrawn invoice has one name wherever it appears
+
+The application SHALL name a withdrawn invoice with the same word on every screen that shows it — the invoice list, the invoice screen, a tenancy's invoice panel, the dialog that withdraws it, and every message that refers to it.
+
+An owner follows a bill from one screen to the next. Two names for one state read as two states, and the owner is left to work out whether a bill marked one way on the tenancy is the same bill marked another way on the invoice it opens.
+
+That name SHALL NOT be one the same screens use for a different state. A cancelled tenancy is shown beside its invoices, and a bill named like a cancelled tenancy suggests the two are connected.
+
+Every sentence that names the state SHALL be Vietnamese.
+
+#### Scenario: Following a withdrawn bill from a tenancy
+
+- **WHEN** the owner sees a withdrawn bill in a tenancy's invoice panel and opens it
+- **THEN** the invoice screen names its state with the same word the panel used
+
+#### Scenario: The invoice list and the invoice screen agree
+
+- **WHEN** the owner includes withdrawn bills in the invoice list and opens one
+- **THEN** the list and the invoice screen use the same word for its state
+
+#### Scenario: Not the word for a cancelled tenancy
+
+- **WHEN** the owner reads a withdrawn bill on a tenancy screen that also names a cancelled tenancy
+- **THEN** the two states are named with different words
+
+#### Scenario: Withdrawing a bill
+
+- **WHEN** the owner opens the dialog to withdraw a bill and confirms
+- **THEN** its title, explanation, field label, button and the resulting state all use the same word, and no fragment of the dialog is in English
+
+### Requirement: Money received after withdrawal is shown for the owner to return
+
+Where an invoice reports money received after it was withdrawn, the application SHALL say so on the invoice screen, in the invoice list and in the tenancy's invoice panel, with the amount, and SHALL tell the owner the money has to be returned to the tenant by reversing the payment.
+
+A tenant has paid for a bill they no longer owe, and nothing else on these screens would show it: the bill reads as withdrawn, and the money is kept out of the revenue report. Without a mark on the bill itself the transfer is invisible until the tenant asks for it back.
+
+The mark SHALL disappear once the payment is reversed.
+
+#### Scenario: Opening a withdrawn bill that was paid
+
+- **WHEN** the owner opens a withdrawn invoice that reports money received after withdrawal
+- **THEN** the screen shows the amount, says it arrived after the bill was withdrawn, and says to return it by reversing the payment
+
+#### Scenario: Scanning the lists
+
+- **WHEN** the owner views the invoice list with withdrawn bills included, or a tenancy's invoice panel
+- **THEN** that invoice is marked as having money to return
+
+#### Scenario: After the money is returned
+
+- **WHEN** the owner reverses the payment
+- **THEN** the mark is gone from every screen
+
+### Requirement: A bill says what kind it is and when it was issued
+
+The list SHALL show, for every bill, what kind it is and the date it was issued.
+
+The amount does not identify the bill. A move-in bill charging a deposit and the first month, a month of rent and utilities, a closing bill, a charge for days beyond the term and a one-off penalty are five different events, and on this screen they are five identical numbers. An owner reading a row has to open it to find out what it is.
+
+The issue date is the other half of the same problem: a bill raised in March and one raised last week are indistinguishable in a list ordered by anything, and the month a bill COVERS is not the day it was raised — a closing bill and a one-off charge cover no month at all.
+
+The kind SHALL be named in the reader's language, using the same words the rest of the application uses for it.
+
+#### Scenario: Reading the list
+
+- **WHEN** the owner opens the invoice list
+- **THEN** each row shows what kind of bill it is and the date it was issued
+
+#### Scenario: A bill covering no month
+
+- **WHEN** a bill covers no month, such as a one-off charge
+- **THEN** its issue date is still shown, and its period reads as covering none
+
+#### Scenario: The words match the rest of the application
+
+- **WHEN** a kind is shown in the list and on the bill itself
+- **THEN** the same Vietnamese name is used in both places

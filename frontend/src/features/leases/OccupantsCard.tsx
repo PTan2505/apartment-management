@@ -21,6 +21,7 @@ import { EditOccupantCountDialog } from "@/features/leases/EditOccupantCountDial
 import { useOccupants } from "@/features/leases/hooks";
 import { TransferPrimaryDialog } from "@/features/leases/TransferPrimaryDialog";
 import type { Lease, Occupant } from "@/features/leases/types";
+import { isLive } from "@/features/leases/status";
 import { errorMessage } from "@/lib/error-messages";
 
 interface OccupantsCardProps {
@@ -55,7 +56,7 @@ export function OccupantsCard({ lease }: OccupantsCardProps) {
   const departed = occupants.filter(
     (occupant) => occupant.status === "departed",
   );
-  const isRunning = lease.status === "active";
+  const isRunning = isLive(lease.status);
 
   return (
     <>
@@ -137,8 +138,7 @@ export function OccupantsCard({ lease }: OccupantsCardProps) {
                 */}
                 {isRunning && current.length === 1 && (
                   <Typography variant="caption" color="text.secondary">
-                    Chỉ còn một người ở. Muốn kết thúc hợp đồng thì dùng “Ghi nhận rời đi” của cả
-                    hợp đồng.
+                    Chỉ còn một người ở. Muốn kết thúc thì dùng “Kết thúc hợp đồng” ở cuối trang.
                   </Typography>
                 )}
               </Box>

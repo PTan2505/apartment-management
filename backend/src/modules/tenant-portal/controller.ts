@@ -6,19 +6,19 @@ import * as portalService from "./service.js";
 
 /* --- the owner's half --- */
 
-export async function issuePortalLinkHandler(req: Request, res: Response) {
-  const customerId = parseIdParam(req.params.id, RESOURCE.customer);
-  res.status(201).json(await portalService.issuePortalLink(customerId));
+export async function getLeasePortalLinkHandler(req: Request, res: Response) {
+  const leaseId = parseIdParam(req.params.id, RESOURCE.lease);
+  res.status(200).json(await portalService.getLeasePortalLink(leaseId));
 }
 
-export async function revokePortalLinkHandler(req: Request, res: Response) {
-  const customerId = parseIdParam(req.params.id, RESOURCE.customer);
-  res.status(200).json(await portalService.revokePortalLink(customerId));
+export async function reissueLeasePortalLinkHandler(req: Request, res: Response) {
+  const leaseId = parseIdParam(req.params.id, RESOURCE.lease);
+  res.status(201).json(await portalService.reissueLeasePortalLink(leaseId));
 }
 
-export async function getPortalLinkStatusHandler(req: Request, res: Response) {
-  const customerId = parseIdParam(req.params.id, RESOURCE.customer);
-  res.status(200).json(await portalService.getPortalLinkStatus(customerId));
+export async function revokeLeasePortalLinkHandler(req: Request, res: Response) {
+  const leaseId = parseIdParam(req.params.id, RESOURCE.lease);
+  res.status(200).json(await portalService.revokeLeasePortalLink(leaseId));
 }
 
 /* --- the tenant's half --- */
