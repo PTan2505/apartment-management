@@ -337,6 +337,37 @@ export async function createLease(input: CreateLeaseInput, scope: BuildingScope 
       },
     });
 
+    /*
+      The fees this building applies to every new tenancy — rubbish, internet —
+      taken up now, at the price and basis current at this moment, from the day
+      the tenancy starts.
+
+      Inside the transaction, like the move-in invoice and for the same reason:
+      a tenancy quietly missing a charge every other room pays is invisible
+      until somebody compares two bills, so it must not be a partial success.
+
+      Only fees still OFFERED. A retired one is not applied, whatever its flag
+      says — the flag describes how a fee is taken up, not whether it exists.
+    */
+    const defaultFees = await tx.buildingServiceFee.findMany({
+      where: { buildingId: room.buildingId, appliedByDefault: true, isActive: true },
+      select: { id: true, unitAmount: true, basis: true },
+      orderBy: { id: "asc" },
+    });
+    if (defaultFees.length > 0) {
+      await tx.leaseServiceFee.createMany({
+        data: defaultFees.map((fee) => ({
+          leaseId: created.id,
+          buildingServiceFeeId: fee.id,
+          // Copied, exactly as a hand-picked selection copies them.
+          unitAmount: fee.unitAmount,
+          basis: fee.basis,
+          quantity: 1,
+          effectiveFrom: created.startDate,
+        })),
+      });
+    }
+
     // The link the tenant pays through, issued with the tenancy rather than on
     // request. A tenancy without one is a tenancy whose bills cannot be paid,
     // and nothing would say so until somebody went looking for a link to send.

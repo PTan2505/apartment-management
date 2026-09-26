@@ -21,6 +21,12 @@ export interface Building {
   electricityRate: number
   waterRatePerPerson: number
   /**
+   * Months of rent a tenancy signed here takes as a deposit, unless the owner
+   * says otherwise for that tenancy. A whole number; zero for a building that
+   * takes no deposit.
+   */
+  defaultDepositMonths: number
+  /**
    * How full the building is, counted by the API over its rooms IN SERVICE: a
    * room is let while a tenancy holds it, and the two always sum to the rooms
    * in service. A retired room is in neither.
@@ -51,4 +57,33 @@ export interface ListBuildingsParams {
   city?: string
   ward?: string
   status?: ActiveStatus
+}
+
+export type ServiceFeeBasis = 'perRoom' | 'perPerson'
+
+/**
+ * One thing a building charges for beside rent, rates and deposit — rubbish,
+ * internet, a parking space.
+ *
+ * Lives here rather than with tenancies: the catalogue belongs to the BUILDING
+ * and the owner sets it there. A tenancy only picks from it, and takes its own
+ * copy of the price when it does, so repricing here never moves a bill already
+ * agreed.
+ */
+export interface BuildingServiceFee {
+  id: number
+  buildingId: number
+  name: string
+  /** Per month, per unit. What multiplies it depends on `basis`. */
+  unitAmount: number
+  /**
+   * What the amount is multiplied by: the quantity a tenancy holds
+   * (`perRoom`), or the tenancy's occupant count read at billing time
+   * (`perPerson`) — the same number the water charge already uses.
+   */
+  basis: ServiceFeeBasis
+  /** Whether a tenancy signed here takes it up on its own. Never retroactive. */
+  appliedByDefault: boolean
+  /** A retired fee cannot be added to a new tenancy; existing ones keep it. */
+  isActive: boolean
 }

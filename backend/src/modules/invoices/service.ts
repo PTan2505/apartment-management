@@ -188,6 +188,7 @@ export async function generateInvoice(input: GenerateInvoiceInput, scope: Buildi
       buildingServiceFeeId: true,
       unitAmount: true,
       quantity: true,
+      basis: true,
       effectiveFrom: true,
       effectiveTo: true,
       buildingServiceFee: { select: { name: true } },
@@ -202,13 +203,17 @@ export async function generateInvoice(input: GenerateInvoiceInput, scope: Buildi
       name: fee.buildingServiceFee.name,
       unitAmount: fee.unitAmount,
       quantity: fee.quantity,
+      basis: fee.basis,
       effectiveFrom: fee.effectiveFrom,
       effectiveTo: fee.effectiveTo,
     })),
+    // Read now, not stored: a perPerson fee must be charged against the same
+    // head count the water on this invoice is.
+    lease.occupantCount,
   );
 
   const baseLines = buildLineItems(chargeInputs, charges);
-  const feeLines = buildServiceFeeLineItems(feeCharges, baseLines.length + 1, period);
+  const feeLines = buildServiceFeeLineItems(feeCharges, baseLines.length + 1);
   const totalAmount = feeCharges.reduce(
     (running, charge) => running.add(charge.amount),
     charges.totalAmount,

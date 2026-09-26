@@ -192,8 +192,12 @@ export async function issueFinalInvoice(
 
   const charges = computeCharges(chargeInputs);
   const baseLines = buildLineItems(chargeInputs, charges);
-  const feeCharges = computeServiceFeeCharges(period, await applicableFees(tx, lease.id, period));
-  const feeLines = buildServiceFeeLineItems(feeCharges, baseLines.length + 1, period);
+  const feeCharges = computeServiceFeeCharges(
+    period,
+    await applicableFees(tx, lease.id, period),
+    lease.occupantCount,
+  );
+  const feeLines = buildServiceFeeLineItems(feeCharges, baseLines.length + 1);
   const totalAmount = feeCharges.reduce(
     (running, charge) => running.add(charge.amount),
     charges.totalAmount,
@@ -335,6 +339,7 @@ async function applicableFees(tx: Tx, leaseId: number, period: { periodStart: Da
       buildingServiceFeeId: true,
       unitAmount: true,
       quantity: true,
+      basis: true,
       effectiveFrom: true,
       effectiveTo: true,
       buildingServiceFee: { select: { name: true } },
@@ -347,6 +352,7 @@ async function applicableFees(tx: Tx, leaseId: number, period: { periodStart: Da
     name: row.buildingServiceFee.name,
     unitAmount: row.unitAmount,
     quantity: row.quantity,
+    basis: row.basis,
     effectiveFrom: row.effectiveFrom,
     effectiveTo: row.effectiveTo,
   }));
