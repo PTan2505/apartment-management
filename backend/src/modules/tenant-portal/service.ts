@@ -8,6 +8,12 @@ import {
 } from "@/lib/opaque-token.js";
 import type { Prisma } from "@/generated/prisma/client.js";
 import { createGatewayPayment } from "@/modules/payment-gateway/service.js";
+import * as reports from "@/modules/damage-reports/service.js";
+import type {
+  CreateReportInput,
+  ReportPhotoConfirmInput,
+  ReportPhotoUploadInput,
+} from "@/modules/damage-reports/schema.js";
 import { toPortalInvoice } from "./mapper.js";
 
 /* ------------------------------------------------------------------ */
@@ -284,4 +290,66 @@ export async function startPortalPayment(
   }
 
   return createGatewayPayment(invoiceId, urls);
+}
+
+/* ------------------------------------------------------------------ */
+/* Reporting something broken                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A report raised from a portal link.
+ *
+ * The tenancy comes from the token, so the room and the building follow from
+ * it — a tenant never names where they live, because a tenant who can name a
+ * room can name somebody else's.
+ *
+ * Accepted from a tenancy that has ended: something found broken after a
+ * move-out is exactly when this matters.
+ */
+export async function raisePortalReport(token: string, input: CreateReportInput) {
+  const lease = await resolveToken(token);
+  return reports.raiseReport(lease.id, input);
+}
+
+/** The reports raised from this link, with their state and any appointment. */
+export async function listPortalReports(token: string) {
+  const lease = await resolveToken(token);
+  return reports.listReportsForLease(lease.id);
+}
+
+/**
+ * Photographs, through the same three-step path as a contract page.
+ *
+ * Both steps re-check the report belongs to the token's tenancy. A report id
+ * is a number, and the link that reaches this endpoint is held by somebody the
+ * system knows nothing else about.
+ */
+async function ownReportOrThrow(token: string, reportId: number) {
+  const lease = await resolveToken(token);
+  const report = await prisma.damageReport.findFirst({
+    where: { id: reportId, leaseId: lease.id },
+    select: { id: true },
+  });
+  if (!report) {
+    throw new NotFoundError("REPORT_NOT_FOUND", "Report not found");
+  }
+  return report;
+}
+
+export async function signPortalReportPhoto(
+  token: string,
+  reportId: number,
+  input: ReportPhotoUploadInput,
+) {
+  await ownReportOrThrow(token, reportId);
+  return reports.signPhotoUpload(reportId, input);
+}
+
+export async function confirmPortalReportPhoto(
+  token: string,
+  reportId: number,
+  input: ReportPhotoConfirmInput,
+) {
+  await ownReportOrThrow(token, reportId);
+  return reports.confirmPhoto(reportId, input);
 }

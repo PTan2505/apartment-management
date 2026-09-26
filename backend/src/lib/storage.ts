@@ -142,6 +142,33 @@ export function newContractKey(leaseId: number, contentType: ContractContentType
   return `${contractPrefix(leaseId)}${randomUUID()}.${EXTENSIONS[contentType]}`;
 }
 
+/**
+ * Photographs attached to a damage report.
+ *
+ * The same three content types a contract page accepts, and for the same
+ * reason: these come off a phone camera. No PDF — nobody scans a broken tap.
+ */
+export const REPORT_PHOTO_CONTENT_TYPES = ["image/jpeg", "image/png", "image/heic"] as const;
+export type ReportPhotoContentType = (typeof REPORT_PHOTO_CONTENT_TYPES)[number];
+
+/** 10 MB, as for an ID card: one photograph, taken on a phone. */
+export const MAX_REPORT_PHOTO_BYTES = 10 * 1024 * 1024;
+
+export function reportPhotoPrefix(reportId: number): string {
+  return `damage-reports/${reportId}/photos/`;
+}
+
+const REPORT_PHOTO_EXTENSIONS: Record<ReportPhotoContentType, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/heic": "heic",
+};
+
+/** Derived, never accepted: the caller names a report, not a destination. */
+export function newReportPhotoKey(reportId: number, contentType: ReportPhotoContentType): string {
+  return `${reportPhotoPrefix(reportId)}${randomUUID()}.${REPORT_PHOTO_EXTENSIONS[contentType]}`;
+}
+
 /** The sides of an ID card. Two objects, kept apart. */
 export const ID_CARD_SIDES = ["front", "back"] as const;
 export type IdCardSide = (typeof ID_CARD_SIDES)[number];
@@ -466,4 +493,31 @@ export async function clearPrefixExcept(
 
     token = page.IsTruncated ? page.NextContinuationToken : undefined;
   } while (token !== undefined);
+}
+
+/**
+ * A signed upload for one photograph on a damage report.
+ *
+ * Identical in shape to the contract and ID-card signers, and identical in its
+ * reasons: the key is derived here, the content type is bound into the
+ * signature, and the size is checked at confirmation because a presigned PUT
+ * cannot bind it.
+ */
+export async function signReportPhotoUpload(
+  reportId: number,
+  contentType: ReportPhotoContentType,
+): Promise<SignedUpload> {
+  const key = newReportPhotoKey(reportId, contentType);
+  const url = await getSignedUrl(
+    s3(),
+    new PutObjectCommand({ Bucket: env.R2_BUCKET!, Key: key, ContentType: contentType }),
+    { expiresIn: UPLOAD_URL_TTL_SECONDS, signableHeaders: new Set(["content-type"]) },
+  );
+
+  return {
+    url,
+    key,
+    expiresAt: new Date(Date.now() + UPLOAD_URL_TTL_SECONDS * 1000),
+    maxBytes: MAX_REPORT_PHOTO_BYTES,
+  };
 }

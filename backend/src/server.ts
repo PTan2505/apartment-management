@@ -2,6 +2,7 @@ import { env } from "@/config/env.js";
 import cors from "cors";
 import express from "express";
 import cookieParser from "cookie-parser";
+import { attachLiveChannel, INSTANCE_ID } from "@/lib/live.js";
 import { NotFoundError } from "@/lib/errors.js";
 import { errorHandler } from "@/middleware/error-handler.js";
 import { requestLogger } from "@/middleware/request-logger.js";
@@ -18,6 +19,8 @@ import { reportsRouter } from "@/modules/reports/router.js";
 import { addressesRouter } from "@/modules/addresses/router.js";
 import { depositsRouter } from "@/modules/deposits/router.js";
 import { paymentsRouter } from "@/modules/payments/router.js";
+import { damageReportsRouter } from "@/modules/damage-reports/router.js";
+import { staffRouter } from "@/modules/staff/router.js";
 import { tenantPortalRouter } from "@/modules/tenant-portal/router.js";
 import { paymentGatewayRouter } from "@/modules/payment-gateway/router.js";
 
@@ -77,6 +80,10 @@ app.use("/reports", reportsRouter);
 app.use("/addresses", addressesRouter);
 app.use("/deposits", depositsRouter);
 app.use("/payments", paymentsRouter);
+// Accounts for the people who work in the buildings. Owner only.
+app.use("/staff", staffRouter);
+// What tenants say is broken. The only place a maintenance account is admitted.
+app.use("/damage-reports", damageReportsRouter);
 
 // PUBLIC. Every router above requires an owner's access token; this one takes a
 // tenant's portal token instead, which grants sight of that person's own bills
@@ -105,6 +112,18 @@ app.use((_req, _res, next) => {
 
 app.use(errorHandler);
 
-app.listen(env.PORT, () => {
-  console.log(`Server listening on port ${env.PORT}`);
+const server = app.listen(env.PORT, () => {
+  // The instance is named because the live channel keeps its connections in
+  // THIS process's memory. Two instances would each hold half the staff and
+  // deliver half the events, with nothing to show for it in a log — so the
+  // line that proves there are two is printed before anything depends on
+  // there being one.
+  console.log(`Server listening on port ${env.PORT} · instance ${INSTANCE_ID}`);
 });
+
+/*
+  The live channel shares the HTTP server, so it shares the port and needs no
+  configuration on the host. Events are addressed to accounts; nothing in the
+  system depends on one arriving.
+*/
+attachLiveChannel(server);
