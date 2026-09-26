@@ -15,6 +15,8 @@ const feeSelect = {
   buildingId: true,
   name: true,
   unitAmount: true,
+  basis: true,
+  appliedByDefault: true,
   isActive: true,
   createdAt: true,
   updatedAt: true,
@@ -59,7 +61,13 @@ export async function createServiceFee(buildingId: number, input: CreateServiceF
   await assertNameAvailable(buildingId, input.name);
 
   return prisma.buildingServiceFee.create({
-    data: { buildingId, name: input.name, unitAmount: input.unitAmount },
+    data: {
+      buildingId,
+      name: input.name,
+      unitAmount: input.unitAmount,
+      basis: input.basis,
+      appliedByDefault: input.appliedByDefault,
+    },
     select: feeSelect,
   });
 }
@@ -130,6 +138,7 @@ const selectionSelect = {
   buildingServiceFeeId: true,
   unitAmount: true,
   quantity: true,
+  basis: true,
   effectiveFrom: true,
   effectiveTo: true,
   createdAt: true,
@@ -186,6 +195,19 @@ export async function selectServiceFee(leaseId: number, input: SelectServiceFeeI
     );
   }
 
+  /*
+    A perPerson fee is multiplied by the tenancy's occupant count, so a quantity
+    has nothing to do. Refused rather than ignored: a caller who supplied one
+    would otherwise be told the fee was attached and be left believing it
+    carries a multiplier it does not.
+  */
+  if (fee.basis === "perPerson" && input.quantity !== undefined) {
+    throw new ValidationError(
+      "SERVICE_FEE_QUANTITY_NOT_APPLICABLE",
+      "This fee is charged per person, so its quantity comes from the tenancy's occupant count",
+    );
+  }
+
   // Defaults to the lease's start, not to today: a fee agreed at signing
   // applied from day one, and dating it from whenever the owner typed it in
   // would silently under-charge every fee entered late.
@@ -199,7 +221,10 @@ export async function selectServiceFee(leaseId: number, input: SelectServiceFeeI
       leaseId,
       buildingServiceFeeId: fee.id,
       unitAmount: fee.unitAmount,
-      quantity: input.quantity,
+      // Copied for the same reason the amount is: it decides what this tenancy
+      // is charged, so re-basing the catalogue must not reach back into it.
+      basis: fee.basis,
+      quantity: fee.basis === "perPerson" ? 1 : (input.quantity ?? 1),
       effectiveFrom,
     },
     select: selectionSelect,
@@ -229,7 +254,16 @@ export async function updateLeaseServiceFee(
   input: UpdateSelectionInput,
 ) {
   await getLeaseOrThrow(leaseId);
-  await getSelectionOrThrow(leaseId, selectionId);
+  const selection = await getSelectionOrThrow(leaseId, selectionId);
+
+  // Same refusal as at selection: the occupant count is the multiplier here,
+  // and accepting a second one would let two numbers disagree.
+  if (selection.basis === "perPerson") {
+    throw new ValidationError(
+      "SERVICE_FEE_QUANTITY_NOT_APPLICABLE",
+      "This fee is charged per person, so its quantity comes from the tenancy's occupant count",
+    );
+  }
 
   return prisma.leaseServiceFee.update({
     where: { id: selectionId },

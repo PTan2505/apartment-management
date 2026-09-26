@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
+import { withinScope, type BuildingScope } from "@/middleware/staff-scope.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import { mapPaginated, paginate, toSkipTake } from "@/lib/pagination.js";
 import { retireLinksOfWithdrawnInvoice } from "@/modules/payment-gateway/service.js";
@@ -91,12 +92,14 @@ async function resolveOpeningReading(leaseId: number, startMeterReading: number)
   return previous?.currentElectricityUse ?? startMeterReading;
 }
 
-export async function generateInvoice(input: GenerateInvoiceInput) {
+export async function generateInvoice(input: GenerateInvoiceInput, scope: BuildingScope = null) {
   const lease = await prisma.lease.findUnique({
     where: { id: input.leaseId },
     include: { room: { include: { building: true } } },
   });
-  if (!lease) {
+  // The tenancy is named in the BODY here rather than the path, so the route's
+  // id guard never sees it: the check belongs in the service.
+  if (!lease || !withinScope(scope, lease.room.buildingId)) {
     throw new NotFoundError("LEASE_NOT_FOUND", "Lease not found");
   }
 
@@ -185,6 +188,7 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
       buildingServiceFeeId: true,
       unitAmount: true,
       quantity: true,
+      basis: true,
       effectiveFrom: true,
       effectiveTo: true,
       buildingServiceFee: { select: { name: true } },
@@ -199,13 +203,17 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
       name: fee.buildingServiceFee.name,
       unitAmount: fee.unitAmount,
       quantity: fee.quantity,
+      basis: fee.basis,
       effectiveFrom: fee.effectiveFrom,
       effectiveTo: fee.effectiveTo,
     })),
+    // Read now, not stored: a perPerson fee must be charged against the same
+    // head count the water on this invoice is.
+    lease.occupantCount,
   );
 
   const baseLines = buildLineItems(chargeInputs, charges);
-  const feeLines = buildServiceFeeLineItems(feeCharges, baseLines.length + 1, period);
+  const feeLines = buildServiceFeeLineItems(feeCharges, baseLines.length + 1);
   const totalAmount = feeCharges.reduce(
     (running, charge) => running.add(charge.amount),
     charges.totalAmount,
@@ -254,7 +262,7 @@ export async function generateInvoice(input: GenerateInvoiceInput) {
  * its invoice for that month exists, and never appears where issuing one would
  * be refused.
  */
-export async function listDueForMonth(query: ListDueQuery) {
+export async function listDueForMonth(query: ListDueQuery, scope: BuildingScope = null) {
   const monthStart = startOfMonth(query.year, query.month);
   const monthEnd = endOfMonth(query.year, query.month);
 
@@ -264,6 +272,7 @@ export async function listDueForMonth(query: ListDueQuery) {
   // it in SQL.
   const candidates = await prisma.lease.findMany({
     where: {
+      ...(scope === null ? {} : { room: { buildingId: { in: scope } } }),
       cancelledAt: null,
       startDate: { lte: monthEnd },
       OR: [{ moveOutDate: null }, { moveOutDate: { gt: monthStart } }],
@@ -384,7 +393,7 @@ function invoiceOrder(sort: ListInvoicesQuery["sort"]): Prisma.InvoiceOrderByWit
   return [liveFirst, { paymentStatus: "asc" }, { issueDate: "desc" }, { id: "desc" }];
 }
 
-export async function listInvoices(query: ListInvoicesQuery) {
+export async function listInvoices(query: ListInvoicesQuery, scope: BuildingScope = null) {
   const where = {
     ...(query.leaseId ? { leaseId: query.leaseId } : {}),
     ...(query.year ? { year: query.year } : {}),
@@ -392,14 +401,27 @@ export async function listInvoices(query: ListInvoicesQuery) {
     ...(query.paymentStatus ? { paymentStatus: query.paymentStatus } : {}),
     ...(query.type ? { type: query.type } : {}),
     ...(query.includeVoided ? {} : { voidedAt: null }),
-    ...(query.roomId || query.buildingId
-      ? {
-          lease: {
-            ...(query.roomId ? { roomId: query.roomId } : {}),
-            ...(query.buildingId ? { room: { buildingId: query.buildingId } } : {}),
-          },
-        }
-      : {}),
+    /*
+      Two clauses about the same relation, kept apart in an AND.
+
+      Spreading them both as a `lease` key would silently drop one: the later
+      key replaces the earlier, and the one that would have been dropped is the
+      caller's scope. A manager asking for another building's invoices by id
+      would have been given them.
+    */
+    AND: [
+      ...(scope === null ? [] : [{ lease: { room: { buildingId: { in: scope } } } }]),
+      ...(query.roomId || query.buildingId
+        ? [
+            {
+              lease: {
+                ...(query.roomId ? { roomId: query.roomId } : {}),
+                ...(query.buildingId ? { room: { buildingId: query.buildingId } } : {}),
+              },
+            },
+          ]
+        : []),
+    ],
   };
 
   return mapPaginated(

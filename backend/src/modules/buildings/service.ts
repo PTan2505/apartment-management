@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma.js";
+import { withinScope, type BuildingScope } from "@/middleware/staff-scope.js";
 import { mapPaginated, paginate, toSkipTake, type PageParams } from "@/lib/pagination.js";
 import { ConflictError, NotFoundError } from "@/lib/errors.js";
 import { HOLDS_ITS_ROOM } from "@/modules/leases/occupancy.js";
@@ -24,8 +25,16 @@ export async function createBuilding(input: CreateBuildingInput) {
   return prisma.building.create({ data: input });
 }
 
-export async function listBuildings(query: ListBuildingsQuery, page: PageParams) {
+export async function listBuildings(
+  query: ListBuildingsQuery,
+  page: PageParams,
+  scope: BuildingScope = null,
+) {
   const where = {
+    // Staff see the buildings they cover. An owner is not narrowed, and staff
+    // assigned nothing see nothing — which is why an empty scope must still
+    // produce a filter rather than none.
+    ...(scope === null ? {} : { id: { in: scope } }),
     ...inServiceWhere(query.status),
     ...(query.ward
       ? { ward: { contains: query.ward, mode: "insensitive" as const } }
@@ -115,8 +124,8 @@ async function roomCounts(buildingIds: number[]) {
  * building exists: those do not need the counts, and charging three grouped
  * queries to every write to keep one read simple is the wrong trade.
  */
-export async function getBuildingWithRoomCounts(id: number) {
-  const building = await getBuildingById(id);
+export async function getBuildingWithRoomCounts(id: number, scope: BuildingScope = null) {
+  const building = await getBuildingById(id, scope);
   const counts = await roomCounts([id]);
   return { ...building, ...(counts.get(id) ?? NO_ROOMS) };
 }
@@ -166,9 +175,12 @@ export async function listBuildingLocations(
     .sort((a, b) => vietnamese.compare(a.city, b.city));
 }
 
-export async function getBuildingById(id: number) {
+export async function getBuildingById(id: number, scope: BuildingScope = null) {
   const building = await prisma.building.findUnique({ where: { id } });
-  if (!building) {
+  // Absent rather than forbidden for a building outside the caller's own, for
+  // the reason stated once in the scope middleware: a refusal confirms that
+  // the id is real.
+  if (!building || !withinScope(scope, building.id)) {
     throw new NotFoundError("BUILDING_NOT_FOUND", "Building not found");
   }
   return building;

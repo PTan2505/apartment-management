@@ -2,6 +2,7 @@ import { apiClient } from '@/lib/api-client'
 import { storageFetch } from '@/lib/storage-fetch'
 import type { CreateLeaseFormOutput, UpdateLeaseFormOutput } from '@/features/leases/schema'
 import type { Lease, ListLeasesParams, Occupant, Paginated } from '@/features/leases/types'
+import type { ServiceFeeBasis } from '@/features/buildings/types'
 
 function toQuery(params: ListLeasesParams): Record<string, string | number> {
   const query: Record<string, string | number> = {}
@@ -239,6 +240,14 @@ export interface ExtendLeaseInput {
   /** Absent means the room's current rent — which is where a price rise takes effect. */
   baseRent?: number
   /**
+   * Absent means the predecessor's number of deposit months, carried over.
+   *
+   * Present only when the owner changes it: a renewal is the moment a deposit
+   * can be renegotiated, and without this the successor could never be agreed
+   * on anything but the figure the first tenancy was signed at.
+   */
+  depositMonths?: number
+  /**
    * Whether the difference between the deposit carried and the deposit now
    * required is charged on the successor's first invoice. Declining leaves it
    * as a shortfall the owner settles in cash.
@@ -262,32 +271,6 @@ export async function extendLease(
     input,
   )
   return data
-}
-
-/** What the building charges beside rent. Used to name charges for days beyond a term. */
-export interface BuildingServiceFee {
-  id: number
-  buildingId: number
-  name: string
-  /** The building's current price for it, which those days are not governed by. */
-  unitAmount: number
-  isActive: boolean
-}
-
-/**
- * The building's fee catalogue.
- *
- * PAGINATED, like every other listing in this API — typing it as a bare array
- * is what crashed this screen: `.filter` on a `{ data, meta }` object took the
- * whole page down with "Unexpected Application Error". Found by opening the
- * dialog, not by reading the code.
- */
-export async function listBuildingServiceFees(buildingId: number): Promise<BuildingServiceFee[]> {
-  const { data } = await apiClient.get<Paginated<BuildingServiceFee>>(
-    `/buildings/${buildingId}/service-fees`,
-    { params: { pageSize: 200 } },
-  )
-  return data.data
 }
 
 export interface MoveOutInput {
@@ -370,4 +353,88 @@ export async function reissuePortalLink(leaseId: number): Promise<LeasePortalLin
 /** Leaves the tenancy with no working link at all. Answers 404 if it has none. */
 export async function revokePortalLink(leaseId: number): Promise<void> {
   await apiClient.delete(`/leases/${leaseId}/portal-link`)
+}
+
+// ── The service fees this tenancy took up ──────────────────────────────────
+//
+// The building sets what is ON OFFER; a tenancy says which of those it agreed
+// to, at what quantity, and from when. This is the half that reaches an
+// invoice: closing a month charges every fee whose period covers it.
+
+export interface LeaseServiceFee {
+  id: number
+  leaseId: number
+  buildingServiceFeeId: number
+  name: string | null
+  /** False when the building has since retired it. This lease keeps it anyway. */
+  isOfferedByBuilding: boolean | null
+  /** What THIS tenancy agreed, copied when it was taken up — not today's price. */
+  unitAmount: number
+  /** Copied at the same moment, for the same reason. */
+  basis: ServiceFeeBasis
+  /** The multiplier for a per-room fee. Always 1, and meaningless, for a per-person one. */
+  quantity: number
+  effectiveFrom: string
+  /** Null while it still applies. */
+  effectiveTo: string | null
+  /**
+   * Price times quantity for a per-room fee — the whole story.
+   *
+   * For a per-person fee this is the amount for ONE person: the real figure
+   * needs the tenancy's occupant count, which the API does not fold in here
+   * because it is read fresh at billing. The screen multiplies it.
+   */
+  monthlyAmount: number
+}
+
+export async function listLeaseServiceFees(leaseId: number): Promise<LeaseServiceFee[]> {
+  const { data } = await apiClient.get<{ serviceFees: LeaseServiceFee[] }>(
+    `/leases/${leaseId}/service-fees`,
+  )
+  return data.serviceFees
+}
+
+export interface SelectServiceFeeInput {
+  buildingServiceFeeId: number
+  /** Omitted for a per-person fee, which the API refuses a quantity on. */
+  quantity?: number
+  /** Omitted means the tenancy's start date, which is where a fee agreed at signing began. */
+  effectiveFrom?: string
+}
+
+export async function selectLeaseServiceFee(
+  leaseId: number,
+  input: SelectServiceFeeInput,
+): Promise<LeaseServiceFee> {
+  const { data } = await apiClient.post<LeaseServiceFee>(`/leases/${leaseId}/service-fees`, input)
+  return data
+}
+
+export async function updateLeaseServiceFeeQuantity(
+  leaseId: number,
+  selectionId: number,
+  quantity: number,
+): Promise<LeaseServiceFee> {
+  const { data } = await apiClient.patch<LeaseServiceFee>(
+    `/leases/${leaseId}/service-fees/${selectionId}`,
+    { quantity },
+  )
+  return data
+}
+
+/**
+ * Giving a fee up. Records the date it stopped rather than deleting the row —
+ * a month already lived through still has to be billable — so it answers with
+ * the ended record, not 204.
+ */
+export async function endLeaseServiceFee(
+  leaseId: number,
+  selectionId: number,
+  effectiveTo?: string,
+): Promise<LeaseServiceFee> {
+  const { data } = await apiClient.delete<LeaseServiceFee>(
+    `/leases/${leaseId}/service-fees/${selectionId}`,
+    { data: effectiveTo ? { effectiveTo } : {} },
+  )
+  return data
 }

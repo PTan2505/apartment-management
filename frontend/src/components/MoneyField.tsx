@@ -70,6 +70,15 @@ interface MoneyInputProps {
   decimals?: boolean
   autoFocus?: boolean
   fullWidth?: boolean
+  /**
+   * Shown but not editable.
+   *
+   * `readOnly` rather than `disabled`: a disabled field greys its value to the
+   * point of being hard to read, and for the figures this is used on — a rent
+   * quoted to the person signing — the value is precisely what the reader
+   * needs. Read-only keeps it legible and selectable while refusing the caret.
+   */
+  readOnly?: boolean
 }
 
 /**
@@ -87,6 +96,7 @@ export function MoneyInput({
   decimals = false,
   autoFocus,
   fullWidth = true,
+  readOnly = false,
 }: MoneyInputProps) {
   const [text, setText] = useState(() => fromValue(value, decimals))
   const input = useRef<HTMLInputElement>(null)
@@ -138,9 +148,12 @@ export function MoneyInput({
       helperText={helperText}
       slotProps={{
         htmlInput: { inputMode: decimals ? 'decimal' : 'numeric' },
-        input: unit
-          ? { endAdornment: <InputAdornment position="end">{unit}</InputAdornment> }
-          : undefined,
+        input: {
+          readOnly,
+          ...(unit
+            ? { endAdornment: <InputAdornment position="end">{unit}</InputAdornment> }
+            : {}),
+        },
       }}
     />
   )

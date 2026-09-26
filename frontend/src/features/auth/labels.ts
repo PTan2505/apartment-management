@@ -10,6 +10,8 @@ import type { Account, Role } from '@/features/auth/types'
  */
 const ROLE_LABELS: Record<Role, string> = {
   owner: 'Chủ nhà',
+  manager: 'Quản lí',
+  maintenance: 'Bảo trì',
   customer: 'Khách thuê',
 }
 

@@ -9,6 +9,7 @@ import EditIcon from '@mui/icons-material/Edit'
 import ArchiveIcon from '@mui/icons-material/Archive'
 import UnarchiveIcon from '@mui/icons-material/Unarchive'
 
+import { useIsOwner } from '@/features/auth/useAuth'
 import type { Building } from '@/features/buildings/types'
 
 interface BuildingRowActionsProps {
@@ -25,12 +26,25 @@ export function BuildingRowActions({
   onRetire,
   onRestore,
 }: BuildingRowActionsProps) {
+  const isOwner = useIsOwner()
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const close = () => setAnchorEl(null)
 
   function run(action: (building: Building) => void) {
     close()
     action(building)
+  }
+
+  /*
+    Every action here is the owner's — editing a building, taking it out of
+    service, putting it back — so for anyone else the button goes too, rather
+    than opening onto an empty menu.
+
+    A manager still reads the row: its name, its rates, how full it is. What
+    they lose is the ability to change any of it.
+  */
+  if (!isOwner) {
+    return null
   }
 
   return (

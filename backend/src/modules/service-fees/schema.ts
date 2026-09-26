@@ -5,15 +5,26 @@ import { paginationQueryFields } from "@/lib/pagination.js";
 // refusing it would force the owner to invent a price or not record the service.
 const money = z.coerce.number().nonnegative("must not be negative");
 
+/**
+ * What the amount is multiplied by. Defaults to the flat behaviour, which is
+ * what every fee recorded before this existed already is.
+ */
+const basis = z.enum(["perRoom", "perPerson"]);
+
 export const createServiceFeeSchema = z.object({
   name: z.string().trim().min(1, "name is required"),
   unitAmount: money,
+  basis: basis.default("perRoom"),
+  // Applies to tenancies signed AFTERWARDS. Never retroactive.
+  appliedByDefault: z.coerce.boolean().default(false),
 });
 
 export const updateServiceFeeSchema = z
   .object({
     name: z.string().trim().min(1, "name is required"),
     unitAmount: money,
+    basis,
+    appliedByDefault: z.coerce.boolean(),
   })
   .partial();
 
@@ -30,7 +41,14 @@ export const listServiceFeesQuerySchema = z.object({
 // there is no second kind of fee to model.
 export const selectServiceFeeSchema = z.object({
   buildingServiceFeeId: z.coerce.number().int().positive("buildingServiceFeeId is required"),
-  quantity: z.coerce.number().int().min(1, "must be at least 1").default(1),
+  /*
+    Optional rather than defaulted, so the service can tell "asked for one" from
+    "said nothing". A perPerson fee is multiplied by the tenancy's occupant
+    count and has no use for this — supplying one there is refused rather than
+    ignored, because a caller who typed a number and had it silently dropped
+    believes they set something they did not.
+  */
+  quantity: z.coerce.number().int().min(1, "must be at least 1").optional(),
   // Optional: the service defaults it to the lease's start date, which is when
   // a fee agreed at signing began applying. Supply it for a service taken up
   // partway through a tenancy.

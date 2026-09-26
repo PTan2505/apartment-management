@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "@/middleware/authenticate.js";
+import { accountGuard } from "@/middleware/staff-scope.js";
 import { requireRole } from "@/middleware/require-role.js";
 import { listHeldDepositsHandler } from "./controller.js";
 
@@ -13,6 +14,11 @@ import { listHeldDepositsHandler } from "./controller.js";
  */
 export const depositsRouter = Router();
 
-depositsRouter.use(authenticate, requireRole("owner"));
+/*
+  The deposits HELD, across the whole business — a balance, not an operation.
+  A manager settles the deposit of a tenancy they are closing, which lives on
+  the lease; what the business is holding altogether is the owner's figure.
+*/
+depositsRouter.use(authenticate, accountGuard, requireRole("owner"));
 
 depositsRouter.get("/", listHeldDepositsHandler);

@@ -352,9 +352,17 @@ export interface ServiceFeeCharge {
   buildingServiceFeeId: number;
   name: string;
   unitAmount: DecimalValue;
+  /**
+   * What the amount was multiplied by — the lease's own quantity for a perRoom
+   * fee, the tenancy's occupant count for a perPerson one. The figure that
+   * reaches the invoice line, so a reader can reproduce the arithmetic.
+   */
   quantity: number;
   /** Days of the billed month this fee actually applied for. */
   daysCharged: number;
+  /** The span those days cover, which is the fee's own — not the tenancy's month. */
+  periodStart: Date;
+  periodEnd: Date;
   amount: DecimalValue;
 }
 
@@ -363,6 +371,7 @@ export interface ServiceFeePeriod {
   name: string;
   unitAmount: DecimalValue;
   quantity: number;
+  basis: "perRoom" | "perPerson";
   effectiveFrom: Date;
   effectiveTo: Date | null;
 }
@@ -388,6 +397,13 @@ export interface ServiceFeePeriod {
 export function computeServiceFeeCharges(
   period: OccupiedPeriod,
   fees: ServiceFeePeriod[],
+  /**
+   * The tenancy's occupant count, which is what a perPerson fee is multiplied
+   * by — read here at billing time rather than stored on the selection, so it
+   * cannot disagree with the water charged on the same invoice from the same
+   * number.
+   */
+  occupantCount: number,
 ): ServiceFeeCharge[] {
   const charges: ServiceFeeCharge[] = [];
 
@@ -403,7 +419,9 @@ export function computeServiceFeeCharges(
     if (from > to) continue;
 
     const daysCharged = Math.round((to.getTime() - from.getTime()) / MS_PER_DAY) + 1;
-    const full = fee.unitAmount.mul(fee.quantity);
+    // The head count for a perPerson fee, the lease's own quantity otherwise.
+    const multiplier = fee.basis === "perPerson" ? occupantCount : fee.quantity;
+    const full = fee.unitAmount.mul(multiplier);
     const amount =
       daysCharged >= period.daysInMonth
         ? full.toDecimalPlaces(0)
@@ -413,8 +431,15 @@ export function computeServiceFeeCharges(
       buildingServiceFeeId: fee.buildingServiceFeeId,
       name: fee.name,
       unitAmount: fee.unitAmount,
-      quantity: fee.quantity,
+      quantity: multiplier,
       daysCharged,
+      // Reported so the LINE can carry the fee's own span. Recording the
+      // tenancy's month instead made a prorated amount impossible to check:
+      // "1 × 300.000 = 154.839" across a whole month is arithmetic no tenant
+      // can reproduce, and rent and water do not have that problem because the
+      // span each shows is the span each was divided by.
+      periodStart: from,
+      periodEnd: to,
       amount,
     });
   }
@@ -426,7 +451,6 @@ export function computeServiceFeeCharges(
 export function buildServiceFeeLineItems(
   charges: ServiceFeeCharge[],
   startPosition: number,
-  period: OccupiedPeriod,
 ): (LineItemRow & { buildingServiceFeeId: number })[] {
   return charges.map((charge, index) => ({
     kind: "serviceFee" as const,
@@ -435,8 +459,11 @@ export function buildServiceFeeLineItems(
     unitAmount: charge.unitAmount,
     amount: charge.amount,
     position: startPosition + index,
-    periodStart: period.periodStart,
-    periodEnd: period.periodEnd,
+    // The FEE's own span, not the tenancy's month. The two differ exactly when
+    // the amount was prorated, which is exactly when the reader needs to see
+    // which days they are paying for.
+    periodStart: charge.periodStart,
+    periodEnd: charge.periodEnd,
     buildingServiceFeeId: charge.buildingServiceFeeId,
   }));
 }

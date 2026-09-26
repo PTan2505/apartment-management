@@ -22,7 +22,7 @@ import { errorMessage } from '@/lib/error-messages'
 import { useAuth } from '@/features/auth/useAuth'
 import { loginFormSchema, type LoginFormValues } from '@/features/auth/schema'
 import type { SignInLocationState } from '@/features/auth/AuthProvider'
-import { DEFAULT_PATH } from '@/app/navigation'
+import { startingPathFor } from '@/app/navigation'
 
 /**
  * A labelled field, with its label above rather than floating inside it.
@@ -71,7 +71,7 @@ function Field({
 
 export function LoginPage() {
   const location = useLocation()
-  const { status, signIn, isSigningIn } = useAuth()
+  const { status, user, signIn, isSigningIn } = useAuth()
   const [submitError, setSubmitError] = useState<ApiError | null>(null)
   // Component state, so a reload conceals the password again without anything
   // having to remember to reset it. Revealing is for checking what was just
@@ -92,7 +92,17 @@ export function LoginPage() {
   // A signed-in user has no business here. `replace` keeps the sign-in screen
   // out of history, so Back does not land on it.
   if (status === 'authenticated') {
-    return <Navigate to={state.from ?? DEFAULT_PATH} replace />
+    /*
+      A staff account holding a password the owner issued goes to change it
+      first — including when it was trying to reach somewhere else, because
+      the API refuses that somewhere else anyway.
+
+      Otherwise: back where they were headed, or the screen their role starts
+      on. Not one path for everybody: a maintenance account sent to the
+      buildings screen would meet a refusal as its first impression.
+    */
+    if (user?.mustChangePassword) return <Navigate to="/change-password" replace />
+    return <Navigate to={state.from ?? startingPathFor(user?.role ?? 'owner')} replace />
   }
 
   async function onSubmit(values: LoginFormValues) {

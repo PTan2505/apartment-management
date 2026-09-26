@@ -194,3 +194,57 @@ export function startPayment(invoiceId: number): Promise<PaymentOffer> {
     }),
   })
 }
+
+/* ------------------------------------------------------------------ */
+/* Reporting something broken                                          */
+/* ------------------------------------------------------------------ */
+
+/** Where a report stands, in the staff's vocabulary. The screen translates. */
+export type PortalReportState = 'new' | 'scheduled' | 'done'
+
+export interface PortalReport {
+  id: number
+  description: string
+  state: PortalReportState
+  reportedAt: string
+  scheduledFor: string | null
+  scheduleNote: string | null
+  closedAt: string | null
+  closingNote: string | null
+  photos: { id: number; contentType: string; uploadedAt: string }[]
+}
+
+export async function fetchReports(): Promise<PortalReport[]> {
+  const { data } = await request<{ data: PortalReport[] }>('/portal/reports')
+  return data
+}
+
+/**
+ * Raises a report. Nothing about WHERE: the link already answers that, and a
+ * tenant who can name a room can name somebody else's.
+ */
+export async function raiseReport(description: string): Promise<PortalReport> {
+  return request<PortalReport>('/portal/reports', {
+    method: 'POST',
+    body: JSON.stringify({ description }),
+  })
+}
+
+/** Step one of a photograph: ask for somewhere to put it. */
+export async function signReportPhoto(
+  reportId: number,
+  contentType: string,
+): Promise<{ url: string; key: string; maxBytes: number }> {
+  return request<{ url: string; key: string; maxBytes: number }>(
+    `/portal/reports/${reportId}/photo-url`,
+    { method: 'POST', body: JSON.stringify({ contentType }) },
+  )
+}
+
+/** Step three: tell the API the bytes arrived. */
+export async function confirmReportPhoto(reportId: number, key: string): Promise<PortalReport> {
+  return request<PortalReport>(`/portal/reports/${reportId}/photos`, {
+    method: 'POST',
+    body: JSON.stringify({ key }),
+  })
+}

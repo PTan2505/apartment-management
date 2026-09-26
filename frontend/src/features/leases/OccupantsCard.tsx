@@ -17,6 +17,7 @@ import { useState } from "react";
 import { AddOccupantDialog } from "@/features/leases/AddOccupantDialog";
 import { formatDate } from "@/features/leases/dates";
 import { DepartOccupantDialog } from "@/features/leases/DepartOccupantDialog";
+import { useIsOwner } from "@/features/auth/useAuth";
 import { EditOccupantCountDialog } from "@/features/leases/EditOccupantCountDialog";
 import { useOccupants } from "@/features/leases/hooks";
 import { TransferPrimaryDialog } from "@/features/leases/TransferPrimaryDialog";
@@ -45,6 +46,7 @@ interface OccupantsCardProps {
  * headings and no arithmetic relating them.
  */
 export function OccupantsCard({ lease }: OccupantsCardProps) {
+  const isOwner = useIsOwner();
   const occupantsQuery = useOccupants(lease.id);
   const [addOpen, setAddOpen] = useState(false);
   const [departing, setDeparting] = useState<Occupant | null>(null);
@@ -86,7 +88,12 @@ export function OccupantsCard({ lease }: OccupantsCardProps) {
                 <Typography variant="h6">
                   {lease.occupantCount} người
                 </Typography>
-                {isRunning && (
+                {/*
+                  The same endpoint that corrects the rest of the agreement,
+                  and so the same rule: the owner's. It decides the water bill,
+                  which is why it is a term of the tenancy rather than a note.
+                */}
+                {isOwner && isRunning && (
                   <Tooltip title="Sửa số người tính tiền">
                     <IconButton
                       size="small"

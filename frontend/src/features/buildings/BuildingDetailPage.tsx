@@ -1,13 +1,16 @@
+import { useState, type ReactNode } from 'react'
 import Alert from '@mui/material/Alert'
 import AlertTitle from '@mui/material/AlertTitle'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
+import Card from '@mui/material/Card'
+import CardContent from '@mui/material/CardContent'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
-import Divider from '@mui/material/Divider'
 import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import EditIcon from '@mui/icons-material/Edit'
 import { Link as RouterLink, useParams } from 'react-router'
 
 import { CreateRoomButton } from '@/features/rooms/CreateRoomButton'
@@ -19,6 +22,9 @@ import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { useListParams } from '@/lib/useListParams'
 import { useBuilding } from '@/features/buildings/hooks'
+import { BuildingFormDialog } from '@/features/buildings/BuildingFormDialog'
+import { useIsOwner } from '@/features/auth/useAuth'
+import { ServiceFeesCard } from '@/features/buildings/ServiceFeesCard'
 import { useRooms } from '@/features/rooms/hooks'
 import { RoomsSection } from '@/features/rooms/RoomsSection'
 
@@ -29,6 +35,107 @@ import { RoomsSection } from '@/features/rooms/RoomsSection'
  * what the list row already shows. That was true of the building's own fields —
  * what makes the page worth having is the rooms, so it arrives with them.
  */
+/**
+ * One configured fact: what it is called, and what it is set to.
+ *
+ * Same shape as the tenancy page's, deliberately — an owner reading a rate here
+ * and a rate there should not have to learn two layouts for the same kind of
+ * information.
+ */
+function Field({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
+  return (
+    <Box sx={{ minWidth: 0 }}>
+      <Typography variant="overline" color="text.secondary" component="div">
+        {label}
+      </Typography>
+      <Typography variant="h6" component="p" sx={{ fontWeight: 600 }}>
+        {value}
+      </Typography>
+      {hint && (
+        <Typography variant="caption" color="text.secondary" component="div">
+          {hint}
+        </Typography>
+      )}
+    </Box>
+  )
+}
+
+/**
+ * What the owner has set this building to, gathered in one place.
+ *
+ * These figures used to sit in a single line of running text with two emoji in
+ * it, which said what they were but not that they were SETTINGS — the reader
+ * could not tell the rates apart from the address above them. They are the
+ * numbers every tenancy signed here inherits, so they are shown as what they
+ * are: fields, with what each one reaches stated beneath it.
+ *
+ * The fee catalogue is NOT here: it is a list that grows and has its own
+ * controls, so it earns a card of its own directly below.
+ */
+function ConfigCard({ building, onEdit }: { building: Building; onEdit: (() => void) | null }) {
+  return (
+    <Card variant="outlined" sx={{ mb: 2 }}>
+      <CardContent>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 1,
+            flexWrap: 'wrap',
+            mb: 2,
+          }}
+        >
+          <Typography variant="h6" component="h3">
+            Cấu hình toà nhà
+          </Typography>
+          {/*
+            Only the owner. A manager reads every figure here — they quote the
+            rates when they sign — but what the building charges is not theirs
+            to move, and a button that answers 403 teaches nothing.
+          */}
+          {onEdit && (
+            <Button variant="outlined" startIcon={<EditIcon />} onClick={onEdit}>
+              Sửa toà nhà
+            </Button>
+          )}
+        </Box>
+
+        <Box
+          sx={{
+            display: 'grid',
+            // Three across on a desktop; stacked on a phone, where three
+            // columns would break "đ / người / tháng" across three lines.
+            gridTemplateColumns: { xs: '1fr', [MOBILE_BREAKPOINT]: 'repeat(3, 1fr)' },
+            gap: 2,
+          }}
+        >
+          <Field
+            label="Giá điện"
+            value={`${formatMoney(building.electricityRate)} / kWh`}
+            hint="Áp cho hợp đồng ký từ nay về sau"
+          />
+          <Field
+            label="Giá nước"
+            value={`${formatMoney(building.waterRatePerPerson)} / người / tháng`}
+            hint="Áp cho hợp đồng ký từ nay về sau"
+          />
+          <Field
+            label="Tiền cọc mặc định"
+            value={
+              building.defaultDepositMonths === 0
+                ? 'Không thu cọc'
+                : `${building.defaultDepositMonths} tháng tiền thuê`
+            }
+            hint="Điền sẵn khi ký hợp đồng ở toà này"
+          />
+        </Box>
+
+      </CardContent>
+    </Card>
+  )
+}
+
 /**
  * How full the building is, in the four numbers the rooms table cannot show at
  * a glance. Figures come from the API — a retired room is in neither the let
@@ -69,6 +176,8 @@ function RoomStats({ building }: { building: Building }) {
 export function BuildingDetailPage() {
   const params = useParams()
   const id = Number(params.id)
+  const isOwner = useIsOwner()
+  const [suaMo, setSuaMo] = useState(false)
   const { page, setPage } = useListParams<Record<string, string | undefined>>([])
 
   const buildingQuery = useBuilding(id)
@@ -111,16 +220,25 @@ export function BuildingDetailPage() {
         </Typography>
         {!building.isActive && <Chip label="Đang ngưng hoạt động" size="small" variant="outlined" />}
       </Box>
+      {/*
+        The address identifies the building; the settings below say how it
+        bills. Kept apart on purpose — they used to run together, and the rates
+        read as part of the address.
+      */}
       <Typography color="text.secondary">{building.address}</Typography>
-      <Typography color="text.secondary" sx={{ mb: 1 }}>
+      <Typography color="text.secondary" sx={{ mb: 2 }}>
         {building.ward} · {building.city} · {building.country}
       </Typography>
-      <Typography variant="body2">
-        ⚡ {formatMoney(building.electricityRate)} / kWh &nbsp;&nbsp; 💧{' '}
-        {formatMoney(building.waterRatePerPerson)} / người / tháng
-      </Typography>
 
-      <Divider sx={{ my: 3 }} />
+      <ConfigCard building={building} onEdit={isOwner ? () => setSuaMo(true) : null} />
+
+      <ServiceFeesCard buildingId={building.id} />
+
+      <BuildingFormDialog
+        open={suaMo}
+        building={building}
+        onClose={() => setSuaMo(false)}
+      />
 
       {/*
         Kept, where the page titles were dropped: this one names a SECTION

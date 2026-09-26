@@ -7,6 +7,7 @@ import {
   listBuildingsQuerySchema,
   buildingLocationsQuerySchema,
 } from "./schema.js";
+import { scopeOf } from "@/middleware/staff-scope.js";
 import * as buildingService from "./service.js";
 
 export async function createBuildingHandler(req: Request, res: Response) {
@@ -25,7 +26,7 @@ export async function listBuildingsHandler(req: Request, res: Response) {
     throw new ValidationError("QUERY_INVALID", "Invalid query parameters", parsed.error.flatten());
   }
 
-  const buildings = await buildingService.listBuildings(parsed.data, parsed.data);
+  const buildings = await buildingService.listBuildings(parsed.data, parsed.data, scopeOf(req));
   res.status(200).json(buildings);
 }
 
@@ -44,6 +45,7 @@ export async function listBuildingLocationsHandler(req: Request, res: Response) 
 export async function getBuildingHandler(req: Request, res: Response) {
   const building = await buildingService.getBuildingWithRoomCounts(
     parseIdParam(req.params.id, RESOURCE.building),
+    scopeOf(req),
   );
   res.status(200).json(building);
 }

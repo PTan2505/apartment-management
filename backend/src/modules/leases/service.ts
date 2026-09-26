@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
 import { issueLeasePortalToken } from "@/modules/tenant-portal/service.js";
+import { roomBuildingWhere, withinScope, type BuildingScope } from "@/middleware/staff-scope.js";
 import { paginate, toSkipTake } from "@/lib/pagination.js";
 import { findLatestKnownReading } from "@/lib/meter-history.js";
 import {
@@ -172,12 +173,14 @@ async function resolveStartMeterReading(roomId: number, supplied?: number) {
   return { startMeterReading: supplied, latestKnown: latest?.reading ?? null };
 }
 
-export async function createLease(input: CreateLeaseInput) {
+export async function createLease(input: CreateLeaseInput, scope: BuildingScope = null) {
   const room = await prisma.room.findUnique({
     where: { id: input.roomId },
     include: { building: true },
   });
-  if (!room) {
+  // A room in a building the caller does not cover reads as absent, the same
+  // as one that does not exist — see the scope middleware for why.
+  if (!room || !withinScope(scope, room.buildingId)) {
     throw new NotFoundError("ROOM_NOT_FOUND", "Room not found");
   }
   if (!room.isActive) {
@@ -278,6 +281,11 @@ export async function createLease(input: CreateLeaseInput) {
   const electricityRate = input.electricityRate ?? room.building.electricityRate;
   const waterRatePerPerson = input.waterRatePerPerson ?? room.building.waterRatePerPerson;
 
+  // And the deposit, from the building's policy rather than its rates. Read
+  // once here for the same reason: changing what the building asks of the next
+  // tenant must not reach back into this agreement.
+  const depositMonths = input.depositMonths ?? room.building.defaultDepositMonths;
+
   // Any advance beyond the room's last known reading happened while nobody
   // lived there, so the owner absorbs it. A lower reading means the meter was
   // replaced — a new baseline, not a credit.
@@ -299,7 +307,7 @@ export async function createLease(input: CreateLeaseInput) {
         baseRent,
         electricityRate,
         waterRatePerPerson,
-        depositMonths: input.depositMonths,
+        depositMonths,
         // A term of the agreement. Absent stays absent — undefined leaves the
         // column null, which is what "not recorded" means here.
         handoverSignedAt: input.handoverSignedAt,
@@ -328,6 +336,37 @@ export async function createLease(input: CreateLeaseInput) {
         joinedAt: input.startDate,
       },
     });
+
+    /*
+      The fees this building applies to every new tenancy — rubbish, internet —
+      taken up now, at the price and basis current at this moment, from the day
+      the tenancy starts.
+
+      Inside the transaction, like the move-in invoice and for the same reason:
+      a tenancy quietly missing a charge every other room pays is invisible
+      until somebody compares two bills, so it must not be a partial success.
+
+      Only fees still OFFERED. A retired one is not applied, whatever its flag
+      says — the flag describes how a fee is taken up, not whether it exists.
+    */
+    const defaultFees = await tx.buildingServiceFee.findMany({
+      where: { buildingId: room.buildingId, appliedByDefault: true, isActive: true },
+      select: { id: true, unitAmount: true, basis: true },
+      orderBy: { id: "asc" },
+    });
+    if (defaultFees.length > 0) {
+      await tx.leaseServiceFee.createMany({
+        data: defaultFees.map((fee) => ({
+          leaseId: created.id,
+          buildingServiceFeeId: fee.id,
+          // Copied, exactly as a hand-picked selection copies them.
+          unitAmount: fee.unitAmount,
+          basis: fee.basis,
+          quantity: 1,
+          effectiveFrom: created.startDate,
+        })),
+      });
+    }
 
     // The link the tenant pays through, issued with the tenancy rather than on
     // request. A tenancy without one is a tenancy whose bills cannot be paid,
@@ -555,7 +594,7 @@ async function runningStateIds(state: "overdue" | "dueSoon" | "active"): Promise
   return rows.map((row) => row.id);
 }
 
-export async function listLeases(query: ListLeasesQuery) {
+export async function listLeases(query: ListLeasesQuery, scope: BuildingScope = null) {
   // The three running states are not distinguishable by the rank alone, so
   // their ids are resolved first and composed with every other filter.
   const stateIds =
@@ -566,11 +605,22 @@ export async function listLeases(query: ListLeasesQuery) {
   const where = {
     ...(await periodWhere(query)),
     ...(query.roomId ? { roomId: query.roomId } : {}),
-    // Narrows through the room rather than duplicating a building id onto the
-    // lease. Combines with `roomId`: naming both is a room within a building,
-    // which matches nothing if they disagree — correct, and better than
-    // silently ignoring one of them.
-    ...(query.buildingId ? { room: { buildingId: query.buildingId } } : {}),
+    /*
+      The caller's buildings and the building they asked for: two clauses about
+      the same relation, kept apart in an AND.
+
+      Spread as two `room` keys the later would replace the earlier, and the
+      one replaced would be the scope — a manager naming another building would
+      have been shown it. Both must hold; naming a building outside their own
+      matches nothing, which is the right answer.
+
+      `roomId` still combines: naming both is a room within a building, and if
+      they disagree nothing matches, which beats silently ignoring one.
+    */
+    AND: [
+      ...(scope === null ? [] : [roomBuildingWhere(scope)]),
+      ...(query.buildingId ? [{ room: { buildingId: query.buildingId } }] : []),
+    ],
     // Matches any lease the person occupied, primary or not.
     ...(query.customerId ? { occupants: { some: { userId: query.customerId } } } : {}),
     ...(query.status === "finalized" ? { moveOutDate: { not: null }, cancelledAt: null } : {}),

@@ -40,12 +40,21 @@ export const createLeaseSchema = z.object({
   // tenant without changing what the building charges the next one.
   electricityRate: z.coerce.number().nonnegative("must not be negative").optional(),
   waterRatePerPerson: z.coerce.number().nonnegative("must not be negative").optional(),
-  // Required, and zero is allowed. Defaulting a missing value to zero would
-  // make "no deposit" and "forgot to record the deposit" the same record.
+  /*
+    Optional, and zero is allowed.
+
+    It used to be required, on the reasoning that defaulting a missing value to
+    zero would make "no deposit" and "forgot to record the deposit" the same
+    record. That reasoning stands; what changed is where the default comes from.
+    Omitting it now resolves to the building's `defaultDepositMonths` — a figure
+    the OWNER stated — rather than to zero, so the two cases are still distinct
+    and a manager who may not set a deposit has something to fall back on.
+  */
   depositMonths: z.coerce
-    .number({ message: "depositMonths is required" })
+    .number()
     .int("must be a whole number of months")
-    .nonnegative("must not be negative"),
+    .nonnegative("must not be negative")
+    .optional(),
   ...agreementTermFields,
 });
 

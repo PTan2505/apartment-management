@@ -1,6 +1,11 @@
 import type { Request, Response } from "express";
 import { UnauthorizedError, ValidationError } from "@/lib/errors.js";
 import { startPaymentSchema } from "@/modules/payment-gateway/schema.js";
+import {
+  createReportSchema,
+  reportPhotoConfirmSchema,
+  reportPhotoUploadSchema,
+} from "@/modules/damage-reports/schema.js";
 import { parseIdParam, RESOURCE } from "@/lib/parse-id.js";
 import * as portalService from "./service.js";
 
@@ -54,4 +59,50 @@ export async function startPortalPaymentHandler(req: Request, res: Response) {
   res.status(201).json(
     await portalService.startPortalPayment(readPortalToken(req), invoiceId, parsed.data),
   );
+}
+
+/* --- reporting something broken --- */
+
+export async function raisePortalReportHandler(req: Request, res: Response) {
+  const parsed = createReportSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw new ValidationError("REPORT_PAYLOAD_INVALID", "Invalid report", parsed.error.flatten());
+  }
+  res
+    .status(201)
+    .json(await portalService.raisePortalReport(readPortalToken(req), parsed.data));
+}
+
+export async function listPortalReportsHandler(req: Request, res: Response) {
+  res.status(200).json({ data: await portalService.listPortalReports(readPortalToken(req)) });
+}
+
+export async function portalReportPhotoUrlHandler(req: Request, res: Response) {
+  const parsed = reportPhotoUploadSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw new ValidationError(
+      "REPORT_PHOTO_PAYLOAD_INVALID",
+      "Invalid photograph request",
+      parsed.error.flatten(),
+    );
+  }
+  const reportId = parseIdParam(req.params.id, RESOURCE.damageReport);
+  res
+    .status(201)
+    .json(await portalService.signPortalReportPhoto(readPortalToken(req), reportId, parsed.data));
+}
+
+export async function portalReportPhotoConfirmHandler(req: Request, res: Response) {
+  const parsed = reportPhotoConfirmSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw new ValidationError(
+      "REPORT_PHOTO_PAYLOAD_INVALID",
+      "Invalid photograph confirmation",
+      parsed.error.flatten(),
+    );
+  }
+  const reportId = parseIdParam(req.params.id, RESOURCE.damageReport);
+  res
+    .status(200)
+    .json(await portalService.confirmPortalReportPhoto(readPortalToken(req), reportId, parsed.data));
 }

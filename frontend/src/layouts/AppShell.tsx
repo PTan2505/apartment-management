@@ -14,9 +14,11 @@ import Divider from '@mui/material/Divider'
 import ApartmentIcon from '@mui/icons-material/Apartment'
 import MenuIcon from '@mui/icons-material/Menu'
 
-import { DESTINATIONS } from '@/app/navigation'
+import { destinationsFor } from '@/app/navigation'
+import { useAuth } from '@/features/auth/useAuth'
 import { DRAWER_WIDTH, MOBILE_BREAKPOINT } from '@/app/theme'
 import { AccountMenu } from '@/features/auth/AccountMenu'
+import { NoticeBell } from '@/features/notices/NoticeBell'
 import { SidebarAccount } from '@/features/auth/SidebarAccount'
 
 /**
@@ -52,7 +54,17 @@ export function AppShell() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  const activeDestination = DESTINATIONS.find((destination) =>
+  /*
+    Only what this role may reach.
+
+    Filtered here rather than guarded at each link: offering a destination that
+    will refuse the person is worse than not offering it, because they cannot
+    tell a boundary from a fault.
+  */
+  const { user } = useAuth()
+  const destinations = destinationsFor(user?.role ?? 'owner')
+
+  const activeDestination = destinations.find((destination) =>
     location.pathname.startsWith(destination.path),
   )
 
@@ -64,7 +76,7 @@ export function AppShell() {
 
   const navigationList = (
     <List sx={{ px: 1 }}>
-      {DESTINATIONS.map((destination) => {
+      {destinations.map((destination) => {
         const Icon = destination.icon
         const isActive = destination.path === activeDestination?.path
         return (
@@ -154,6 +166,19 @@ export function AppShell() {
           <Typography variant="h6" noWrap component="h1" sx={{ flexGrow: 1 }}>
             {activeDestination?.label ?? 'Quản lý trọ'}
           </Typography>
+          {/*
+            At every width, unlike the account menu beside it: a report arriving
+            is news, and news does not belong behind a navigation panel that is
+            closed by default on a phone.
+          */}
+          {/*
+            Always on inside the shell: this layout renders only behind
+            `ProtectedRoute`, so there is a session by construction. An earlier
+            version read a `status` variable that does not exist here — it
+            resolved to the DOM's global `window.status`, compared a string to
+            a string, type-checked, and left the socket switched off for ever.
+          */}
+          <NoticeBell enabled />
           {/*
             Narrow viewports only. Above the breakpoint the sidebar is
             permanently visible and already names the signed-in person, so a

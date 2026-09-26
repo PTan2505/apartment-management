@@ -73,6 +73,12 @@ export default defineConfig(({ mode, command }) => {
           target: apiTarget,
           changeOrigin: true,
 
+          // The live channel is a WebSocket on the same API, so the proxy has
+          // to upgrade as well as forward. Without this the socket connects to
+          // the DEV SERVER, which answers with the application's HTML and the
+          // connection dies with no explanation on either side.
+          ws: true,
+
           // The backend mounts its routers at the root, so strip the namespace
           // before forwarding: /api/buildings -> /buildings
           rewrite: (path) => path.replace(new RegExp(`^${API_PREFIX}`), ''),

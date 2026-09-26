@@ -23,6 +23,10 @@ import { isApiError } from '@/lib/api-error'
  */
 const MESSAGES: Record<BackendErrorCode, string> = {
   // ── Signing in and sessions ───────────────────────────────────────────────
+  ACCOUNT_DEACTIVATED: 'Tài khoản này đã bị ngưng, không dùng được nữa.',
+  BUILDING_NOT_ASSIGNED: 'Toà nhà này không thuộc phần bạn phụ trách.',
+  CURRENT_PASSWORD_INVALID: 'Mật khẩu hiện tại không đúng.',
+  CURRENT_PASSWORD_REQUIRED: 'Cần nhập mật khẩu hiện tại.',
   INVALID_CREDENTIALS: 'Số điện thoại hoặc mật khẩu không đúng.',
   LOGIN_REQUEST_INVALID: 'Thông tin đăng nhập chưa hợp lệ.',
   ACCOUNT_GONE: 'Tài khoản này không còn tồn tại.',
@@ -31,9 +35,25 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   ACCESS_TOKEN_INVALID: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
   ACCESS_TOKEN_SUBJECT_INVALID: 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.',
   AUTH_HEADER_MISSING: 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.',
+  PASSWORD_CHANGE_INVALID: 'Mật khẩu mới chưa hợp lệ — tối thiểu 8 ký tự.',
+  PASSWORD_CHANGE_REQUIRED: 'Cần đổi mật khẩu trước khi làm việc khác.',
   REFRESH_TOKEN_MISSING: 'Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại.',
   REFRESH_TOKEN_INVALID: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
+  REPORT_ALREADY_DONE: 'Báo hỏng này đã xử lí xong, không sửa được nữa.',
+  REPORT_CLOSE_INVALID: 'Cần ghi đã xử lí thế nào trước khi đóng.',
+  REPORT_NOT_FOUND: 'Không tìm thấy báo hỏng này.',
+  REPORT_PAYLOAD_INVALID: 'Nội dung báo hỏng chưa hợp lệ.',
+  REPORT_PHOTO_KEY_INVALID: 'Ảnh này không thuộc báo hỏng đang xem.',
+  REPORT_PHOTO_NOT_FOUND: 'Không tìm thấy ảnh này.',
+  REPORT_PHOTO_NOT_UPLOADED: 'Chưa thấy ảnh trên máy chủ lưu trữ — thử tải lại.',
+  REPORT_PHOTO_PAYLOAD_INVALID: 'Yêu cầu tải ảnh chưa hợp lệ.',
+  REPORT_PHOTO_TOO_LARGE: 'Ảnh quá lớn, tối đa 10 MB.',
+  REPORT_SCHEDULE_INVALID: 'Lịch hẹn chưa hợp lệ.',
   ROLE_NOT_PERMITTED: 'Tài khoản của bạn không có quyền với mục này.',
+  // Bốn con số tiền trên hợp đồng là của chủ nhà. Câu này không nói "bạn không
+  // có quyền" mà nói tiền lấy ở đâu ra, vì quản lí cần biết ai sửa được nó.
+  LEASE_TERMS_OWNER_ONLY:
+    'Giá thuê, giá điện, giá nước và số tháng cọc do chủ nhà đặt. Hợp đồng sẽ lấy theo phòng và toà nhà.',
 
   // ── Requests the server could not read ────────────────────────────────────
   BODY_NOT_JSON: 'Dữ liệu gửi lên không đọc được. Vui lòng thử lại.',
@@ -110,6 +130,9 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   PRIMARY_OCCUPANT_MUST_TRANSFER:
     'Hãy chuyển vai trò người đứng tên cho người khác trước khi ghi nhận rời đi.',
   OCCUPANT_TRANSFER_PAYLOAD_INVALID: 'Thông tin chuyển vai trò chưa hợp lệ.',
+  STAFF_BUILDINGS_PAYLOAD_INVALID: 'Danh sách toà nhà được giao chưa hợp lệ.',
+  STAFF_NOT_FOUND: 'Không tìm thấy tài khoản nhân viên.',
+  STAFF_PAYLOAD_INVALID: 'Thông tin nhân viên chưa hợp lệ.',
   TRANSFER_ON_FINALIZED_LEASE: 'Không thể chuyển vai trò trên hợp đồng đã kết thúc.',
   TRANSFER_TARGET_NOT_OCCUPANT: 'Người này không đang ở trong hợp đồng.',
   TRANSFER_TARGET_ALREADY_PRIMARY: 'Người này đã là người đứng tên.',
@@ -202,6 +225,8 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   SERVICE_FEE_NAME_TAKEN: 'Toà nhà này đã có một dịch vụ trùng tên.',
   SERVICE_FEE_WRONG_BUILDING: 'Dịch vụ này thuộc toà nhà khác.',
   SERVICE_FEE_WITHDRAWN: 'Dịch vụ này không còn được cung cấp.',
+  SERVICE_FEE_QUANTITY_NOT_APPLICABLE:
+    'Khoản này tính theo đầu người, số lượng lấy theo số người ở của hợp đồng.',
   SERVICE_FEE_ALREADY_ON_LEASE:
     'Hợp đồng đã có dịch vụ này — hãy đổi số lượng thay vì thêm lần nữa.',
   SERVICE_FEE_STARTS_BEFORE_LEASE: 'Dịch vụ không thể bắt đầu trước ngày hợp đồng bắt đầu.',

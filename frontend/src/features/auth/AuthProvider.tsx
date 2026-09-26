@@ -28,6 +28,15 @@ export type AuthStatus = 'pending' | 'authenticated' | 'anonymous' | 'offline'
 export interface AuthContextValue {
   status: AuthStatus
   user: Account | null
+  /**
+   * Re-reads the account.
+   *
+   * Needed because two of its fields decide what the application does rather
+   * than merely what it shows — whether a password change is owed, and which
+   * buildings are covered. After changing a password, a stale account would
+   * send the person straight back to the screen they just finished with.
+   */
+  refreshAccount: () => Promise<void>
   /** Present when status is 'offline', for the message to show. */
   error: ApiError | null
   signIn: (values: LoginFormValues) => Promise<void>
@@ -158,16 +167,21 @@ export function AuthProvider() {
     return 'anonymous'
   }, [query.isPending, query.data, query.error])
 
+  const refreshAccount = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: AUTH_QUERY_KEY })
+  }, [queryClient])
+
   const value = useMemo<AuthContextValue>(
     () => ({
       status,
       user: query.data ?? null,
+      refreshAccount,
       error: isApiError(query.error) ? query.error : null,
       signIn,
       signOut,
       isSigningIn: signInMutation.isPending,
     }),
-    [status, query.data, query.error, signIn, signOut, signInMutation.isPending],
+    [status, query.data, refreshAccount, query.error, signIn, signOut, signInMutation.isPending],
   )
 
   return (

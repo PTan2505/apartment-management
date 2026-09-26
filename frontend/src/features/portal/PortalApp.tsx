@@ -11,11 +11,14 @@ import {
   PortalLinkInvalid,
   PortalRequestFailed,
   fetchOverview,
+  fetchReports,
   startPayment,
   type PaymentOffer,
   type PortalOverview,
+  type PortalReport,
 } from '@/features/portal/api'
 import { InvoiceCard, PayButton } from '@/features/portal/InvoiceCard'
+import { ReportsSection } from '@/features/portal/ReportsSection'
 import { PaymentPanel } from '@/features/portal/PaymentPanel'
 import { fragmentHasToken, resolveToken } from '@/features/portal/token'
 
@@ -46,6 +49,9 @@ const SLOW_AFTER_MS = 3000
 
 export function PortalApp() {
   const [overview, setOverview] = useState<PortalOverview | null>(null)
+  // Fetched beside the bills rather than with them: the two answer different
+  // questions, and a failure to load one must not take the other down.
+  const [reports, setReports] = useState<PortalReport[]>([])
   const [linkInvalid, setLinkInvalid] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [slow, setSlow] = useState(false)
@@ -73,9 +79,19 @@ export function PortalApp() {
   const [payingId, setPayingId] = useState<number | null>(null)
   const [watchingId, setWatchingId] = useState<number | null>(null)
 
+  const loadReports = useCallback(async () => {
+    try {
+      setReports(await fetchReports())
+    } catch {
+      // A tenant came here for their bills. Reports failing to load is not a
+      // reason to show them an error over the whole page.
+    }
+  }, [])
+
   const load = useCallback(async () => {
     try {
       setOverview(await fetchOverview())
+      void loadReports()
       setError(null)
       setLoadFailed(false)
     } catch (cause) {
@@ -85,7 +101,7 @@ export function PortalApp() {
         setLoadFailed(true)
       }
     }
-  }, [])
+  }, [loadReports])
 
   useEffect(() => {
     // No token at all is the same answer as a bad one: the API refuses to
@@ -313,6 +329,18 @@ export function PortalApp() {
             })}
           </Stack>
         )}
+
+        {/*
+          Beneath the bills, on the same page. A tenant opens this link for one
+          of two reasons — money, or something broken — and the second used to
+          have nowhere to go but a text message to whoever they had the number
+          of.
+        */}
+        <ReportsSection
+          reports={reports}
+          onChanged={loadReports}
+          onLinkInvalid={() => setLinkInvalid(true)}
+        />
       </Stack>
     </Container>
   )

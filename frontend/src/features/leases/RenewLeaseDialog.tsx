@@ -16,6 +16,7 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useIsOwner } from '@/features/auth/useAuth'
 import { MoneyInput } from '@/components/MoneyField'
 import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
@@ -77,6 +78,7 @@ function ThuaKe({ label, value, hint }: { label: string; value: string; hint?: s
  * questions about both, and meeting them afterwards is meeting them too late.
  */
 export function RenewLeaseDialog({ open, lease, onRenewed, onClose }: RenewLeaseDialogProps) {
+  const isOwner = useIsOwner()
   const extendMutation = useExtendLease()
   const occupantsQuery = useOccupants(lease.id)
   const [reading, setReading] = useState('')
@@ -89,6 +91,13 @@ export function RenewLeaseDialog({ open, lease, onRenewed, onClose }: RenewLease
   const roomQuery = useRoom(lease.roomId, open)
   const giaPhong = roomQuery.data?.baseRent
   const [rent, setRent] = useState<number | undefined>(undefined)
+  /*
+    Số tháng cọc của hợp đồng nối tiếp. Điền sẵn bằng số của hợp đồng cũ, vì
+    giữ nguyên là trường hợp thường gặp — nhưng gia hạn cũng chính là lúc thoả
+    thuận lại được, nên owner sửa được. Manager thì không: cọc là con số chủ
+    nhà đặt.
+  */
+  const [cocThang, setCocThang] = useState(String(lease.depositMonths))
   const [settleOnInvoice, setSettleOnInvoice] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -97,6 +106,7 @@ export function RenewLeaseDialog({ open, lease, onRenewed, onClose }: RenewLease
     setReading('')
     setMonths(String(lease.durationMonths))
     setRent(undefined)
+    setCocThang(String(lease.depositMonths))
     setSettleOnInvoice(true)
     setError(null)
   }, [open, lease])
@@ -117,12 +127,23 @@ export function RenewLeaseDialog({ open, lease, onRenewed, onClose }: RenewLease
   const quaThap =
     sanToiThieu !== null && reading.trim() !== '' && Number.isFinite(soDien) && soDien < sanToiThieu
   const ready =
-    reading.trim() !== '' && Number.isFinite(soDien) && soDien >= 0 && soThang >= 1 && !quaThap
+    reading.trim() !== '' &&
+    Number.isFinite(soDien) &&
+    soDien >= 0 &&
+    soThang >= 1 &&
+    !quaThap &&
+    Number.isInteger(Number(cocThang)) &&
+    Number(cocThang) >= 0
 
   // What the successor's deposit will be, against what is already held. The
   // rent drives it, so raising the rent moves it — which is exactly the case
   // the owner needs told before they confirm.
-  const depositMoi = (rent ?? 0) * lease.depositMonths
+  // Số tháng đang gõ, không phải số của hợp đồng cũ: owner hạ cọc từ 2 tháng
+  // xuống 1 thì dòng chênh lệch bên dưới phải đổi theo, nếu không nó báo một
+  // con số không còn đúng với cái sắp được tạo.
+  const soCoc = Number(cocThang)
+  const cocHopLe = Number.isInteger(soCoc) && soCoc >= 0
+  const depositMoi = (rent ?? 0) * (cocHopLe ? soCoc : lease.depositMonths)
   const chenhLech = depositMoi - lease.depositHeld
 
   /*
@@ -140,7 +161,16 @@ export function RenewLeaseDialog({ open, lease, onRenewed, onClose }: RenewLease
         input: {
           endMeterReading: soDien,
           durationMonths: soThang,
-          ...(rent === undefined ? {} : { baseRent: rent }),
+          /*
+            Only the owner names a rent. For a manager the field is read-only
+            and already holds the room's current figure, so the API's own
+            default produces the same tenancy — and SENDING it would be
+            refused, because naming a price is what a manager may not do.
+          */
+          ...(isOwner && rent !== undefined ? { baseRent: rent } : {}),
+          // Chỉ gửi khi owner đổi thật. Gửi lại đúng số cũ thì thừa, và với
+          // manager thì bị từ chối — đặt giá là việc của chủ nhà.
+          ...(isOwner && soCoc !== lease.depositMonths ? { depositMonths: soCoc } : {}),
           ...(chenhLech === 0 ? {} : { settleDepositOnInvoice: settleOnInvoice }),
         },
       })
@@ -216,12 +246,38 @@ export function RenewLeaseDialog({ open, lease, onRenewed, onClose }: RenewLease
             value={rent}
             onChange={setRent}
             unit="đ / tháng"
+            readOnly={!isOwner}
             helperText={
               roomQuery.isPending
                 ? 'Đang lấy giá hiện tại của phòng…'
-                : giaPhong !== undefined && giaPhong !== lease.baseRent
-                  ? `Giá phòng hiện tại. Hợp đồng cũ đang là ${formatMoney(lease.baseRent)} / tháng.`
-                  : 'Điền sẵn theo giá hiện tại của phòng. Gia hạn là lúc giá mới có hiệu lực.'
+                : !isOwner
+                  ? 'Theo giá hiện tại của phòng. Chủ nhà là người đổi giá này.'
+                  : giaPhong !== undefined && giaPhong !== lease.baseRent
+                    ? `Giá phòng hiện tại. Hợp đồng cũ đang là ${formatMoney(lease.baseRent)} / tháng.`
+                    : 'Điền sẵn theo giá hiện tại của phòng. Gia hạn là lúc giá mới có hiệu lực.'
+            }
+          />
+
+          <TextField
+            label="Tiền cọc hợp đồng mới"
+            type="number"
+            fullWidth
+            value={cocThang}
+            onChange={(event) => setCocThang(event.target.value)}
+            slotProps={{
+              htmlInput: { min: 0, step: 1 },
+              input: {
+                readOnly: !isOwner,
+                endAdornment: <InputAdornment position="end">tháng</InputAdornment>,
+              },
+            }}
+            error={cocThang.trim() !== '' && !cocHopLe}
+            helperText={
+              cocThang.trim() !== '' && !cocHopLe
+                ? 'Nhập số tháng nguyên, không âm'
+                : !isOwner
+                  ? 'Theo hợp đồng cũ. Chủ nhà là người đổi số này.'
+                  : 'Điền sẵn theo hợp đồng cũ. Gia hạn là lúc thoả thuận lại được.'
             }
           />
 
@@ -234,7 +290,8 @@ export function RenewLeaseDialog({ open, lease, onRenewed, onClose }: RenewLease
               <AlertTitle sx={{ mb: 0.5 }}>
                 Tiền cọc {chenhLech > 0 ? 'thiếu' : 'thừa'} {formatMoney(Math.abs(chenhLech))}
               </AlertTitle>
-              Hợp đồng mới cần {formatMoney(depositMoi)} ({lease.depositMonths} tháng tiền thuê),
+              Hợp đồng mới cần {formatMoney(depositMoi)} ({cocHopLe ? soCoc : lease.depositMonths}{' '}
+              tháng tiền thuê),
               đang giữ {formatMoney(lease.depositHeld)}.
               <FormControlLabel
                 sx={{ mt: 1, display: 'block' }}
@@ -317,7 +374,16 @@ export function RenewLeaseDialog({ open, lease, onRenewed, onClose }: RenewLease
       <ConfirmDialog
         open={confirmOpen}
         title="Gia hạn hợp đồng này?"
-        description={`Đóng hợp đồng hiện tại ngày ${formatDate(lease.expectedEndDate)} và mở hợp đồng mới ${soThang} tháng ngay hôm đó, giữ nguyên người ở và tiền cọc. Không hoàn tác được bằng một thao tác.`}
+        /*
+          Câu này từng hứa "giữ nguyên tiền cọc" — đúng khi cọc chưa sửa được,
+          sai ngay khi owner đổi số tháng ngay phía trên. Một hộp xác nhận nói
+          sai về việc nó sắp làm còn tệ hơn là không có hộp nào.
+        */
+        description={`Đóng hợp đồng hiện tại ngày ${formatDate(lease.expectedEndDate)} và mở hợp đồng mới ${soThang} tháng ngay hôm đó, giữ nguyên người ở. ${
+          cocHopLe && soCoc !== lease.depositMonths
+            ? `Tiền cọc đổi từ ${lease.depositMonths} tháng sang ${soCoc} tháng.`
+            : 'Tiền cọc giữ nguyên.'
+        } Không hoàn tác được bằng một thao tác.`}
         confirmLabel="Gia hạn hợp đồng"
         busyLabel="Đang gia hạn…"
         destructive

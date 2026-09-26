@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "@/middleware/authenticate.js";
+import { accountGuard } from "@/middleware/staff-scope.js";
 import { requireRole } from "@/middleware/require-role.js";
 import {
   createExpenseHandler,
@@ -13,7 +14,7 @@ import {
 
 export const expensesRouter = Router();
 
-expensesRouter.use(authenticate, requireRole("owner"));
+expensesRouter.use(authenticate, accountGuard, requireRole("owner", "manager"));
 
 expensesRouter.post("/", createExpenseHandler);
 expensesRouter.get("/", listExpensesHandler);

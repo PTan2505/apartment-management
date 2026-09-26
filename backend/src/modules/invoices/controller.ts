@@ -9,6 +9,7 @@ import {
   listDueQuerySchema,
   voidInvoiceSchema,
 } from "./schema.js";
+import { scopeOf } from "@/middleware/staff-scope.js";
 import * as invoiceService from "./service.js";
 
 export async function generateInvoiceHandler(req: Request, res: Response) {
@@ -17,7 +18,7 @@ export async function generateInvoiceHandler(req: Request, res: Response) {
     throw new ValidationError("INVOICE_PAYLOAD_INVALID", "Invalid invoice payload", parsed.error.flatten());
   }
 
-  const invoice = await invoiceService.generateInvoice(parsed.data);
+  const invoice = await invoiceService.generateInvoice(parsed.data, scopeOf(req));
   res.status(201).json(invoice);
 }
 
@@ -27,7 +28,7 @@ export async function listInvoicesHandler(req: Request, res: Response) {
     throw new ValidationError("QUERY_INVALID", "Invalid query parameters", parsed.error.flatten());
   }
 
-  const invoices = await invoiceService.listInvoices(parsed.data);
+  const invoices = await invoiceService.listInvoices(parsed.data, scopeOf(req));
   res.status(200).json(invoices);
 }
 
@@ -37,7 +38,7 @@ export async function listDueHandler(req: Request, res: Response) {
     throw new ValidationError("QUERY_INVALID", "Invalid query parameters", parsed.error.flatten());
   }
 
-  const due = await invoiceService.listDueForMonth(parsed.data);
+  const due = await invoiceService.listDueForMonth(parsed.data, scopeOf(req));
   // A bare array, not a paginated envelope: this is a worklist rather than a
   // page of records, and nothing about it is navigable.
   res.status(200).json({ data: due });

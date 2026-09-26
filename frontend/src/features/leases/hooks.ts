@@ -144,15 +144,6 @@ export function useRefundDeposit() {
   })
 }
 
-/** The building's fee catalogue, for naming charges beyond a term. */
-export function useBuildingServiceFees(buildingId: number | undefined, enabled: boolean) {
-  return useQuery({
-    queryKey: ['buildings', buildingId, 'service-fees'],
-    queryFn: () => leasesApi.listBuildingServiceFees(buildingId!),
-    enabled: buildingId !== undefined && enabled,
-  })
-}
-
 export function useCancelLease() {
   const invalidate = useInvalidateLeases()
   return useMutation({
@@ -260,5 +251,53 @@ export function useRevokePortalLink(leaseId: number) {
     mutationFn: () => leasesApi.revokePortalLink(leaseId),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: [...LEASES_KEY, leaseId, 'portal-link'] }),
+  })
+}
+
+// ── The service fees this tenancy took up ──────────────────────────────────
+
+export function useLeaseServiceFees(leaseId: number) {
+  return useQuery({
+    queryKey: ['leases', leaseId, 'service-fees'],
+    queryFn: () => leasesApi.listLeaseServiceFees(leaseId),
+  })
+}
+
+/**
+ * Everything that changes a tenancy's fees invalidates the tenancy too: the
+ * detail page shows them, and a stale card is how an owner adds a fee twice.
+ */
+function useInvalidateLeaseServiceFees(leaseId: number) {
+  const queryClient = useQueryClient()
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: ['leases', leaseId, 'service-fees'] })
+    void queryClient.invalidateQueries({ queryKey: ['leases'] })
+  }
+}
+
+export function useSelectLeaseServiceFee(leaseId: number) {
+  const invalidate = useInvalidateLeaseServiceFees(leaseId)
+  return useMutation({
+    mutationFn: (input: leasesApi.SelectServiceFeeInput) =>
+      leasesApi.selectLeaseServiceFee(leaseId, input),
+    onSuccess: invalidate,
+  })
+}
+
+export function useUpdateLeaseServiceFeeQuantity(leaseId: number) {
+  const invalidate = useInvalidateLeaseServiceFees(leaseId)
+  return useMutation({
+    mutationFn: ({ selectionId, quantity }: { selectionId: number; quantity: number }) =>
+      leasesApi.updateLeaseServiceFeeQuantity(leaseId, selectionId, quantity),
+    onSuccess: invalidate,
+  })
+}
+
+export function useEndLeaseServiceFee(leaseId: number) {
+  const invalidate = useInvalidateLeaseServiceFees(leaseId)
+  return useMutation({
+    mutationFn: ({ selectionId, effectiveTo }: { selectionId: number; effectiveTo?: string }) =>
+      leasesApi.endLeaseServiceFee(leaseId, selectionId, effectiveTo),
+    onSuccess: invalidate,
   })
 }

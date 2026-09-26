@@ -12,8 +12,17 @@ datasource db {
   provider = "postgresql"
 }
 
+/// Who somebody is to this system.
+///
+/// `owner` runs the business and reaches everything. `manager` and
+/// `maintenance` are staff: they see only the buildings they are assigned to,
+/// and a manager runs those buildings while maintenance only sees what needs
+/// fixing in them. `customer` is a tenant record with no login at all — the
+/// portal is a token, not an account.
 enum Role {
   owner
+  manager
+  maintenance
   customer
 }
 
@@ -47,8 +56,31 @@ model User {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  refreshTokens  RefreshToken[]
-  leaseOccupants LeaseOccupant[]
+  /// Whether this account may still sign in.
+  ///
+  /// Staff leave. Deleting the account would take their history with it — who
+  /// scheduled which repair — so it is closed rather than removed, and every
+  /// session it holds is revoked with it.
+  isActive Boolean @default(true)
+
+  /// Set when a password was issued BY somebody else: at creation, and again
+  /// whenever the owner resets it. While it is set the account may do nothing
+  /// but sign in, read itself, change its password, and sign out.
+  ///
+  /// A password the owner has read aloud over the phone is a password two
+  /// people know, and the account is worth no more than the weaker of them.
+  mustChangePassword Boolean @default(false)
+
+  refreshTokens    RefreshToken[]
+  leaseOccupants   LeaseOccupant[]
+  /// Repairs this account scheduled or closed. Named relations because a user
+  /// can be either on the same report.
+  scheduledRepairs DamageReport[]  @relation("DamageReportScheduledBy")
+  closedRepairs    DamageReport[]  @relation("DamageReportClosedBy")
+  /// Which buildings this staff account covers. Empty for an owner, who is
+  /// never narrowed, and for a customer, who has no screens at all.
+  staffBuildings   StaffBuilding[]
+  reportNotices    ReportNotice[]
 }
 
 /// The link a tenancy is paid through.
@@ -96,6 +128,112 @@ model LeasePortalToken {
   @@index([leaseId])
 }
 
+/// Which buildings a member of staff covers.
+///
+/// Many to many, by the owner's choice: one maintenance worker can cover
+/// several buildings, and one building can have several managers and several
+/// workers. The alternative — a building column on the account — would have
+/// made a second building mean a second account.
+model StaffBuilding {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  buildingId Int
+  building   Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, buildingId])
+  @@index([buildingId])
+}
+
+/// Where a damage report stands.
+///
+/// Three, and no way back from the last: a fault that returns is a second
+/// report. Two rows say "this broke twice", one row edited back and forth says
+/// nothing at all.
+enum DamageReportState {
+  new
+  scheduled
+  done
+}
+
+/// Something a tenant says is broken.
+///
+/// Attached to the TENANCY rather than the room, because the portal link is
+/// per tenancy and that is the only thing the tenant can be taken at their
+/// word about. It carries the room through the tenancy, and it stays attached
+/// after a move-out — which is exactly when a report becomes evidence in a
+/// deposit settlement rather than an anonymous note about a room.
+model DamageReport {
+  id      Int   @id @default(autoincrement())
+  leaseId Int
+  lease   Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  /// What is broken, in the tenant's own words. Not categorised: asking a
+  /// tenant to classify their leak is asking them to do the triage.
+  description String
+  state       DamageReportState @default(new)
+  reportedAt  DateTime          @default(now())
+
+  /// When somebody agreed to come, and what was agreed. Set together.
+  scheduledFor  DateTime?
+  scheduleNote  String?
+  scheduledAt   DateTime?
+  scheduledById Int?
+  scheduledBy   User?     @relation("DamageReportScheduledBy", fields: [scheduledById], references: [id])
+
+  /// What was done, and by whom. A closed report accepts nothing further.
+  closedAt    DateTime?
+  closingNote String?
+  closedById  Int?
+  closedBy    User?     @relation("DamageReportClosedBy", fields: [closedById], references: [id])
+
+  photos  DamageReportPhoto[]
+  notices ReportNotice[]
+
+  /// The listing is "oldest open first", which is this index read backwards.
+  @@index([state, reportedAt])
+  @@index([leaseId, reportedAt])
+}
+
+/// A photograph attached to a report. The same shape as a contract page, for
+/// the same reason: the database keeps a key, the bytes stay in storage.
+model DamageReportPhoto {
+  id          Int          @id @default(autoincrement())
+  reportId    Int
+  report      DamageReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  key         String       @unique
+  contentType String
+  uploadedAt  DateTime     @default(now())
+
+  @@index([reportId, uploadedAt])
+}
+
+/// "Something happened while you were away."
+///
+/// One row per recipient, written when a report arrives for the people
+/// covering that building at that moment. It is a record of an EVENT, so it
+/// stays after the report is scheduled and after it is closed — "a report came
+/// in at nine and was dealt with" goes on being true.
+///
+/// Deliberately not a work queue: what is still to do lives on the report
+/// screen, oldest open first. Somebody assigned to a building later gets no
+/// notices for what arrived before them, and one person reading theirs leaves
+/// everybody else's unread, because each row is their own.
+model ReportNotice {
+  id       Int          @id @default(autoincrement())
+  userId   Int
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reportId Int
+  report   DamageReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
+
+  @@unique([userId, reportId])
+  @@index([userId, readAt])
+}
+
 model RefreshToken {
   id        Int       @id @default(autoincrement())
   userId    Int
@@ -109,29 +247,44 @@ model RefreshToken {
 }
 
 model Building {
-  id                 Int      @id @default(autoincrement())
-  displayName        String
+  id                   Int      @id @default(autoincrement())
+  displayName          String
   // The street line only — house number and street. The administrative levels
   // below are held separately so buildings can be filtered by location.
-  address            String
-  ward               String
-  city               String
-  country            String   @default("Vietnam")
+  address              String
+  ward                 String
+  city                 String
+  country              String   @default("Vietnam")
   // The address provider's identifier for the place this address was resolved
   // from. Null means the address was typed by hand — which is also the right
   // state after someone corrects one, since a stale identifier would claim the
   // address came from a place it no longer matches. Deliberately not a foreign
   // key and not validated: a note about provenance, not a reference.
-  placeId            String?
-  electricityRate    Decimal  @db.Decimal(12, 4)
-  waterRatePerPerson Decimal  @db.Decimal(12, 4)
-  isActive           Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  placeId              String?
+  electricityRate      Decimal  @db.Decimal(12, 4)
+  waterRatePerPerson   Decimal  @db.Decimal(12, 4)
+  // How many months of rent a tenancy signed here takes as a deposit, unless
+  // the owner says otherwise for that tenancy.
+  //
+  // On the building rather than the room because it is a policy rather than a
+  // price: rooms differ in what they cost, but "we take one month" is how the
+  // landlord does business, and putting it on the room would mean setting it
+  // once per room.
+  //
+  // Not nullable. A null would mean "unstated", and every reader would then
+  // have to decide what unstated resolves to — which is a constant compiled in,
+  // the thing this column exists to replace. The column default backfills
+  // existing buildings at one month, the common arrangement here; zero is a
+  // real value for a building that takes no deposit.
+  defaultDepositMonths Int      @default(1)
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   rooms       Room[]
   expenses    Expense[]
   serviceFees BuildingServiceFee[]
+  staff       StaffBuilding[]
 }
 
 model Room {
@@ -316,12 +469,13 @@ model Lease {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  occupants    LeaseOccupant[]
-  invoices     Invoice[]
-  serviceFees  LeaseServiceFee[]
+  occupants     LeaseOccupant[]
+  invoices      Invoice[]
+  serviceFees   LeaseServiceFee[]
   // The links this tenancy is paid through: at most one usable, the rest
   // revoked. Kept as history so "when was this replaced" is answerable.
-  portalTokens LeasePortalToken[]
+  portalTokens  LeasePortalToken[]
+  damageReports DamageReport[]
 
   // One ACTIVE lease per room is enforced by a partial unique index added
   // manually in the migration. Its predicate is "moveOutDate IS NULL AND
@@ -716,16 +870,37 @@ enum VacancyReconciliation {
 // What a building charges for beyond rent and metered utilities: parking,
 // internet, rubbish, shared cleaning. This is the catalogue the owner offers;
 // what a particular tenancy agreed to is LeaseServiceFee.
+/// What a service fee's amount is multiplied by.
+///
+/// `perRoom` is a flat charge: the same amount whoever lives there, times
+/// whatever quantity the tenancy holds. `perPerson` is charged against the
+/// tenancy's occupant count instead, read when the invoice is generated —
+/// exactly as `waterRatePerPerson` already is, so two per-person charges on one
+/// bill can never disagree about how many people live in the room.
+enum ServiceFeeBasis {
+  perRoom
+  perPerson
+}
+
 model BuildingServiceFee {
   id         Int      @id @default(autoincrement())
   buildingId Int
   building   Building @relation(fields: [buildingId], references: [id])
 
-  name       String
+  name             String
   // Charged per unit of the thing: one motorbike, one internet connection. A
   // flat fee is simply one whose quantity is always 1.
-  unitAmount Decimal @db.Decimal(12, 2)
-  isActive   Boolean @default(true)
+  unitAmount       Decimal         @db.Decimal(12, 2)
+  // What that amount is multiplied by. Defaults to the flat behaviour every
+  // fee recorded before this column had.
+  basis            ServiceFeeBasis @default(perRoom)
+  /// Whether a tenancy signed in this building takes this fee up on its own.
+  ///
+  /// Applies to tenancies created AFTERWARDS only. Marking a fee this way says
+  /// what is agreed from now on; charging a running tenancy for something never
+  /// agreed with that tenant would not be a default, it would be a new charge.
+  appliedByDefault Boolean         @default(false)
+  isActive         Boolean         @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -752,10 +927,18 @@ model LeaseServiceFee {
   // agreed, exactly as it does for baseRent: repricing the building's fee must
   // not reach back into an agreement already made. It is also what makes
   // retiring a fee harmless — there is nothing left to resolve at billing time.
-  unitAmount Decimal @db.Decimal(12, 2)
+  unitAmount Decimal         @db.Decimal(12, 2)
   // How many of the thing. Changing this must NOT re-copy unitAmount: a tenant
   // buying a second motorbike has not renegotiated the price of the first.
-  quantity   Int     @default(1)
+  //
+  // Meaningless for a perPerson fee, which is multiplied by the tenancy's
+  // occupant count instead. Held at 1 there, and the API refuses a quantity on
+  // one rather than accepting a number it will ignore.
+  quantity   Int             @default(1)
+  // COPIED at selection for the same reason unitAmount is: it decides the
+  // amount, so flipping the catalogue's basis must not reach back into an
+  // agreement already made.
+  basis      ServiceFeeBasis @default(perRoom)
 
   // When this fee applied, modelled exactly as LeaseOccupant records a person
   // joining and leaving. Giving up a fee records a date rather than deleting the

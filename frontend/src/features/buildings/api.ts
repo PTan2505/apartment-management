@@ -3,6 +3,8 @@ import { apiClient } from '@/lib/api-client'
 import type {
   Building,
   BuildingLocation,
+  BuildingServiceFee,
+  ServiceFeeBasis,
   ListBuildingsParams,
   Paginated,
 } from '@/features/buildings/types'
@@ -85,5 +87,82 @@ export async function retireBuilding(id: number): Promise<Building> {
 
 export async function restoreBuilding(id: number): Promise<Building> {
   const { data } = await apiClient.post<Building>(`/buildings/${id}/restore`)
+  return data
+}
+
+// ── The building's service-fee catalogue ────────────────────────────────────
+//
+// What the building charges for beside rent: rubbish, internet, a parking
+// space. Moved here from the tenancy module, which owned it only because the
+// move-out dialog was the first screen that needed to read it — the catalogue
+// is the OWNER's setting on a building, and now has a screen that says so.
+
+/**
+ * PAGINATED, like every other listing in this API — typing it as a bare array
+ * is what once crashed the move-out dialog: `.filter` on a `{ data, meta }`
+ * object took the whole page down. Unwrapped here so no caller can repeat it.
+ *
+ * `includeInactive` is for the screen that MANAGES the catalogue, which has to
+ * show a retired fee in order to offer it back. Everywhere a fee is CHOSEN,
+ * leave it off: a retired fee is one the API refuses to attach.
+ */
+export async function listBuildingServiceFees(
+  buildingId: number,
+  includeInactive = false,
+): Promise<BuildingServiceFee[]> {
+  const { data } = await apiClient.get<Paginated<BuildingServiceFee>>(
+    `/buildings/${buildingId}/service-fees`,
+    { params: { pageSize: 200, ...(includeInactive ? { includeInactive: 'true' } : {}) } },
+  )
+  return data.data
+}
+
+export interface ServiceFeeInput {
+  name: string
+  unitAmount: number
+  basis: ServiceFeeBasis
+  appliedByDefault: boolean
+}
+
+export async function createServiceFee(
+  buildingId: number,
+  input: ServiceFeeInput,
+): Promise<BuildingServiceFee> {
+  const { data } = await apiClient.post<BuildingServiceFee>(
+    `/buildings/${buildingId}/service-fees`,
+    input,
+  )
+  return data
+}
+
+export async function updateServiceFee(
+  buildingId: number,
+  feeId: number,
+  input: ServiceFeeInput,
+): Promise<BuildingServiceFee> {
+  const { data } = await apiClient.patch<BuildingServiceFee>(
+    `/buildings/${buildingId}/service-fees/${feeId}`,
+    input,
+  )
+  return data
+}
+
+export async function retireServiceFee(
+  buildingId: number,
+  feeId: number,
+): Promise<BuildingServiceFee> {
+  const { data } = await apiClient.post<BuildingServiceFee>(
+    `/buildings/${buildingId}/service-fees/${feeId}/retire`,
+  )
+  return data
+}
+
+export async function restoreServiceFee(
+  buildingId: number,
+  feeId: number,
+): Promise<BuildingServiceFee> {
+  const { data } = await apiClient.post<BuildingServiceFee>(
+    `/buildings/${buildingId}/service-fees/${feeId}/restore`,
+  )
   return data
 }

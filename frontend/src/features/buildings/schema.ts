@@ -23,6 +23,12 @@ export const buildingFormSchema = z.object({
   country: z.string().trim().min(1, 'Country is required').default('Vietnam'),
   electricityRate: rate,
   waterRatePerPerson: rate,
+  // Whole months, because that is how a deposit is agreed — never two and a
+  // half. Zero is a real answer, for a building that takes no deposit.
+  defaultDepositMonths: z
+    .number({ message: 'Nhập một con số' })
+    .int('Nhập số tháng nguyên')
+    .nonnegative('Không được là số âm'),
   // Which place the address was resolved from. Absent for an address typed by
   // hand, and cleared when a resolved one is corrected — the identifier claims
   // the values came from that place, and once edited that is no longer true.

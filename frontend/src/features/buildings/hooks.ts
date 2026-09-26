@@ -80,3 +80,58 @@ export function useRestoreBuilding() {
     onSuccess: invalidate,
   })
 }
+
+// ── The building's service-fee catalogue ────────────────────────────────────
+
+/**
+ * The fees a building charges beside rent.
+ *
+ * Keyed under the buildings key, so `useInvalidateBuildings` above already
+ * refreshes it — which is what makes a rename show up on the building's page
+ * without a reload.
+ */
+export function useBuildingServiceFees(
+  buildingId: number | undefined,
+  enabled: boolean,
+  includeInactive = false,
+) {
+  return useQuery({
+    queryKey: [...BUILDINGS_KEY, buildingId, 'service-fees', { includeInactive }],
+    queryFn: () => buildingsApi.listBuildingServiceFees(buildingId!, includeInactive),
+    enabled: buildingId !== undefined && enabled,
+  })
+}
+
+export function useCreateServiceFee(buildingId: number) {
+  const invalidate = useInvalidateBuildings()
+  return useMutation({
+    mutationFn: (input: buildingsApi.ServiceFeeInput) =>
+      buildingsApi.createServiceFee(buildingId, input),
+    onSuccess: invalidate,
+  })
+}
+
+export function useUpdateServiceFee(buildingId: number) {
+  const invalidate = useInvalidateBuildings()
+  return useMutation({
+    mutationFn: ({ feeId, input }: { feeId: number; input: buildingsApi.ServiceFeeInput }) =>
+      buildingsApi.updateServiceFee(buildingId, feeId, input),
+    onSuccess: invalidate,
+  })
+}
+
+export function useRetireServiceFee(buildingId: number) {
+  const invalidate = useInvalidateBuildings()
+  return useMutation({
+    mutationFn: (feeId: number) => buildingsApi.retireServiceFee(buildingId, feeId),
+    onSuccess: invalidate,
+  })
+}
+
+export function useRestoreServiceFee(buildingId: number) {
+  const invalidate = useInvalidateBuildings()
+  return useMutation({
+    mutationFn: (feeId: number) => buildingsApi.restoreServiceFee(buildingId, feeId),
+    onSuccess: invalidate,
+  })
+}

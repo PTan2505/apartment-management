@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "@/middleware/authenticate.js";
+import { accountGuard } from "@/middleware/staff-scope.js";
 import { requireRole } from "@/middleware/require-role.js";
 import {
   createRoomHandler,
@@ -13,15 +14,29 @@ import {
 
 export const roomsRouter = Router();
 
-roomsRouter.use(authenticate, requireRole("owner"));
+/*
+  Staff read rooms; only the owner changes them — the same split the buildings
+  router makes, and for the same reason one level down.
 
-roomsRouter.post("/", createRoomHandler);
-roomsRouter.get("/", listRoomsHandler);
-roomsRouter.get("/:id", getRoomHandler);
+  A room is created WITH the rent it asks, so creating one sets a price, and
+  correcting one changes a price already set. What a room charges is the
+  business deciding what it sells; a manager letting it is carrying that out.
+  Retiring and restoring belong on the same side: taking a room off the market
+  is a decision about the property, not about this month.
+
+  Reading is deliberately NOT narrowed. A manager quotes the rent, fills the
+  tenancy form from it, and reads the meter against it — all of which needs the
+  figure they may not change.
+*/
+roomsRouter.use(authenticate, accountGuard);
+
+roomsRouter.post("/", requireRole("owner"), createRoomHandler);
+roomsRouter.get("/", requireRole("owner", "manager"), listRoomsHandler);
+roomsRouter.get("/:id", requireRole("owner", "manager"), getRoomHandler);
 // The room's meter position, asked for on its own rather than carried on every
 // room. Resolving it reads across the room's leases and its vacancy expenses,
 // which is a cost worth paying for one room and not for twenty in a listing.
-roomsRouter.get("/:id/latest-meter-reading", getRoomMeterHandler);
-roomsRouter.patch("/:id", updateRoomHandler);
-roomsRouter.post("/:id/retire", retireRoomHandler);
-roomsRouter.post("/:id/restore", restoreRoomHandler);
+roomsRouter.get("/:id/latest-meter-reading", requireRole("owner", "manager"), getRoomMeterHandler);
+roomsRouter.patch("/:id", requireRole("owner"), updateRoomHandler);
+roomsRouter.post("/:id/retire", requireRole("owner"), retireRoomHandler);
+roomsRouter.post("/:id/restore", requireRole("owner"), restoreRoomHandler);
