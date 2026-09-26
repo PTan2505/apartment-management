@@ -17,15 +17,20 @@ import {
   transferPrimarySchema,
 } from "./schema.js";
 import { toLeaseResponse, toOccupantResponse } from "./mapper.js";
+import { scopeOf } from "@/middleware/staff-scope.js";
+import { assertTermsAreTheirs, RENEWAL_TERMS, SIGNING_TERMS } from "./owner-terms.js";
 import * as leaseService from "./service.js";
 
 export async function createLeaseHandler(req: Request, res: Response) {
+  // Before parsing, so that "supplied" and "defaulted" are still telling apart.
+  assertTermsAreTheirs(req, SIGNING_TERMS);
+
   const parsed = createLeaseSchema.safeParse(req.body);
   if (!parsed.success) {
     throw new ValidationError("LEASE_PAYLOAD_INVALID", "Invalid lease payload", parsed.error.flatten());
   }
 
-  const lease = await leaseService.createLease(parsed.data);
+  const lease = await leaseService.createLease(parsed.data, scopeOf(req));
   res.status(201).json(toLeaseResponse(lease));
 }
 
@@ -35,7 +40,7 @@ export async function listLeasesHandler(req: Request, res: Response) {
     throw new ValidationError("QUERY_INVALID", "Invalid query parameters", parsed.error.flatten());
   }
 
-  const leases = await leaseService.listLeases(parsed.data);
+  const leases = await leaseService.listLeases(parsed.data, scopeOf(req));
   res.status(200).json(mapPaginated(leases, toLeaseResponse));
 }
 
@@ -173,6 +178,10 @@ export async function transferPrimaryHandler(req: Request, res: Response) {
 }
 
 export async function extendLeaseHandler(req: Request, res: Response) {
+  // A renewal is where a price rise takes effect, so the same two figures are
+  // the owner's here as at signing.
+  assertTermsAreTheirs(req, RENEWAL_TERMS);
+
   const parsed = extendLeaseSchema.safeParse(req.body);
   if (!parsed.success) {
     throw new ValidationError("LEASE_EXTENSION_PAYLOAD_INVALID", "Invalid extension payload", parsed.error.flatten());

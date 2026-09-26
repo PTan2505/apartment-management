@@ -3,6 +3,7 @@ import { mapPaginated, paginate, toSkipTake } from "@/lib/pagination.js";
 import { findLatestKnownReading } from "@/lib/meter-history.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import { inServiceWhere } from "@/modules/buildings/service.js";
+import { buildingWhere, withinScope, type BuildingScope } from "@/middleware/staff-scope.js";
 import { HOLDS_ITS_ROOM } from "@/modules/leases/occupancy.js";
 // The same arithmetic the lease's own expected end uses. Computed in one place
 // so a room and its tenancy can never disagree about the day it comes free.
@@ -128,12 +129,12 @@ async function assertRoomCodeAvailable(
   }
 }
 
-export async function createRoom(input: CreateRoomInput) {
+export async function createRoom(input: CreateRoomInput, scope: BuildingScope = null) {
   const building = await prisma.building.findUnique({
     where: { id: input.buildingId },
   });
 
-  if (!building) {
+  if (!building || !withinScope(scope, building.id)) {
     throw new NotFoundError("BUILDING_NOT_FOUND", "Building not found");
   }
 
@@ -146,9 +147,19 @@ export async function createRoom(input: CreateRoomInput) {
   return toRoom(await prisma.room.create({ data: input, select: roomSelect }));
 }
 
-export async function listRooms(query: ListRoomsQuery) {
+export async function listRooms(query: ListRoomsQuery, scope: BuildingScope = null) {
   const where = {
-    ...(query.buildingId ? { buildingId: query.buildingId } : {}),
+    /*
+      The caller's buildings and the building they asked for, as an AND.
+
+      Spread as two `buildingId` keys the second replaces the first — and the
+      first is the scope, so `?buildingId=<somebody else's>` would have
+      answered with somebody else's rooms. Found by asking exactly that.
+    */
+    AND: [
+      ...(scope === null ? [] : [buildingWhere(scope)]),
+      ...(query.buildingId ? [{ buildingId: query.buildingId }] : []),
+    ],
     // Partial, case-insensitive. Without a building the same code can match
     // one room per building, since a code identifies a room only within its
     // building.
@@ -201,16 +212,19 @@ export async function listRooms(query: ListRoomsQuery) {
   );
 }
 
-export async function getRoomById(id: number) {
+export async function getRoomById(id: number, scope: BuildingScope = null) {
   const room = await prisma.room.findUnique({ where: { id }, select: roomSelect });
-  if (!room) {
+  // A room outside the caller's buildings reads as absent, not as forbidden:
+  // "you may not see this" confirms it exists, and an id that can be probed
+  // for existence counts another building's rooms one request at a time.
+  if (!room || !withinScope(scope, room.buildingId)) {
     throw new NotFoundError("ROOM_NOT_FOUND", "Room not found");
   }
   return toRoom(room);
 }
 
-export async function updateRoom(id: number, input: UpdateRoomInput) {
-  const room = await getRoomById(id);
+export async function updateRoom(id: number, input: UpdateRoomInput, scope: BuildingScope = null) {
+  const room = await getRoomById(id, scope);
 
   if (input.roomCode && input.roomCode !== room.roomCode && room.isActive) {
     await assertRoomCodeAvailable(room.buildingId, input.roomCode, room.id);
@@ -219,8 +233,8 @@ export async function updateRoom(id: number, input: UpdateRoomInput) {
   return toRoom(await prisma.room.update({ where: { id }, data: input, select: roomSelect }));
 }
 
-export async function retireRoom(id: number) {
-  const room = await getRoomById(id);
+export async function retireRoom(id: number, scope: BuildingScope = null) {
+  const room = await getRoomById(id, scope);
 
   // An occupied room cannot be taken out of service while a tenant holds it.
   // Read from what the room already reports, rather than asking again — the
@@ -238,8 +252,8 @@ export async function retireRoom(id: number) {
   );
 }
 
-export async function restoreRoom(id: number) {
-  const room = await getRoomById(id);
+export async function restoreRoom(id: number, scope: BuildingScope = null) {
+  const room = await getRoomById(id, scope);
 
   // Retiring a room frees its code for reuse, so restoring can collide with a
   // newer active room that has since taken that code.
@@ -266,8 +280,8 @@ export async function restoreRoom(id: number) {
  * is genuinely nothing to fall back on, and the caller must ask for a reading.
  * That is the case a lease-creation form has to handle rather than assume.
  */
-export async function getLatestMeterReading(id: number) {
-  await getRoomById(id);
+export async function getLatestMeterReading(id: number, scope: BuildingScope = null) {
+  await getRoomById(id, scope);
   const latest = await findLatestKnownReading(id);
   return latest === null
     ? { reading: null, at: null, source: null }

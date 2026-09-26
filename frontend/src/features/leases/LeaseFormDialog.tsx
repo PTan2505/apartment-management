@@ -22,6 +22,7 @@ import TextField from '@mui/material/TextField'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
 
+import { useIsOwner } from '@/features/auth/useAuth'
 import { MoneyField } from '@/components/MoneyField'
 import { isApiError } from '@/lib/api-error'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
@@ -67,6 +68,7 @@ function coTep(bytes: number): string {
 }
 
 export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormDialogProps) {
+  const isOwner = useIsOwner()
   const theme = useTheme()
   const fullScreen = useMediaQuery(theme.breakpoints.down(MOBILE_BREAKPOINT))
 
@@ -227,6 +229,13 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
         if (building) {
           setValue('electricityRate', building.electricityRate)
           setValue('waterRatePerPerson', building.waterRatePerPerson)
+          // And the deposit, for the same reason as the rent: a figure in the
+          // box can be read against the agreement in front of whoever is
+          // signing. It used to be left blank on the argument that a default
+          // would hide "nobody filled this in" — but this default is a number
+          // the OWNER stated on the building, not a guess, so the argument no
+          // longer holds.
+          setValue('depositMonths', building.defaultDepositMonths)
         }
       }
     }
@@ -799,19 +808,26 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
               // Months of rent, not currency — the unit is what keeps the field
               // from reading as an amount in đồng.
               input: {
+                readOnly: !isOwner,
                 endAdornment: <InputAdornment position="end">tháng</InputAdornment>,
               },
             }}
             error={Boolean(errors.depositMonths)}
             /**
-             * Required, and 0 is a valid answer.
+             * The owner's to set; 0 is a valid answer.
              *
-             * Left blank rather than defaulted to zero: a default would record
-             * "no deposit was taken" and "nobody filled this in" identically,
-             * and months later only one of those is safe to refund against.
+             * For the owner, left blank rather than defaulted: a blank means
+             * "use the building's figure", which the API resolves, while a
+             * typed 0 means "no deposit on this one". For a manager it is
+             * filled from the building and read-only — they quote the number
+             * to the person signing, so it has to be legible, and it is not
+             * theirs to move.
              */
             helperText={
-              errors.depositMonths?.message ?? 'Số tháng tiền thuê. Nhập 0 nếu không thu cọc'
+              errors.depositMonths?.message ??
+              (isOwner
+                ? 'Số tháng tiền thuê. Để trống là lấy theo toà nhà, nhập 0 nếu không thu cọc'
+                : 'Theo toà nhà. Chủ nhà là người đổi số này.')
             }
             {...register('depositMonths', { valueAsNumber: true })}
           />
@@ -825,9 +841,14 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
               label="Giá thuê thoả thuận"
               unit="đ / tháng"
               // Filled from the room when one is chosen, and editable from
-              // there. An empty box still means "leave it to the API", which is
-              // what an owner who clears it is asking for.
-              helperText="Điền sẵn theo giá thuê của phòng. Sửa được nếu thoả thuận khác."
+              // there FOR THE OWNER. An empty box still means "leave it to the
+              // API", which is what an owner who clears it is asking for.
+              readOnly={!isOwner}
+              helperText={
+                isOwner
+                  ? 'Điền sẵn theo giá thuê của phòng. Sửa được nếu thoả thuận khác.'
+                  : 'Theo giá thuê của phòng. Chủ nhà là người đổi giá này.'
+              }
             />
             <TextField
               label="Số điện đầu kỳ"
@@ -968,7 +989,12 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
               label="Giá điện"
               unit="đ / kWh"
               decimals
-              helperText="Điền sẵn theo toà nhà. Hợp đồng này giữ giá đã ghi ở đây."
+              readOnly={!isOwner}
+              helperText={
+                isOwner
+                  ? 'Điền sẵn theo toà nhà. Hợp đồng này giữ giá đã ghi ở đây.'
+                  : 'Theo toà nhà. Chủ nhà là người đổi giá này.'
+              }
             />
             <MoneyField
               control={control}
@@ -976,7 +1002,12 @@ export function LeaseFormDialog({ open, roomId, onClose, onCreated }: LeaseFormD
               label="Giá nước"
               unit="đ / người / tháng"
               decimals
-              helperText="Điền sẵn theo toà nhà. Sửa được nếu thoả thuận khác."
+              readOnly={!isOwner}
+              helperText={
+                isOwner
+                  ? 'Điền sẵn theo toà nhà. Sửa được nếu thoả thuận khác.'
+                  : 'Theo toà nhà. Chủ nhà là người đổi giá này.'
+              }
             />
           </Stack>
 

@@ -54,6 +54,9 @@ const EMPTY: BuildingFormValues = {
   country: "Vietnam",
   electricityRate: 0,
   waterRatePerPerson: 0,
+  // One month, the arrangement most buildings use and the figure every
+  // existing building was backfilled at.
+  defaultDepositMonths: 1,
   placeId: null,
 };
 
@@ -190,6 +193,7 @@ export function BuildingFormDialog({
             country: building.country,
             electricityRate: building.electricityRate,
             waterRatePerPerson: building.waterRatePerPerson,
+            defaultDepositMonths: building.defaultDepositMonths,
             placeId: building.placeId,
           }
         : EMPTY,
@@ -416,6 +420,18 @@ export function BuildingFormDialog({
             unit="đ / người / tháng"
             decimals
             helperText="Đồng mỗi người mỗi tháng"
+          />
+          {/*
+            Beside the rates because it is the same kind of figure: a policy
+            this building applies to tenancies signed later, not a charge on
+            one already running. Whole months only — no `decimals`.
+          */}
+          <MoneyField
+            control={control}
+            name="defaultDepositMonths"
+            label="Tiền cọc mặc định"
+            unit="tháng"
+            helperText="Số tháng tiền thuê. Hợp đồng ký ở toà này lấy theo số này, nhập 0 nếu không thu cọc"
           />
 
           {/*

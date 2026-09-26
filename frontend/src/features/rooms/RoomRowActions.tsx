@@ -10,6 +10,7 @@ import DescriptionIcon from '@mui/icons-material/Description'
 import ArchiveIcon from '@mui/icons-material/Archive'
 import UnarchiveIcon from '@mui/icons-material/Unarchive'
 
+import { useIsOwner } from '@/features/auth/useAuth'
 import type { Room } from '@/features/rooms/types'
 
 interface RoomRowActionsProps {
@@ -39,12 +40,27 @@ export function RoomRowActions({
   onRestore,
   onStartLease,
 }: RoomRowActionsProps) {
+  const isOwner = useIsOwner()
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const close = () => setAnchorEl(null)
 
   function run(action: (room: Room) => void) {
     close()
     action(room)
+  }
+
+  /*
+    Signing a tenancy is a manager's work; pricing and retiring the room are
+    not. Withheld on a room already let (it cannot take a second tenancy) and
+    on a retired one (the API rejects it) — not offering beats explaining a
+    refusal.
+  */
+  const canStartLease = room.isActive && !room.isLet
+
+  // A manager looking at a let or retired room has nothing left to be offered,
+  // and an actions button that opens onto an empty menu is worse than none.
+  if (!isOwner && !canStartLease) {
+    return null
   }
 
   return (
@@ -65,7 +81,7 @@ export function RoomRowActions({
           tenancy) and on a retired one (the API rejects it). Not offering
           beats explaining a refusal.
         */}
-        {room.isActive && !room.isLet && (
+        {canStartLease && (
           <MenuItem onClick={() => run(onStartLease)}>
             <ListItemIcon>
               <DescriptionIcon fontSize="small" />
@@ -73,29 +89,36 @@ export function RoomRowActions({
             <ListItemText>Hợp đồng mới</ListItemText>
           </MenuItem>
         )}
-        <MenuItem onClick={() => run(onEdit)}>
-          <ListItemIcon>
-            <EditIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Sửa</ListItemText>
-        </MenuItem>
-        {room.isActive ? (
-          <MenuItem onClick={() => run(onRetire)}>
+        {/*
+          What a room CHARGES, and whether it is offered at all, are the
+          owner's. A manager lets the room; they do not price it or retire it.
+        */}
+        {isOwner && (
+          <MenuItem onClick={() => run(onEdit)}>
             <ListItemIcon>
-              <ArchiveIcon fontSize="small" />
+              <EditIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Ngưng hoạt động</ListItemText>
-          </MenuItem>
-        ) : (
-          // Restoring can still be refused — another room may have taken this
-          // code since — so it is attempted rather than assumed to succeed.
-          <MenuItem onClick={() => run(onRestore)}>
-            <ListItemIcon>
-              <UnarchiveIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Cho hoạt động lại</ListItemText>
+            <ListItemText>Sửa</ListItemText>
           </MenuItem>
         )}
+        {isOwner &&
+          (room.isActive ? (
+            <MenuItem onClick={() => run(onRetire)}>
+              <ListItemIcon>
+                <ArchiveIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Ngưng hoạt động</ListItemText>
+            </MenuItem>
+          ) : (
+            // Restoring can still be refused — another room may have taken this
+            // code since — so it is attempted rather than assumed to succeed.
+            <MenuItem onClick={() => run(onRestore)}>
+              <ListItemIcon>
+                <UnarchiveIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Cho hoạt động lại</ListItemText>
+            </MenuItem>
+          ))}
       </Menu>
     </>
   )

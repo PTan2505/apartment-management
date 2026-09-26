@@ -3,6 +3,18 @@ import { paginationQueryFields } from "@/lib/pagination.js";
 
 const rate = z.coerce.number().nonnegative("must not be negative");
 
+/**
+ * How many months of rent this building's tenancies take as a deposit.
+ *
+ * Whole months, because that is how a deposit is agreed — "two months' rent",
+ * never two and a half. Zero is a real answer for a building that takes none,
+ * which is why the field is not simply required to be positive.
+ */
+const depositMonths = z.coerce
+  .number()
+  .int("must be a whole number of months")
+  .nonnegative("must not be negative");
+
 export const createBuildingSchema = z.object({
   displayName: z.string().min(1, "displayName is required"),
   // The street line only. Ward, city and country are held separately so
@@ -13,6 +25,10 @@ export const createBuildingSchema = z.object({
   country: z.string().min(1).default("Vietnam"),
   electricityRate: rate,
   waterRatePerPerson: rate,
+  // Optional, defaulting to one month: the arrangement most buildings use, and
+  // the figure every existing building was backfilled at. A building that takes
+  // no deposit states zero rather than omitting it.
+  defaultDepositMonths: depositMonths.default(1),
   // Where the address was resolved from. Optional: an address may be typed by
   // hand, and then no such place exists. Recording it makes a future
   // re-resolution possible without re-entering the address from memory.
@@ -28,6 +44,7 @@ export const updateBuildingSchema = z
     country: z.string().min(1),
     electricityRate: rate,
     waterRatePerPerson: rate,
+    defaultDepositMonths: depositMonths,
     // Nullable as well as optional: clearing it is meaningful. After an address
     // is corrected by hand, leaving the identifier would claim the address came
     // from a place it no longer matches.

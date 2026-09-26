@@ -38,6 +38,7 @@ import {
 } from '@/features/invoices/labels'
 import { lineLabel } from '@/lib/invoice-lines'
 import { RecordPaymentDialog } from '@/features/invoices/RecordPaymentDialog'
+import { useIsOwner } from '@/features/auth/useAuth'
 import { VoidInvoiceDialog } from '@/features/invoices/VoidInvoiceDialog'
 import type { Invoice, InvoiceLineItem, Payment } from '@/features/invoices/types'
 
@@ -142,6 +143,7 @@ function PaymentsCard({
   onReverse: (payment: Payment) => void
   reversing: number | null
 }) {
+  const isOwner = useIsOwner()
   const real = invoice.payments.filter(
     (payment) => payment.state === 'succeeded' || payment.state === 'reversed',
   )
@@ -183,15 +185,24 @@ function PaymentsCard({
                 {payment.state === 'reversed' ? (
                   <Chip size="small" label="Đã hoàn tiền" />
                 ) : (
-                  <Button
-                    size="small"
-                    color="warning"
-                    startIcon={<UndoIcon />}
-                    disabled={reversing === payment.id}
-                    onClick={() => onReverse(payment)}
-                  >
-                    {reversing === payment.id ? 'Đang hoàn…' : 'Hoàn tiền cho khách'}
-                  </Button>
+                  /*
+                    Undoing a recorded payment says an amount did not arrive
+                    after all, which is the owner's call for the same reason
+                    recording it is. A manager still sees the payment, its
+                    amount and its date — they have to, to answer a tenant who
+                    asks whether it went through.
+                  */
+                  isOwner && (
+                    <Button
+                      size="small"
+                      color="warning"
+                      startIcon={<UndoIcon />}
+                      disabled={reversing === payment.id}
+                      onClick={() => onReverse(payment)}
+                    >
+                      {reversing === payment.id ? 'Đang hoàn…' : 'Hoàn tiền cho khách'}
+                    </Button>
+                  )
                 )}
               </Box>
             ))}
@@ -205,6 +216,7 @@ function PaymentsCard({
 export function InvoiceDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const isOwner = useIsOwner()
   const invoiceQuery = useInvoice(Number(id))
   const reverse = useReversePayment()
 
@@ -486,8 +498,13 @@ export function InvoiceDetailPage() {
           Withheld on a voided bill and on one already settled, rather than
           offered and refused: the API answers 409 for both, and a control that
           cannot work is worse than no control.
+
+          Withheld from a manager on a different ground: declaring that money
+          arrived, or that a debt never existed, moves the figures the revenue
+          report adds up — which a manager cannot even read. The bill itself,
+          and what it still owes, stays in front of them.
         */}
-        {!isVoided && invoice.paymentStatus === 'pending' && (
+        {isOwner && !isVoided && invoice.paymentStatus === 'pending' && (
           <Box>
             <Divider sx={{ mb: 2 }} />
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>

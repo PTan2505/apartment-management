@@ -6,6 +6,7 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import AddIcon from '@mui/icons-material/Add'
 
+import { useIsOwner } from '@/features/auth/useAuth'
 import { PageHeader } from '@/components/PageHeader'
 import { statusFromParam } from '@/lib/active-status'
 import { ListSurface } from '@/components/ListSurface'
@@ -62,6 +63,8 @@ export function BuildingsPage() {
   const [restoring, setRestoring] = useState<Building | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
 
+  const isOwner = useIsOwner()
+
   function openCreate() {
     setEditing(null)
     setFormOpen(true)
@@ -75,9 +78,13 @@ export function BuildingsPage() {
   const header = (
     <PageHeader
       action={
-        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-          Thêm toà nhà
-        </Button>
+        // Buildings are the owner's to add; a manager covers the ones they are
+        // given.
+        isOwner ? (
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+            Thêm toà nhà
+          </Button>
+        ) : undefined
       }
     />
   )
@@ -128,11 +135,20 @@ export function BuildingsPage() {
       ) : (
         <EmptyState
           title="Chưa có toà nhà nào"
-          description="Thêm toà nhà đầu tiên bạn quản lý để bắt đầu."
+          // Two different situations wearing the same empty list: an owner who
+          // has not added a building yet, and a manager who has not been given
+          // one. Telling a manager to add one would offer work they cannot do.
+          description={
+            isOwner
+              ? 'Thêm toà nhà đầu tiên bạn quản lý để bắt đầu.'
+              : 'Bạn chưa được giao toà nào. Hãy nhờ chủ nhà giao toà cho bạn.'
+          }
           action={
-            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-              Thêm toà nhà
-            </Button>
+            isOwner ? (
+              <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+                Thêm toà nhà
+              </Button>
+            ) : undefined
           }
         />
       )

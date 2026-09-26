@@ -40,8 +40,10 @@ import { MoveOutDialog } from '@/features/leases/MoveOutDialog'
 import { RenewLeaseDialog } from '@/features/leases/RenewLeaseDialog'
 import { IdCardCard } from '@/features/customers/IdCardCard'
 import { ContractCard } from '@/features/leases/ContractCard'
+import { useIsOwner } from '@/features/auth/useAuth'
 import { EditTermsDialog } from '@/features/leases/EditTermsDialog'
 import { LeaseInvoicesPanel } from '@/features/leases/LeaseInvoicesPanel'
+import { LeaseServiceFeesCard } from '@/features/leases/LeaseServiceFeesCard'
 import { OccupantsCard } from '@/features/leases/OccupantsCard'
 import { PortalLinkCard } from '@/features/leases/PortalLinkCard'
 import { isLive, leaseStatusColor, leaseStatusLabel } from '@/features/leases/status'
@@ -103,6 +105,8 @@ function BandFact({ label, value }: { label: string; value: string }) {
  * down a list of equal-weight rows is a summary the screen declined to give.
  */
 function SummaryBand({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
+  const isOwner = useIsOwner()
+
   /*
     How near the end it is, or how far past it — the same measurement pointing
     two ways, so one field says both. Emphasised only in the two states that
@@ -220,8 +224,13 @@ function SummaryBand({ lease, onEdit }: { lease: Lease; onEdit: () => void }) {
               Withheld on a finished tenancy rather than offered and refused:
               the API answers 409, and a control that cannot work is worse than
               no control.
+
+              Withheld from a manager for the same reason and a different rule:
+              what a signed agreement SAYS is the owner's to revise. Everything
+              it says stays readable above — a manager works from these terms
+              daily, they simply do not rewrite them.
             */}
-            {isLive(lease.status) && (
+            {isOwner && isLive(lease.status) && (
               <Button variant="contained" startIcon={<EditIcon />} onClick={onEdit}>
                 Chỉnh sửa hợp đồng
               </Button>
@@ -583,6 +592,13 @@ export function LeaseDetailPage() {
       >
         <Stack spacing={2}>
           <TermsCard lease={lease} />
+          {/*
+            Directly under the terms, because that is what these are: money the
+            tenancy owes every month, agreed alongside the rent. Above the
+            occupants, because the occupant count and the fees are read
+            together — the water is per person and the parking is per bike.
+          */}
+          <LeaseServiceFeesCard lease={lease} />
           <OccupantsCard lease={lease} />
           <ContractCard lease={lease} />
           {lease.tenant !== null && (

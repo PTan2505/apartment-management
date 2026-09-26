@@ -11,6 +11,9 @@ import {
   reissueLeasePortalLinkHandler,
   revokeLeasePortalLinkHandler,
 } from "@/modules/tenant-portal/controller.js";
+import { accountGuard, requireParamInScope } from "@/middleware/staff-scope.js";
+import { leaseBuildingId } from "@/lib/scope-lookup.js";
+import { RESOURCE } from "@/lib/parse-id.js";
 import { requireRole } from "@/middleware/require-role.js";
 import {
   createLeaseHandler,
@@ -32,12 +35,28 @@ import {
 
 export const leasesRouter = Router();
 
-leasesRouter.use(authenticate, requireRole("owner"));
+leasesRouter.use(authenticate, accountGuard, requireRole("owner", "manager"));
+
+/*
+  Every route below that names a tenancy by id — and every router mounted under
+  one, occupants and service fees among them — is checked against the caller's
+  buildings here, once. A tenancy in a building they do not cover reads as
+  absent.
+*/
+leasesRouter.param("id", requireParamInScope(RESOURCE.lease, leaseBuildingId));
 
 leasesRouter.post("/", createLeaseHandler);
 leasesRouter.get("/", listLeasesHandler);
 leasesRouter.get("/:id", getLeaseHandler);
-leasesRouter.patch("/:id", updateLeaseHandler);
+/*
+  Correcting the terms of a signed tenancy is the owner's.
+
+  This is the one route here that a manager loses, and the occupant count goes
+  with it — the same endpoint carries both, and the count decides the water
+  bill. A manager signs tenancies and closes them; what a signed one SAYS is
+  not theirs to revise afterwards.
+*/
+leasesRouter.patch("/:id", requireRole("owner"), updateLeaseHandler);
 leasesRouter.post("/:id/move-out", moveOutHandler);
 // Recording that a tenancy never took place. A different event from a move-out
 // and deliberately a different endpoint: the two take different inputs, refuse
