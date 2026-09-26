@@ -1,7 +1,11 @@
-import { createBrowserRouter, Navigate } from 'react-router'
+import { createBrowserRouter } from 'react-router'
 
 import { AppShell } from '@/layouts/AppShell'
-import { DEFAULT_PATH } from '@/app/navigation'
+import { RoleRoute } from '@/features/auth/RoleRoute'
+import { ChangePasswordPage } from '@/features/auth/pages/ChangePasswordPage'
+import { StaffPage } from '@/features/staff/StaffPage'
+import { DamageReportsPage } from '@/features/damage-reports/DamageReportsPage'
+import { RoleLanding } from '@/features/auth/RoleLanding'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { AuthProvider } from '@/features/auth/AuthProvider'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
@@ -60,21 +64,51 @@ export const router = createBrowserRouter([
           {
             element: <AppShell />,
             children: [
-              { index: true, element: <Navigate to={DEFAULT_PATH} replace /> },
+              // Where `/` goes depends on who is signed in: maintenance has no
+              // buildings screen to land on.
+              { index: true, element: <RoleLanding /> },
 
-              { path: 'buildings', element: <BuildingsPage /> },
-              { path: 'buildings/:id', element: <BuildingDetailPage /> },
-              { path: 'rooms', element: <RoomsPage /> },
-              { path: 'customers', element: <CustomersPage /> },
-              { path: 'leases', element: <LeasesPage /> },
-              { path: 'leases/:id', element: <LeaseDetailPage /> },
-              { path: 'invoices', element: <InvoicesPage /> },
-              // Before `invoices/:id`, so the literal path is not read as an id.
-              { path: 'invoices/billing-run', element: <BillingRunPage /> },
-              { path: 'invoices/:id', element: <InvoiceDetailPage /> },
-              { path: 'expenses', element: <ExpensesPage /> },
-              { path: 'expenses/empty-rooms', element: <VacancyRunPage /> },
-              { path: 'revenue', element: <RevenueReportPage /> },
+              /*
+                Changing one's own password sits OUTSIDE the role gate below —
+                it is the one screen an account owing a change may open, and
+                every role may reach it from their own name.
+              */
+              { path: 'change-password', element: <ChangePasswordPage /> },
+
+              {
+                element: <RoleRoute allow={['owner', 'manager', 'maintenance']} />,
+                children: [{ path: 'damage-reports', element: <DamageReportsPage /> }],
+              },
+
+              {
+                element: <RoleRoute allow={['owner']} />,
+                children: [{ path: 'staff', element: <StaffPage /> }],
+              },
+
+              {
+                // The operating screens: the owner and the managers of the
+                // buildings they cover. What each SEES is narrowed by the API.
+                element: <RoleRoute allow={['owner', 'manager']} />,
+                children: [
+                  { path: 'buildings', element: <BuildingsPage /> },
+                  { path: 'buildings/:id', element: <BuildingDetailPage /> },
+                  { path: 'rooms', element: <RoomsPage /> },
+                  { path: 'customers', element: <CustomersPage /> },
+                  { path: 'leases', element: <LeasesPage /> },
+                  { path: 'leases/:id', element: <LeaseDetailPage /> },
+                  { path: 'invoices', element: <InvoicesPage /> },
+                  // Before `invoices/:id`, so the literal path is not read as an id.
+                  { path: 'invoices/billing-run', element: <BillingRunPage /> },
+                  { path: 'invoices/:id', element: <InvoiceDetailPage /> },
+                  { path: 'expenses', element: <ExpensesPage /> },
+                  { path: 'expenses/empty-rooms', element: <VacancyRunPage /> },
+                ],
+              },
+
+              {
+                element: <RoleRoute allow={['owner']} />,
+                children: [{ path: 'revenue', element: <RevenueReportPage /> }],
+              },
 
               // Every destination in the navigation now has a screen. The
               // placeholder mechanism that stood in for the unbuilt ones is

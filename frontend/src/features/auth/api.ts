@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client'
-import type { Account, TokenResponse } from '@/features/auth/types'
+import type { Account, LoginResponse, TokenResponse } from '@/features/auth/types'
 import type { LoginFormValues } from '@/features/auth/schema'
 
 /**
@@ -10,8 +10,8 @@ import type { LoginFormValues } from '@/features/auth/schema'
 
 export const AUTH_REFRESH_PATH = '/auth/refresh'
 
-export async function login(credentials: LoginFormValues): Promise<TokenResponse> {
-  const { data } = await apiClient.post<TokenResponse>('/auth/login', credentials)
+export async function login(credentials: LoginFormValues): Promise<LoginResponse> {
+  const { data } = await apiClient.post<LoginResponse>('/auth/login', credentials)
   return data
 }
 
@@ -37,4 +37,23 @@ export async function logout(): Promise<void> {
 export async function fetchMe(): Promise<Account> {
   const { data } = await apiClient.get<Account>('/auth/me')
   return data
+}
+
+/**
+ * Changing the caller's own password — there is no id to pass, and no way to
+ * aim this at another account.
+ *
+ * Every other session of this account is revoked by the API; the one making
+ * the change keeps working.
+ */
+export async function changePassword(input: {
+  /**
+   * Omitted on a first change, where the account holds a password the owner
+   * issued. Which case applies is the API's decision, taken from the account
+   * — sending it or not cannot opt out of a check.
+   */
+  currentPassword?: string
+  newPassword: string
+}): Promise<void> {
+  await apiClient.post('/auth/password', input)
 }

@@ -5,8 +5,10 @@ import Divider from '@mui/material/Divider'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import LogoutIcon from '@mui/icons-material/Logout'
+import KeyIcon from '@mui/icons-material/Key'
+import { Link as RouterLink } from 'react-router'
 
-import { useAuth } from '@/features/auth/useAuth'
+import { useAuth, useIsOwner } from '@/features/auth/useAuth'
 import { initials, phoneLabel, roleLabel } from '@/features/auth/labels'
 
 /**
@@ -21,6 +23,7 @@ import { initials, phoneLabel, roleLabel } from '@/features/auth/labels'
  * in with.
  */
 export function SidebarAccount() {
+  const isOwner = useIsOwner()
   const { user, signOut } = useAuth()
 
   if (!user) return null
@@ -62,12 +65,44 @@ export function SidebarAccount() {
           </Box>
         </Stack>
 
+        {/*
+          Which buildings a staff account covers, said in the shell.
+
+          Without it a short list reads as records that failed to load rather
+          than as the scope it is: a manager seeing three tenancies has no way
+          to tell "these are mine" from "the rest are missing". An owner is not
+          narrowed at all, so for them there is nothing to say.
+        */}
+        {!isOwner && (
+          <Typography
+            variant="caption"
+            color={user.buildings.length === 0 ? 'warning.main' : 'text.secondary'}
+            component="div"
+            sx={{ mt: 1 }}
+          >
+            {user.buildings.length === 0
+              ? 'Chưa được giao toà nào — hãy nhờ chủ nhà giao'
+              : `Phụ trách: ${user.buildings.map((building) => building.displayName).join(' · ')}`}
+          </Typography>
+        )}
+
+        <Button
+          fullWidth
+          size="small"
+          component={RouterLink}
+          to="/change-password"
+          startIcon={<KeyIcon />}
+          sx={{ mt: 1.5, justifyContent: 'flex-start' }}
+        >
+          Đổi mật khẩu
+        </Button>
+
         <Button
           fullWidth
           size="small"
           startIcon={<LogoutIcon />}
           onClick={() => void signOut()}
-          sx={{ mt: 1.5, justifyContent: 'flex-start' }}
+          sx={{ justifyContent: 'flex-start' }}
         >
           Đăng xuất
         </Button>
