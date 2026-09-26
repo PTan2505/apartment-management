@@ -9,6 +9,7 @@ import {
   updateCustomerSchema,
   listCustomersQuerySchema,
 } from "./schema.js";
+import { scopeOf } from "@/middleware/staff-scope.js";
 import * as customerService from "./service.js";
 
 export async function registerCustomerHandler(req: Request, res: Response) {
@@ -29,12 +30,12 @@ export async function listCustomersHandler(req: Request, res: Response) {
     throw new ValidationError("QUERY_INVALID", "Invalid query parameters", parsed.error.flatten());
   }
 
-  const customers = await customerService.listCustomers(parsed.data);
+  const customers = await customerService.listCustomers(parsed.data, scopeOf(req));
   res.status(200).json(customers);
 }
 
 export async function getCustomerHandler(req: Request, res: Response) {
-  const customer = await customerService.getCustomerById(parseIdParam(req.params.id, RESOURCE.customer));
+  const customer = await customerService.getCustomerById(parseIdParam(req.params.id, RESOURCE.customer), scopeOf(req));
   res.status(200).json(customer);
 }
 
@@ -47,6 +48,7 @@ export async function updateCustomerHandler(req: Request, res: Response) {
   const customer = await customerService.updateCustomer(
     parseIdParam(req.params.id, RESOURCE.customer),
     parsed.data,
+    scopeOf(req),
   );
   res.status(200).json(customer);
 }
@@ -64,6 +66,7 @@ export async function idCardUploadUrlHandler(req: Request, res: Response) {
   const signed = await customerService.signIdCardUpload(
     parseIdParam(req.params.id, RESOURCE.customer),
     parsed.data,
+    scopeOf(req),
   );
   res.status(200).json(signed);
 }
@@ -81,6 +84,7 @@ export async function idCardConfirmHandler(req: Request, res: Response) {
   const customer = await customerService.confirmIdCardUpload(
     parseIdParam(req.params.id, RESOURCE.customer),
     parsed.data,
+    scopeOf(req),
   );
   res.status(200).json(customer);
 }
@@ -98,6 +102,7 @@ export async function idCardDownloadHandler(req: Request, res: Response) {
   const link = await customerService.getIdCardDownload(
     parseIdParam(req.params.id, RESOURCE.customer),
     parseSide(req.params.side),
+    scopeOf(req),
   );
   res.status(200).json(link);
 }
@@ -106,6 +111,7 @@ export async function idCardRemoveHandler(req: Request, res: Response) {
   const customer = await customerService.removeIdCard(
     parseIdParam(req.params.id, RESOURCE.customer),
     parseSide(req.params.side),
+    scopeOf(req),
   );
   res.status(200).json(customer);
 }

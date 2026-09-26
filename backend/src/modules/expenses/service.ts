@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma.js";
+import { buildingWhere, withinScope, type BuildingScope } from "@/middleware/staff-scope.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import { paginate, toSkipTake } from "@/lib/pagination.js";
 import { findLatestKnownReading } from "@/lib/meter-history.js";
@@ -40,7 +41,10 @@ async function assertRoomBelongsToBuilding(buildingId: number, roomId?: number) 
   }
 }
 
-export async function createExpense(input: CreateExpenseInput) {
+export async function createExpense(input: CreateExpenseInput, scope: BuildingScope = null) {
+  if (!withinScope(scope, input.buildingId)) {
+    throw new NotFoundError("BUILDING_NOT_FOUND", "Building not found");
+  }
   await assertRoomBelongsToBuilding(input.buildingId, input.roomId);
 
   const hasMeasure = input.quantity !== undefined && input.unitRate !== undefined;
@@ -78,9 +82,14 @@ export async function createExpense(input: CreateExpenseInput) {
   });
 }
 
-export async function listExpenses(query: ListExpensesQuery) {
+export async function listExpenses(query: ListExpensesQuery, scope: BuildingScope = null) {
   const where = {
-    ...(query.buildingId ? { buildingId: query.buildingId } : {}),
+    // Two clauses about the same column, so an AND — spread, the query's
+    // building id would replace the caller's scope. See the rooms service.
+    AND: [
+      ...(scope === null ? [] : [buildingWhere(scope)]),
+      ...(query.buildingId ? [{ buildingId: query.buildingId }] : []),
+    ],
     ...(query.roomId ? { roomId: query.roomId } : {}),
     ...(query.category ? { category: query.category } : {}),
     ...(query.from || query.to
@@ -104,12 +113,16 @@ export async function listExpenses(query: ListExpensesQuery) {
   );
 }
 
-export async function getExpenseById(id: number) {
-  return findExpenseOrThrow(id);
+export async function getExpenseById(id: number, scope: BuildingScope = null) {
+  const expense = await findExpenseOrThrow(id);
+  if (!withinScope(scope, expense.buildingId)) {
+    throw new NotFoundError("EXPENSE_NOT_FOUND", "Expense not found");
+  }
+  return expense;
 }
 
-export async function updateExpense(id: number, input: UpdateExpenseInput) {
-  await findExpenseOrThrow(id);
+export async function updateExpense(id: number, input: UpdateExpenseInput, scope: BuildingScope = null) {
+  await getExpenseById(id, scope);
   return prisma.expense.update({ where: { id }, data: input });
 }
 
@@ -118,8 +131,8 @@ export async function updateExpense(id: number, input: UpdateExpenseInput) {
  * to a tenant and whose record must survive a correction, an expense is an
  * internal note nobody receives — a mistyped one is noise.
  */
-export async function deleteExpense(id: number) {
-  await findExpenseOrThrow(id);
+export async function deleteExpense(id: number, scope: BuildingScope = null) {
+  await getExpenseById(id, scope);
   await prisma.expense.delete({ where: { id } });
 }
 
@@ -164,7 +177,7 @@ export interface VacancyResult {
  * general rule — no known reading — rather than against "never let", so it
  * narrowed on its own when the rule stopped applying to new rooms.
  */
-export async function listVacancyDue(query: ListVacancyDueQuery) {
+export async function listVacancyDue(query: ListVacancyDueQuery, scope: BuildingScope = null) {
   const monthEnd = new Date(Date.UTC(query.year, query.month, 0));
 
   const rooms = await prisma.room.findMany({
@@ -172,7 +185,10 @@ export async function listVacancyDue(query: ListVacancyDueQuery) {
       // A retired room is not one the owner is waiting to let, and its meter is
       // not their running cost.
       isActive: true,
-      ...(query.buildingId ? { buildingId: query.buildingId } : {}),
+      AND: [
+        ...(scope === null ? [] : [buildingWhere(scope)]),
+        ...(query.buildingId ? [{ buildingId: query.buildingId }] : []),
+      ],
       // No tenancy covering the month's LAST DAY. Expressed as the negation of
       // the same test the guard uses: started by then, and not ended before it.
       leases: {
@@ -222,12 +238,13 @@ export async function listVacancyDue(query: ListVacancyDueQuery) {
 
 export async function recordVacancyElectricity(
   input: RecordVacancyInput,
+  scope: BuildingScope = null,
 ): Promise<VacancyResult> {
   const room = await prisma.room.findUnique({
     where: { id: input.roomId },
     include: { building: true },
   });
-  if (!room) {
+  if (!room || !withinScope(scope, room.buildingId)) {
     throw new NotFoundError("ROOM_NOT_FOUND", "Room not found");
   }
 

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { requireRole } from "@/middleware/require-role.js";
 import {
   createServiceFeeHandler,
   listServiceFeesHandler,
@@ -20,16 +21,20 @@ import {
  * the handlers in this module instead of scattering them into those routers.
  *
  * Authentication is not repeated: both parents already apply it before mounting.
+ *
+ * Roles differ between the two. What a BUILDING charges for is the owner's to
+ * set; which of those a TENANCY agreed to is part of signing it, which a
+ * manager does.
  */
 
 /** Mounted by the buildings router at `/:buildingId/service-fees`. */
 export const buildingServiceFeesRouter = Router({ mergeParams: true });
 
-buildingServiceFeesRouter.post("/", createServiceFeeHandler);
-buildingServiceFeesRouter.get("/", listServiceFeesHandler);
-buildingServiceFeesRouter.patch("/:feeId", updateServiceFeeHandler);
-buildingServiceFeesRouter.post("/:feeId/retire", retireServiceFeeHandler);
-buildingServiceFeesRouter.post("/:feeId/restore", restoreServiceFeeHandler);
+buildingServiceFeesRouter.post("/", requireRole("owner"), createServiceFeeHandler);
+buildingServiceFeesRouter.get("/", requireRole("owner", "manager"), listServiceFeesHandler);
+buildingServiceFeesRouter.patch("/:feeId", requireRole("owner"), updateServiceFeeHandler);
+buildingServiceFeesRouter.post("/:feeId/retire", requireRole("owner"), retireServiceFeeHandler);
+buildingServiceFeesRouter.post("/:feeId/restore", requireRole("owner"), restoreServiceFeeHandler);
 
 /** Mounted by the leases router at `/:id/service-fees`. */
 export const leaseServiceFeesRouter = Router({ mergeParams: true });

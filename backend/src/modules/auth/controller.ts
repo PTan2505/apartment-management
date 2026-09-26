@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { env } from "@/config/env.js";
 import { ValidationError, UnauthorizedError } from "@/lib/errors.js";
-import { loginSchema } from "./schema.js";
+import { changePasswordSchema, loginSchema } from "./schema.js";
 import * as authService from "./service.js";
 
 const REFRESH_COOKIE_NAME = "refreshToken";
@@ -41,7 +41,12 @@ export async function loginHandler(req: Request, res: Response) {
     result.refreshToken,
     refreshCookieOptions(result.refreshTokenExpiresAt.getTime() - Date.now()),
   );
-  res.status(200).json({ accessToken: result.accessToken });
+  res.status(200).json({
+    accessToken: result.accessToken,
+    // Said at sign-in so the application can go where the person has to go,
+    // instead of letting them find out by being refused.
+    mustChangePassword: result.mustChangePassword,
+  });
 }
 
 export async function refreshHandler(req: Request, res: Response) {
@@ -75,4 +80,31 @@ export async function logoutHandler(req: Request, res: Response) {
 
   res.clearCookie(REFRESH_COOKIE_NAME, { path: REFRESH_COOKIE_PATH });
   res.status(200).json({ success: true });
+}
+
+/**
+ * Changing the caller's own password.
+ *
+ * Reachable while the account still owes a change — it is the one thing such
+ * an account may do — so it hangs on the auth router, which `accountGuard`
+ * does not sit on.
+ */
+export async function changePasswordHandler(req: Request, res: Response) {
+  const userId = req.user?.userId;
+  if (userId === undefined) {
+    throw new UnauthorizedError("NOT_AUTHENTICATED", "Not authenticated");
+  }
+
+  const parsed = changePasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw new ValidationError(
+      "PASSWORD_CHANGE_INVALID",
+      "Invalid password change request",
+      parsed.error.flatten(),
+    );
+  }
+
+  // The session making the change keeps working; every other one is revoked.
+  await authService.changePassword(userId, parsed.data, req.cookies?.[REFRESH_COOKIE_NAME]);
+  res.status(204).send();
 }

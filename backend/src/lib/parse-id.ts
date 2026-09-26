@@ -28,6 +28,9 @@ export const RESOURCE = {
   expense: { code: "EXPENSE_NOT_FOUND", label: "Expense" },
   serviceFee: { code: "SERVICE_FEE_NOT_FOUND", label: "Service fee" },
   leaseServiceFee: { code: "LEASE_SERVICE_FEE_NOT_FOUND", label: "Lease service fee" },
+  staff: { code: "STAFF_NOT_FOUND", label: "Staff account" },
+  damageReport: { code: "REPORT_NOT_FOUND", label: "Report" },
+  reportPhoto: { code: "REPORT_PHOTO_NOT_FOUND", label: "Photograph" },
 } as const;
 
 export type Resource = (typeof RESOURCE)[keyof typeof RESOURCE];

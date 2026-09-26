@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "@/middleware/authenticate.js";
+import { accountGuard } from "@/middleware/staff-scope.js";
 import { requireRole } from "@/middleware/require-role.js";
 import {
   idCardConfirmHandler,
@@ -14,7 +15,7 @@ import {
 
 export const customersRouter = Router();
 
-customersRouter.use(authenticate, requireRole("owner"));
+customersRouter.use(authenticate, accountGuard, requireRole("owner", "manager"));
 
 customersRouter.post("/", registerCustomerHandler);
 customersRouter.get("/", listCustomersHandler);

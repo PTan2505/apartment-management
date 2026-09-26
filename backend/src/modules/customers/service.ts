@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma.js";
+import { type BuildingScope } from "@/middleware/staff-scope.js";
 import { mapPaginated, paginate, toSkipTake } from "@/lib/pagination.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import * as storage from "@/lib/storage.js";
@@ -78,9 +79,34 @@ export async function registerCustomer(input: RegisterCustomerInput) {
   return { customer: toCustomerResponse(customer), created: true };
 }
 
-export async function listCustomers(query: ListCustomersQuery) {
+/**
+ * Which people a caller may see.
+ *
+ * A person belongs to no building, so this is not the scope filter the other
+ * modules use. Staff see somebody who has lived in one of their buildings, or
+ * somebody who has never had a tenancy at all.
+ *
+ * The second half is not a leak, it is the pool: a person just registered has
+ * no tenancy yet, and the staff member who registered them has to be able to
+ * open them and sign one. One person holds one room at a time, so somebody
+ * with no tenancy is nobody else's tenant either.
+ */
+function visibleCustomerWhere(scope: BuildingScope) {
+  if (scope === null) return {};
+  return {
+    OR: [
+      { leaseOccupants: { some: { lease: { room: { buildingId: { in: scope } } } } } },
+      { leaseOccupants: { none: {} } },
+    ],
+  };
+}
+
+export async function listCustomers(query: ListCustomersQuery, scope: BuildingScope = null) {
   const where = {
     role: "customer" as const,
+    // Kept in an AND beside the search, which owns the top-level `OR` key: two
+    // OR clauses spread into one object would leave only the second.
+    AND: [visibleCustomerWhere(scope)],
     ...(query.search
       ? {
           OR: [
@@ -113,9 +139,9 @@ export async function listCustomers(query: ListCustomersQuery) {
   );
 }
 
-export async function getCustomerById(id: number) {
+export async function getCustomerById(id: number, scope: BuildingScope = null) {
   const customer = await prisma.user.findFirst({
-    where: { id, role: "customer" },
+    where: { id, role: "customer", AND: [visibleCustomerWhere(scope)] },
     select: customerSelect,
   });
 
@@ -125,8 +151,12 @@ export async function getCustomerById(id: number) {
   return toCustomerResponse(customer);
 }
 
-export async function updateCustomer(id: number, input: UpdateCustomerInput) {
-  await getCustomerById(id);
+export async function updateCustomer(
+  id: number,
+  input: UpdateCustomerInput,
+  scope: BuildingScope = null,
+) {
+  await getCustomerById(id, scope);
 
   if (input.phone) {
     const clash = await prisma.user.findFirst({
@@ -177,9 +207,9 @@ const SIDE_COLUMN = {
   back: "idCardBackKey",
 } as const;
 
-async function findCustomerRow(id: number) {
+async function findCustomerRow(id: number, scope: BuildingScope = null) {
   const customer = await prisma.user.findFirst({
-    where: { id, role: "customer" },
+    where: { id, role: "customer", AND: [visibleCustomerWhere(scope)] },
     select: { id: true, idCardFrontKey: true, idCardBackKey: true },
   });
   if (!customer) {
@@ -191,14 +221,19 @@ async function findCustomerRow(id: number) {
 export async function signIdCardUpload(
   id: number,
   input: IdCardUploadInput,
+  scope: BuildingScope = null,
 ) {
-  await findCustomerRow(id);
+  await findCustomerRow(id, scope);
   assertStorage();
   return storage.signIdCardUpload(id, input.side, input.contentType);
 }
 
-export async function confirmIdCardUpload(id: number, input: IdCardConfirmInput) {
-  await findCustomerRow(id);
+export async function confirmIdCardUpload(
+  id: number,
+  input: IdCardConfirmInput,
+  scope: BuildingScope = null,
+) {
+  await findCustomerRow(id, scope);
   assertStorage();
 
   // Checked against this customer's own prefix rather than trusted. Without it,
@@ -243,8 +278,12 @@ export async function confirmIdCardUpload(id: number, input: IdCardConfirmInput)
   return getCustomerById(id);
 }
 
-export async function getIdCardDownload(id: number, side: "front" | "back") {
-  const customer = await findCustomerRow(id);
+export async function getIdCardDownload(
+  id: number,
+  side: "front" | "back",
+  scope: BuildingScope = null,
+) {
+  const customer = await findCustomerRow(id, scope);
   assertStorage();
   const key = customer[SIDE_COLUMN[side]];
   if (key === null) {
@@ -253,8 +292,12 @@ export async function getIdCardDownload(id: number, side: "front" | "back") {
   return storage.signDownload(key);
 }
 
-export async function removeIdCard(id: number, side: "front" | "back") {
-  const customer = await findCustomerRow(id);
+export async function removeIdCard(
+  id: number,
+  side: "front" | "back",
+  scope: BuildingScope = null,
+) {
+  const customer = await findCustomerRow(id, scope);
   assertStorage();
   if (customer[SIDE_COLUMN[side]] === null) {
     throw new NotFoundError("ID_CARD_NONE_ON_FILE", "That side is not on file for this customer");
