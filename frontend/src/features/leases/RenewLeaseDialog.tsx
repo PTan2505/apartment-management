@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Alert from '@mui/material/Alert'
 import AlertTitle from '@mui/material/AlertTitle'
 import Box from '@mui/material/Box'
@@ -117,6 +117,26 @@ export function RenewLeaseDialog({ open, lease, onRenewed, onClose }: RenewLease
   useEffect(() => {
     if (open && rent === undefined && giaPhong !== undefined) setRent(giaPhong)
   }, [open, rent, giaPhong])
+
+  /*
+    Điền sẵn số cũ, thay vì để trống.
+
+    Trước đây ô này CỐ Ý để trống: nó quyết định hoá đơn cuối, là con số duy
+    nhất trên hình không ai kiểm lại được sau đó, và một giá trị điền sẵn thì
+    rất dễ bị bấm qua mà không ai ra xem công tơ. Chủ nhà chọn đổi lại cho
+    đồng bộ với mọi ô khác — đánh đổi là nếu không ai sửa thì hoá đơn ra 0 kWh
+    tiền điện, khách không phàn nàn, và tiền mất âm thầm.
+  */
+  const daDienSan = useRef(false)
+  useEffect(() => {
+    if (!open) {
+      daDienSan.current = false
+      return
+    }
+    if (daDienSan.current || lease.lastInvoicedMeterReading === null) return
+    daDienSan.current = true
+    setReading(String(lease.lastInvoicedMeterReading))
+  }, [open, lease.lastInvoicedMeterReading])
 
   const current = (occupantsQuery.data?.data ?? []).filter((o) => o.leftAt === null)
   const soThang = Number(months)
