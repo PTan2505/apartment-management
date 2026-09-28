@@ -140,7 +140,7 @@ The screen SHALL be able to return to a previously viewed page through the brows
 
 ### Requirement: The owner can create and edit a building
 
-The application SHALL let the owner create a building and edit an existing one, capturing its name, address, and both rates.
+The application SHALL let the owner create a building and edit an existing one, capturing its name, address, both rates, and the number of months of rent its tenancies take as a deposit by default.
 
 The street line, ward, city, and country SHALL each be presented as a field, and SHALL be editable by default. Address lookup is optional infrastructure and its data is incomplete — a deployment may have none configured, the provider may be unreachable, an address may not be in its data, and a resolved value may be wrong — so entering an address by hand SHALL always work. Requiring a chosen place in order to create a building would make an external service a prerequisite for a core operation.
 
@@ -156,7 +156,7 @@ The owner SHALL be able to make the fields editable again. Doing so SHALL discar
 
 Where lookup cannot work — none configured, or the provider unavailable — the form SHALL say so and the fields SHALL remain editable, rather than offering a search that cannot answer.
 
-The form SHALL require exactly what the API requires and no more, so it never rejects input the API would have accepted. Rates SHALL accept fractional values and SHALL NOT accept negative ones. Country SHALL default so it need not be entered.
+The form SHALL require exactly what the API requires and no more, so it never rejects input the API would have accepted. Rates SHALL accept fractional values and SHALL NOT accept negative ones. The default deposit SHALL accept only whole months, SHALL NOT accept negative ones, and SHALL accept zero, for a building that takes none. Country SHALL default so it need not be entered.
 
 When the API rejects a submission, the reported problems SHALL be shown against the fields they concern where the API identifies them, and otherwise against the form.
 
@@ -298,6 +298,16 @@ On success the list SHALL reflect the change without the owner reloading the scr
 
 - **WHEN** an owner opens the form on a narrow viewport
 - **THEN** it is usable at that width, with every field reachable and the form dismissible
+
+#### Scenario: Setting the deposit a building takes
+
+- **WHEN** an owner creates or edits a building and states the months of rent its tenancies take as a deposit
+- **THEN** the building records that number, and it is the figure tenancies signed there fall back to
+
+#### Scenario: A fractional deposit is refused before it is sent
+
+- **WHEN** an owner types half a month as a building's default deposit
+- **THEN** the form says so and does not submit
 
 ### Requirement: The screen adapts to the viewport
 
@@ -487,4 +497,138 @@ Saving a building whose rates are unchanged SHALL NOT be confirmed, however many
 
 - **WHEN** an owner declines the confirmation
 - **THEN** the form is still open with the rates they entered, and nothing was sent
+
+### Requirement: A building's page states what it is configured to
+
+The building's own page SHALL show what the owner has set it to: its electricity rate,
+its water rate per person, the number of months of rent its tenancies take as a deposit
+by default, and the service fees it charges beside rent.
+
+Each figure SHALL be shown as a named field rather than as running text, and SHALL say
+what it reaches: a rate applies to tenancies signed from then on, and the deposit is the
+figure a new tenancy falls back to. A reader must be able to tell a SETTING from the
+building's address, which sits directly above it.
+
+A building with no service fees SHALL say so, rather than showing an empty area.
+
+Nothing here is narrowed by role. A manager reads every figure — they quote the rates
+when they sign a tenancy — and what they lose is only the ability to change them.
+
+#### Scenario: The owner opens a building
+
+- **WHEN** the owner opens a building's page
+- **THEN** its electricity rate, water rate, default deposit months and service fees are shown, each named, with what it applies to stated
+
+#### Scenario: A building that charges nothing beyond rent
+
+- **WHEN** a building has no service fees configured
+- **THEN** the page says it has none rather than leaving the area blank
+
+#### Scenario: A manager opens a building
+
+- **WHEN** a manager opens a building they cover
+- **THEN** they see the same figures, including the fee catalogue
+
+#### Scenario: A building that takes no deposit
+
+- **WHEN** a building's default deposit is zero months
+- **THEN** the page says it takes no deposit rather than showing "0 tháng"
+
+### Requirement: The owner edits a building from its own page
+
+The page SHALL offer the owner a control that opens the same form the buildings list
+uses, and on saving SHALL show the new values without the owner reloading.
+
+The control SHALL NOT be shown to anyone else, by the rule that a control a role may not
+use is not drawn.
+
+#### Scenario: The owner changes a setting
+
+- **WHEN** the owner edits a building from its page and saves
+- **THEN** the form closes and the page shows the changed figure without a reload
+
+#### Scenario: A manager reads the same page
+
+- **WHEN** a manager opens a building's page
+- **THEN** no control offers to edit it
+
+### Requirement: The owner manages what a building charges beside rent
+
+A building's page SHALL let the owner add a service fee, change its name and price,
+retire it, and bring a retired one back. Each fee SHALL show its name and its monthly
+price.
+
+The page SHALL say that setting a fee here charges nobody by itself — a tenancy has to
+take it up — because a list of fees is otherwise indistinguishable from a list of
+charges, and an owner would reasonably assume their tenants were already being billed.
+
+Repricing SHALL be described as reaching only tenancies that take the fee up
+afterwards. A tenancy that already has it holds its own copy of the price.
+
+A retired fee SHALL remain visible to the owner, set apart from the ones still offered,
+because it can be brought back and because tenancies may still be billed for it.
+
+Only the owner SHALL be offered any of these controls. A manager SHALL see the same
+fees and no way to change them.
+
+#### Scenario: Adding a fee
+
+- **WHEN** the owner adds a fee with a name and a monthly price
+- **THEN** it appears in the building's list without a reload, and is offered to tenancies in that building
+
+#### Scenario: A name the building already uses
+
+- **WHEN** the owner adds a fee whose name an offered fee already has
+- **THEN** the form stays open, says the name is taken, and nothing is created
+
+#### Scenario: Retiring a fee
+
+- **WHEN** the owner retires a fee, after being told that tenancies already holding it keep being charged
+- **THEN** it moves to the retired group and is no longer offered to new tenancies
+
+#### Scenario: Bringing one back
+
+- **WHEN** the owner restores a retired fee
+- **THEN** it is offered again
+
+#### Scenario: A manager reads the catalogue
+
+- **WHEN** a manager opens a building's page
+- **THEN** the fees and their prices are shown, and nothing offers to add, change or retire one
+
+#### Scenario: A building with no fees
+
+- **WHEN** a building has no service fees
+- **THEN** the page says so, and invites the owner to add one
+
+### Requirement: The fee form asks what the fee is charged per
+
+Adding or changing a service fee SHALL ask whether it is charged per room or per person,
+and SHALL say what each means in terms of the bill rather than in terms of the model: a
+per-room fee is the same amount whoever lives there; a per-person fee is multiplied by
+how many people the tenancy records.
+
+The form SHALL also offer marking the fee as applying to new tenancies automatically,
+and SHALL state that tenancies already signed are not affected.
+
+Where changing an existing fee's basis, the form SHALL say the change reaches only
+tenancies that take it up afterwards.
+
+A fee's row SHALL show what it is charged per, so an owner scanning the list can tell a
+flat charge from one that scales.
+
+#### Scenario: Adding a per-person fee
+
+- **WHEN** the owner adds a fee and chooses per person
+- **THEN** the fee is created on that basis and its row says so
+
+#### Scenario: Marking a fee as automatic
+
+- **WHEN** the owner marks a fee as applying to new tenancies
+- **THEN** the form says tenancies already signed keep what they agreed, and the row shows the fee is automatic
+
+#### Scenario: Reading the list
+
+- **WHEN** the owner reads a building's fees
+- **THEN** each row states whether it is charged per room or per person
 

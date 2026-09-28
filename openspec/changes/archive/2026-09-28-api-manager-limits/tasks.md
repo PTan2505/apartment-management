@@ -34,4 +34,4 @@
 
 ## 7. Order
 
-- [ ] 7.1 Archive `api-staff-roles` before this change, or its `staff` delta has no main spec to modify
+- [x] 7.1 Archive `api-staff-roles` before this change, or its `staff` delta has no main spec to modify
