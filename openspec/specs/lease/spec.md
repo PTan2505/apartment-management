@@ -7,7 +7,7 @@ The system SHALL allow an authenticated `owner` to create a lease for an existin
 
 The agreed rent SHALL default to the room's base rent at the moment the lease is created, and MAY be overridden, so that rent negotiated with a particular tenant can be recorded without changing what the room asks of everyone else. It MUST NOT be negative.
 
-The deposit SHALL be recorded as a whole number of months of the agreed rent, because that is how it is agreed. It MUST be supplied and MUST NOT be negative. Zero SHALL be accepted, for a lease taken without a deposit — an agreement with no deposit and an agreement whose deposit was never recorded SHALL NOT be indistinguishable.
+The deposit SHALL be recorded as a whole number of months of the agreed rent, because that is how it is agreed. It SHALL default to the building's default deposit months, and MAY be overridden by the owner, so that a deposit waived or doubled for a particular tenant is recorded without changing what the building asks of everyone else. It MUST NOT be negative. Zero SHALL be accepted, for a lease taken without a deposit — an agreement with no deposit and an agreement whose deposit was never recorded SHALL NOT be indistinguishable, which is why the value omitted now resolves to a number the building states rather than to nothing.
 
 #### Scenario: Successful creation
 - **WHEN** an authenticated owner creates a lease for an active, unoccupied room naming an existing customer as signatory, with a valid start date, duration, occupant count, starting meter reading, and deposit
@@ -43,7 +43,11 @@ The deposit SHALL be recorded as a whole number of months of the agreed rent, be
 
 #### Scenario: Missing deposit
 - **WHEN** an authenticated owner creates a lease without supplying a deposit
-- **THEN** the system responds with HTTP 400 and does not create the lease
+- **THEN** the lease records the deposit months its building defaults to
+
+#### Scenario: Owner agrees a deposit other than the building's
+- **WHEN** an authenticated owner creates a lease supplying a number of deposit months different from the building's default
+- **THEN** the lease records the supplied number, and the building's default is unchanged
 
 #### Scenario: Negative deposit
 - **WHEN** an authenticated owner supplies a negative number of deposit months
@@ -1182,3 +1186,32 @@ Ordering SHALL be applied by the system. The response is one page of a larger se
 
 - **WHEN** an owner lists leases
 - **THEN** the response is the shared paginated shape, with the leases in `data` and the page, page size and totals in `meta`
+
+### Requirement: A new tenancy takes up its building's default service fees
+
+Creating a lease SHALL attach every service fee its building offers and has marked as
+applying to new tenancies, effective from the lease's start date, in the same operation
+that creates the lease and its move-in invoice.
+
+Failing to attach them SHALL fail the whole creation, for the same reason a missing
+move-in invoice does: a tenancy that quietly lacks a charge everybody else pays is money
+the owner will not learn about until they compare two bills.
+
+The move-in invoice SHALL NOT charge them. It carries the deposit and the first month's
+rent, and a service fee belongs to the months it covers.
+
+#### Scenario: Signing where the building has defaults
+
+- **WHEN** a lease is created in a building with a default rubbish fee
+- **THEN** the lease holds that fee from its start date, and the next monthly invoice charges it
+
+#### Scenario: Nothing marked as default
+
+- **WHEN** a lease is created in a building with no default fees
+- **THEN** it holds none, exactly as before
+
+#### Scenario: The move-in bill
+
+- **WHEN** a lease is created in a building with default fees
+- **THEN** its move-in invoice charges the deposit and first month's rent only
+

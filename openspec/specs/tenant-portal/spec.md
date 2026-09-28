@@ -1,9 +1,7 @@
 ## Purpose
 
 Lets a tenant see and pay the bills of the tenancy they were sent a link for, with no account and no password, while giving the owner the means to read that link back, replace it, and withdraw it.
-
 ## Requirements
-
 ### Requirement: A portal token is unguessable
 
 A portal token SHALL be generated from a cryptographically secure random source and SHALL carry at least 256 bits of entropy.
@@ -359,3 +357,28 @@ able to pay one.
 
 - **WHEN** a payment is started for an invoice belonging to another tenancy
 - **THEN** the system responds with HTTP 404, the same answer an invoice that does not exist would produce
+
+### Requirement: The portal shows the reports raised from it
+
+The portal SHALL return the damage reports of the tenancy the token was issued
+for, each carrying what was reported, its state, and the appointment agreed with
+the tenant where there is one.
+
+It SHALL NOT carry who among the staff recorded or closed it. A tenant needs to
+know somebody is coming and when, not the staffing of the building.
+
+#### Scenario: A tenant checks a report
+
+- **WHEN** a tenant opens their portal link after reporting something
+- **THEN** they see the report, its state, and the appointment if one has been agreed
+
+#### Scenario: Only their own tenancy's
+
+- **WHEN** a tenant opens the portal
+- **THEN** no report of any other tenancy appears
+
+#### Scenario: Nothing reported
+
+- **WHEN** a tenancy has raised no reports
+- **THEN** the portal says so rather than showing an empty area
+

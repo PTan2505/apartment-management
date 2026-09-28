@@ -3,7 +3,7 @@
 Lets an owner define and maintain the apartment buildings they manage, including the per-kWh electricity rate and per-person water rate that later billing uses to charge each room in that building.
 ## Requirements
 ### Requirement: Owner can create a building
-The system SHALL allow an authenticated `owner` to create a building with a display name, a street address, a ward, a city, an electricity rate per kWh, and a water rate per person. Rate values MUST NOT be negative. The country SHALL default to Vietnam when not supplied. Ward and city are required, because a building missing either could not be found by the filters that exist to locate it.
+The system SHALL allow an authenticated `owner` to create a building with a display name, a street address, a ward, a city, an electricity rate per kWh, a water rate per person, and the number of months of rent its tenancies take as a deposit by default. Rate values MUST NOT be negative, and the default deposit MUST be a whole number of months and MUST NOT be negative. The default deposit SHALL itself default to one month when not supplied, that being the common arrangement; zero SHALL be accepted, for a building that takes no deposit. The country SHALL default to Vietnam when not supplied. Ward and city are required, because a building missing either could not be found by the filters that exist to locate it.
 
 A building MAY additionally record the identifier of the place its address was resolved from. It is optional, because an address may be typed by hand and then no such place exists. It is recorded so an address resolved today can be resolved again later — for instance after administrative boundaries change again — without the address having to be re-entered from memory.
 
@@ -44,6 +44,22 @@ Recording that identifier SHALL NOT change how the address itself is validated. 
 #### Scenario: Creating without a resolved place identifier
 - **WHEN** an authenticated owner creates a building without supplying such an identifier
 - **THEN** the building is created and records no identifier, indicating an address that was not resolved from a place
+
+#### Scenario: Default deposit supplied
+- **WHEN** an authenticated owner creates a building naming two months as its default deposit
+- **THEN** the building records two, and tenancies signed in it default to a deposit of two months
+
+#### Scenario: Default deposit omitted
+- **WHEN** an authenticated owner creates a building without naming a default deposit
+- **THEN** the building records one month
+
+#### Scenario: A building that takes no deposit
+- **WHEN** an authenticated owner creates a building naming zero months as its default deposit
+- **THEN** the building records zero, which is distinct from having named nothing
+
+#### Scenario: Negative or fractional default deposit
+- **WHEN** an authenticated owner submits a default deposit that is negative or is not a whole number of months
+- **THEN** the system responds with HTTP 400 and does not create the building
 
 ### Requirement: Owner can list and retrieve buildings
 The system SHALL allow an authenticated `owner` to list buildings, filter them by ward, by city, and by whether they are in service, and retrieve a single building by id.
@@ -137,7 +153,7 @@ The ward and city filters SHALL match any building whose value contains the give
 - **THEN** the response contains only buildings whose ward contains that text
 
 ### Requirement: Owner can update a building
-The system SHALL allow an authenticated `owner` to update a building's display name, street address, ward, city, country, and utility rates. Changing a rate SHALL NOT alter any invoice already issued, because each invoice records the rate that was applied at the time it was created.
+The system SHALL allow an authenticated `owner` to update a building's display name, street address, ward, city, country, utility rates, and default deposit months. Changing a rate SHALL NOT alter any invoice already issued, because each invoice records the rate that was applied at the time it was created. Changing the default deposit SHALL NOT alter any tenancy already signed, which records the deposit it was signed at; it SHALL apply to tenancies signed afterwards.
 
 The identifier of the place the address was resolved from MAY also be updated, so that re-resolving an address records where the new values came from. It MAY be cleared, for an address subsequently corrected by hand — leaving it in place would claim the address came from a place it no longer matches.
 
@@ -164,6 +180,10 @@ The identifier of the place the address was resolved from MAY also be updated, s
 #### Scenario: Clearing the resolved place identifier
 - **WHEN** an authenticated owner updates a building clearing its resolved place identifier
 - **THEN** the building records no identifier, and its address fields are unaffected
+
+#### Scenario: Changing the default deposit
+- **WHEN** an authenticated owner changes a building's default deposit months
+- **THEN** tenancies signed afterwards default to the new number, and every tenancy already signed keeps the deposit it recorded
 
 ### Requirement: Owner can retire and restore a building
 The system SHALL allow an authenticated `owner` to retire a building by marking it inactive, and to restore a retired building. The system SHALL NOT support permanently deleting a building, so that leases and invoices referencing it retain their history. The system SHALL reject retiring a building while any of its rooms has an active lease, so a building with tenants still in place cannot be taken out of service.

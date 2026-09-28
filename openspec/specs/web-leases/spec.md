@@ -1393,3 +1393,159 @@ Each row SHALL open that invoice, as the rows in the panel already do.
 
 - **WHEN** every bill of the tenancy has been paid
 - **THEN** the panel says so rather than reading as a tenancy that was never billed, and still offers the full list
+
+### Requirement: A tenancy's monthly service fees are managed on its page
+
+A tenancy's page SHALL show the service fees it is billed for every month, each with its
+monthly amount and the date it started applying, and SHALL state what they add to each
+month's invoice in total.
+
+It SHALL let the fees be attached from the building's catalogue with a quantity and an
+optional start date, let the quantity be changed, and let a fee be stopped. Stopping one
+SHALL be described as taking effect from that day forward, leaving months already billed
+alone.
+
+Only fees the building still offers SHALL be attachable, because the API refuses a
+retired one.
+
+A fee whose catalogue entry has since been retired SHALL say so while still being listed
+as charged: the tenancy holds its own copy of the price and keeps being billed.
+
+A tenancy that has ended or been cancelled SHALL show its fees and offer no changes.
+
+These controls are available to a manager as well as the owner. Attaching a fee takes
+the price from the catalogue, so it sets no price.
+
+#### Scenario: Attaching a fee
+
+- **WHEN** a fee from the building's catalogue is attached with a quantity
+- **THEN** the tenancy lists it, shows the monthly amount as price times quantity, and states the new monthly total
+
+#### Scenario: What it will cost, before committing
+
+- **WHEN** a fee and a quantity have been chosen but not yet attached
+- **THEN** the form states what that will add each month
+
+#### Scenario: Changing how many
+
+- **WHEN** the quantity of an attached fee is changed
+- **THEN** the monthly amount and the tenancy's total follow it
+
+#### Scenario: Stopping a fee
+
+- **WHEN** an attached fee is stopped
+- **THEN** it moves to the stopped group showing the period it applied for, and no longer counts toward the monthly total
+
+#### Scenario: The building retired it
+
+- **WHEN** a tenancy holds a fee the building has since retired
+- **THEN** the tenancy still lists it as charged, and says the building no longer offers it
+
+#### Scenario: A finished tenancy
+
+- **WHEN** a tenancy has ended
+- **THEN** its fees are listed and nothing offers to add, change or stop one
+
+#### Scenario: A building with nothing to offer
+
+- **WHEN** a fee is attached in a building whose catalogue is empty
+- **THEN** the form says so and points at the building's page
+
+### Requirement: A per-person fee is shown against the head count, not a quantity
+
+Where a tenancy holds a fee charged per person, its page SHALL show the head count it is
+billed against and SHALL NOT offer a quantity to change — the tenancy's occupant count
+decides it, and a second number would imply otherwise.
+
+The monthly amount SHALL be shown as the agreed unit amount times that head count, and
+SHALL follow the occupant count when it changes.
+
+Attaching a per-person fee SHALL NOT ask for a quantity, and SHALL state what it will
+add at the tenancy's current head count.
+
+#### Scenario: Reading a per-person fee
+
+- **WHEN** a tenancy recording two occupants holds a per-person fee
+- **THEN** it shows the amount times two, says it is charged per person, and offers no quantity box
+
+#### Scenario: The head count changes
+
+- **WHEN** the tenancy's occupant count is corrected to three
+- **THEN** the fee's monthly amount and the tenancy's monthly total follow it
+
+#### Scenario: Attaching one
+
+- **WHEN** a per-person fee is attached to a tenancy
+- **THEN** the form asks no quantity and states what it adds at the current head count
+
+#### Scenario: A fee that came with the tenancy
+
+- **WHEN** a tenancy picked up a fee because its building applies it by default
+- **THEN** it is listed like any other, and can be stopped
+
+### Requirement: Attaching a fee makes its start date a decision, not a default
+
+The form that attaches a service fee to a tenancy SHALL require the person to say when
+it starts applying, offering the two answers that are actually meant:
+
+- from the tenancy's start date — a fee agreed at signing and recorded late;
+- from a date they give — a fee newly agreed with the tenant partway through.
+
+It SHALL NOT silently default to either. The API's own default is the tenancy's start
+date, which is right for the first case and quietly wrong for the second: a fee agreed
+in March and attached with no date is dated to the tenancy's beginning, and any month
+not yet billed — including months before the tenant ever agreed to it — is then charged
+in full.
+
+Where the chosen date falls before a month that has already been invoiced, the form
+SHALL say that invoices already issued do not change, so the person is not left
+expecting a correction that will not arrive.
+
+#### Scenario: A fee agreed partway through
+
+- **WHEN** a fee is attached from a date the owner gives
+- **THEN** it applies from that date, and the month it falls in is charged for those days only
+
+#### Scenario: A fee agreed at signing, recorded late
+
+- **WHEN** a fee is attached from the tenancy's start date
+- **THEN** it applies from the beginning of the tenancy
+
+#### Scenario: Neither answer chosen
+
+- **WHEN** the form is submitted without saying when the fee starts
+- **THEN** it is refused before any request is sent, naming the field
+
+### Requirement: The closing and renewal readings are prefilled
+
+The meter reading asked for when recording a move-out, and when renewing, SHALL be
+prefilled with the reading this tenancy's invoices have already reached.
+
+It was previously left blank, on the grounds that this is the one figure on the form
+nobody can check afterwards and a prefilled number gets accepted without anybody walking
+out to the meter. The owner weighed that against every other field being prefilled and
+chose consistency.
+
+The floor SHALL still be enforced: a reading below what has already been invoiced is
+refused before the request, with the figure named.
+
+#### Scenario: Recording a move-out
+
+- **WHEN** the owner opens the move-out form for a tenancy that has been invoiced
+- **THEN** the closing reading is already filled with the reading those invoices reached
+
+#### Scenario: Renewing
+
+- **WHEN** the owner opens the renewal form
+- **THEN** the closing reading is already filled the same way
+
+#### Scenario: Typing below the floor
+
+- **WHEN** the owner replaces the prefilled reading with a lower one
+- **THEN** the form says it is below what has been invoiced and does not submit
+
+#### Scenario: A tenancy with nothing invoiced yet
+
+- **WHEN** no invoice has established a reading for the tenancy
+- **THEN** the field falls back to the room's last known reading, or stays blank when there is none
+
