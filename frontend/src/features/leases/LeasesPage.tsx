@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 
 import { EmptyState } from "@/components/EmptyState";
+import { PickerField } from "@/components/PickerField";
 import { ListSurface } from "@/components/ListSurface";
 import { PageHeader } from "@/components/PageHeader";
 import { Pagination } from "@/components/Pagination";
@@ -307,56 +308,42 @@ export function LeasesPage() {
               mb: 2,
             }}
           >
-            <TextField
-              select
-              label="Toà nhà"
-              size="small"
-              value={filters.buildingId ?? ""}
-              onChange={(event) =>
-                // Both in one update: a room belongs to one building, so changing
-                // the building leaves any chosen room pointing somewhere it is not.
-                // Two `setFilter` calls would not compose — the second computes
-                // from the params the first captured and discards its change.
-                setFilters({
-                  buildingId:
-                    event.target.value === "" ? undefined : event.target.value,
-                  roomId: undefined,
-                })
-              }
-              sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
-            >
-              <MenuItem value="">Tất cả toà nhà</MenuItem>
-              {(buildingsQuery.data?.data ?? []).map((building) => (
-                <MenuItem key={building.id} value={String(building.id)}>
-                  {building.displayName}
-                </MenuItem>
-              ))}
-            </TextField>
+            <Box sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}>
+              <PickerField
+                label="Toà nhà"
+                size="small"
+                value={filters.buildingId ?? ""}
+                onChange={(value) =>
+                  // Both in one update: a room belongs to one building, so changing
+                  // the building leaves any chosen room pointing somewhere it is not.
+                  // Two `setFilter` calls would not compose — the second computes
+                  // from the params the first captured and discards its change.
+                  setFilters({ buildingId: value || undefined, roomId: undefined })
+                }
+                options={(buildingsQuery.data?.data ?? []).map((building) => ({
+                  value: String(building.id),
+                  label: building.displayName,
+                }))}
+                allLabel="Tất cả toà nhà"
+              />
+            </Box>
 
-            <TextField
-              select
-              label="Phòng"
-              size="small"
-              value={filters.roomId ?? ""}
-              onChange={(event) =>
-                setFilter(
-                  "roomId",
-                  event.target.value === "" ? undefined : event.target.value,
-                )
-              }
-              sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
-            >
-              <MenuItem value="">Tất cả phòng</MenuItem>
-              {(roomsQuery.data?.data ?? []).map((room) => (
-                <MenuItem key={room.id} value={String(room.id)}>
-                  {/* The building is established by the filter above once chosen,
-                    so repeating it on every row is noise. */}
-                  {buildingId
-                    ? room.roomCode
-                    : `${room.roomCode} · ${room.building.displayName}`}
-                </MenuItem>
-              ))}
-            </TextField>
+            <Box sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}>
+              <PickerField
+                label="Phòng"
+                size="small"
+                value={filters.roomId ?? ""}
+                onChange={(value) => setFilter("roomId", value || undefined)}
+                options={(roomsQuery.data?.data ?? []).map((room) => ({
+                  value: String(room.id),
+                  label: room.roomCode,
+                  // The building is established by the filter above once chosen,
+                  // so repeating it on every row is noise.
+                  hint: buildingId ? undefined : room.building.displayName,
+                }))}
+                allLabel="Tất cả phòng"
+              />
+            </Box>
 
             <TextField
               select

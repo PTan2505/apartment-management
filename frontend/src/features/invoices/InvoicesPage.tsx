@@ -11,6 +11,7 @@ import TextField from '@mui/material/TextField'
 import EventAvailableIcon from '@mui/icons-material/EventAvailable'
 
 import { PageHeader } from '@/components/PageHeader'
+import { PickerField } from '@/components/PickerField'
 import { ListSurface } from '@/components/ListSurface'
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
@@ -158,46 +159,40 @@ export function InvoicesPage() {
 
       <ListSurface>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
-          <TextField
-            select
-            label="Toà nhà"
-            size="small"
-            value={filters.buildingId ?? ''}
-            onChange={(event) =>
-              // Both at once: a room belongs to one building, so changing the
-              // building leaves a chosen room pointing somewhere it is not.
-              setFilters({
-                buildingId: event.target.value === '' ? undefined : event.target.value,
-                roomId: undefined,
-              })
-            }
-            sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
-          >
-            <MenuItem value="">Tất cả toà nhà</MenuItem>
-            {(buildingsQuery.data?.data ?? []).map((building) => (
-              <MenuItem key={building.id} value={String(building.id)}>
-                {building.displayName}
-              </MenuItem>
-            ))}
-          </TextField>
+          <Box sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}>
+            <PickerField
+              label="Toà nhà"
+              size="small"
+              value={filters.buildingId ?? ''}
+              onChange={(value) =>
+                // Both at once: a room belongs to one building, so changing the
+                // building leaves a chosen room pointing somewhere it is not.
+                setFilters({ buildingId: value || undefined, roomId: undefined })
+              }
+              options={(buildingsQuery.data?.data ?? []).map((building) => ({
+                value: String(building.id),
+                label: building.displayName,
+              }))}
+              allLabel="Tất cả toà nhà"
+            />
+          </Box>
 
-          <TextField
-            select
-            label="Phòng"
-            size="small"
-            value={filters.roomId ?? ''}
-            onChange={(event) =>
-              setFilter('roomId', event.target.value === '' ? undefined : event.target.value)
-            }
-            sx={{ minWidth: 180, flexGrow: { xs: 1, sm: 0 } }}
-          >
-            <MenuItem value="">Tất cả phòng</MenuItem>
-            {(roomsQuery.data?.data ?? []).map((room) => (
-              <MenuItem key={room.id} value={String(room.id)}>
-                {buildingId ? room.roomCode : `${room.roomCode} · ${room.building.displayName}`}
-              </MenuItem>
-            ))}
-          </TextField>
+          <Box sx={{ minWidth: 180, flexGrow: { xs: 1, sm: 0 } }}>
+            <PickerField
+              label="Phòng"
+              size="small"
+              value={filters.roomId ?? ''}
+              onChange={(value) => setFilter('roomId', value || undefined)}
+              options={(roomsQuery.data?.data ?? []).map((room) => ({
+                value: String(room.id),
+                label: room.roomCode,
+                // Mã phòng chỉ là duy nhất TRONG một toà, nên khi chưa lọc toà
+                // thì phải nói rõ phòng đó ở đâu.
+                hint: buildingId ? undefined : room.building.displayName,
+              }))}
+              allLabel="Tất cả phòng"
+            />
+          </Box>
 
           <TextField
             select
