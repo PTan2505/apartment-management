@@ -101,14 +101,20 @@ export function RoomRowActions({
             <ListItemText>Sửa</ListItemText>
           </MenuItem>
         )}
+        {/*
+          Chỉ ngưng được phòng đang TRỐNG. API cũng từ chối phòng còn hợp đồng
+          (409), nên mời bấm rồi báo lỗi là dạy người ta rằng phần mềm hay hỏng.
+        */}
         {isOwner &&
           (room.isActive ? (
+            !room.isLet && (
             <MenuItem onClick={() => run(onRetire)}>
               <ListItemIcon>
                 <ArchiveIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText>Ngưng hoạt động</ListItemText>
             </MenuItem>
+            )
           ) : (
             // Restoring can still be refused — another room may have taken this
             // code since — so it is attempted rather than assumed to succeed.

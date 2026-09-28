@@ -6,6 +6,7 @@ import TextField from "@mui/material/TextField";
 import { PageHeader } from "@/components/PageHeader";
 import { CreateRoomButton } from "@/features/rooms/CreateRoomButton";
 import { ListSurface } from "@/components/ListSurface";
+import { PickerField } from "@/components/PickerField";
 import { SearchField } from "@/components/SearchField";
 import { useBuildings } from "@/features/buildings/hooks";
 import { useRooms } from "@/features/rooms/hooks";
@@ -17,9 +18,17 @@ interface RoomFilters extends Record<string, string | undefined> {
   buildingId?: string;
   search?: string;
   status?: string;
+  occupancy?: string;
 }
 
-const FILTER_KEYS = ["buildingId", "search", "status"] as const;
+const FILTER_KEYS = ["buildingId", "search", "status", "occupancy"] as const;
+
+/** Đang thuê hay còn trống — câu hỏi hay hỏi nhất về một danh sách phòng. */
+const OCCUPANCY_OPTIONS = [
+  { value: "all", label: "Tất cả" },
+  { value: "let", label: "Đang cho thuê" },
+  { value: "vacant", label: "Còn trống" },
+] as const;
 /**
  * Typing must not leave a history entry per keystroke, or back removes one
  * character at a time instead of leaving the search. Dropdowns still push:
@@ -37,11 +46,15 @@ export function RoomsPage() {
     ? Number(filters.buildingId)
     : undefined;
 
+  const occupancy =
+    filters.occupancy === "let" || filters.occupancy === "vacant" ? filters.occupancy : "all";
+
   const roomsQuery = useRooms({
     page,
     buildingId,
     search: filters.search,
     status,
+    occupancy,
   });
   // The building picker follows the same status, so a building offered as a
   // choice is one whose rooms this list would show.
@@ -73,26 +86,20 @@ export function RoomsPage() {
             mb: 2,
           }}
         >
-          <TextField
-            select
-            label="Toà nhà"
-            size="small"
-            value={filters.buildingId ?? ""}
-            onChange={(event) =>
-              setFilter(
-                "buildingId",
-                event.target.value === "" ? undefined : event.target.value,
-              )
-            }
-            sx={{ minWidth: 220, flexGrow: { xs: 1, sm: 0 } }}
-          >
-            <MenuItem value="">Tất cả toà nhà</MenuItem>
-            {buildings.map((building) => (
-              <MenuItem key={building.id} value={String(building.id)}>
-                {building.displayName}
-              </MenuItem>
-            ))}
-          </TextField>
+          <Box sx={{ minWidth: 220, flexGrow: { xs: 1, sm: 0 } }}>
+            <PickerField
+              label="Toà nhà"
+              size="small"
+              value={filters.buildingId ?? ""}
+              onChange={(value) => setFilter("buildingId", value || undefined)}
+              options={buildings.map((building) => ({
+                value: String(building.id),
+                label: building.displayName,
+              }))}
+              allLabel="Tất cả toà nhà"
+              loading={buildingsQuery.isPending}
+            />
+          </Box>
 
           <SearchField
             label="Tìm mã phòng"
@@ -119,6 +126,26 @@ export function RoomsPage() {
             sx={{ minWidth: 200 }}
           >
             {ACTIVE_STATUS_OPTIONS.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            label="Tình trạng thuê"
+            size="small"
+            value={occupancy}
+            onChange={(event) =>
+              setFilter(
+                "occupancy",
+                event.target.value === "all" ? undefined : event.target.value,
+              )
+            }
+            sx={{ minWidth: 180 }}
+          >
+            {OCCUPANCY_OPTIONS.map((option) => (
               <MenuItem key={option.value} value={option.value}>
                 {option.label}
               </MenuItem>

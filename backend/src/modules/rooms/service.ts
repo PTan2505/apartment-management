@@ -159,6 +159,22 @@ export async function listRooms(query: ListRoomsQuery, scope: BuildingScope = nu
     AND: [
       ...(scope === null ? [] : [buildingWhere(scope)]),
       ...(query.buildingId ? [{ buildingId: query.buildingId }] : []),
+      /*
+        Whether a tenancy holds the room. In the query rather than by filtering
+        the page afterwards: post-filtering returns short pages and a total
+        that counts rooms the caller was never shown.
+
+        Here in the same AND as the rest — and that is not tidiness. Written as
+        its own `AND` key beside this one, TypeScript refused the duplicate
+        property outright; written as two spread `leases` keys, nothing would
+        have refused and the later would simply have replaced the earlier.
+      */
+      ...(query.vacant ? [{ leases: { none: HOLDS_ITS_ROOM } }] : []),
+      ...(query.occupancy === "vacant"
+        ? [{ leases: { none: HOLDS_ITS_ROOM } }]
+        : query.occupancy === "let"
+          ? [{ leases: { some: HOLDS_ITS_ROOM } }]
+          : []),
     ],
     // Partial, case-insensitive. Without a building the same code can match
     // one room per building, since a code identifies a room only within its
@@ -167,10 +183,6 @@ export async function listRooms(query: ListRoomsQuery, scope: BuildingScope = nu
       ? { roomCode: { contains: query.search, mode: "insensitive" as const } }
       : {}),
     ...inServiceWhere(query.status),
-    // Rooms that can be let. Applied in the query rather than by filtering the
-    // page afterwards: post-filtering would return short pages and a total that
-    // counts rooms the caller was not shown.
-    ...(query.vacant ? { leases: { none: HOLDS_ITS_ROOM } } : {}),
     /*
       Available on a named date: no tenancy holds the room, and none that
       counted ends AFTER that date.

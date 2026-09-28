@@ -68,6 +68,14 @@ export interface ListRoomsParams {
   /** Only rooms with no running tenancy — the ones that can be let. */
   vacant?: boolean
   /**
+   * Let, free, or either.
+   *
+   * Separate from `vacant`, which only ever narrows TO free rooms: there was
+   * no way to ask for the let ones, and filtering a fetched page would leave
+   * the pager counting rooms it did not show.
+   */
+  occupancy?: 'all' | 'let' | 'vacant'
+  /**
    * Which rooms can take a tenancy BEGINNING on this date (YYYY-MM-DD).
    *
    * Different from `vacant`, which is "free right now": a room whose tenancy
