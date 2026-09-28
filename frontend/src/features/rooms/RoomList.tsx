@@ -12,6 +12,7 @@ import TableRow from '@mui/material/TableRow'
 import Typography from '@mui/material/Typography'
 
 import { formatMoney } from '@/lib/format'
+import { useIsOwner } from '@/features/auth/useAuth'
 // The same "last day covered" rendering the tenancy screens use: a stored end
 // is the first day NOT covered, so showing it raw would be a day late.
 import { formatCoveredThrough } from '@/features/leases/dates'
@@ -42,9 +43,26 @@ interface RoomListProps {
   onOpenLease: (leaseId: number) => void
 }
 
+/**
+ * A room out of service.
+ *
+ * The row is greyed, but grey alone is not a label: it does not survive a
+ * screenshot sent to somebody, it says nothing to a reader who cannot pick the
+ * shade out, and on the phone cards there is no row of neighbours to compare
+ * against. So the state is still written, quietly.
+ *
+ * Its opposite is NOT written. "Đang hoạt động" on every row of an in-service
+ * list marks nothing — a mark that applies to everything distinguishes nothing.
+ */
 function RetiredChip() {
-  return <Chip label="Đang ngưng hoạt động" size="small" variant="outlined" />
+  return <Chip label="Đã ngưng" size="small" variant="outlined" />
 }
+
+/** Nền xám cho phòng đã ngưng, lấy từ theme chứ không gõ mã màu. */
+const NGUNG_SX = {
+  backgroundColor: 'action.hover',
+  '& .MuiTypography-root': { color: 'text.secondary' },
+} as const
 
 /**
  * Whether the room is currently let, read from what the API reports about the
@@ -81,6 +99,15 @@ export function RoomList({
   onStartLease,
   onOpenLease,
 }: RoomListProps) {
+  /*
+    Cột thao tác chỉ dành cho chủ nhà.
+
+    Hệ quả: quản lí mất lối tắt "Hợp đồng mới" vốn nằm trong menu của hàng
+    phòng. Họ vẫn ký được từ màn Hợp đồng — chỉ là phải chọn phòng trong form
+    thay vì bắt đầu từ phòng đang nhìn.
+  */
+  const coThaoTac = useIsOwner()
+
   const actions = (room: Room) => (
     <RoomRowActions
       room={room}
@@ -109,7 +136,9 @@ export function RoomList({
               */}
               <TableCell sx={{ whiteSpace: 'nowrap' }}>Trả phòng</TableCell>
               <TableCell>Trạng thái</TableCell>
-              <TableCell align="right">Thao tác</TableCell>
+              {/* Cột thao tác biến mất hẳn khi vai này không có thao tác nào —
+                  một cột rỗng suốt bảng chỉ tổ chiếm chỗ. */}
+              {coThaoTac && <TableCell align="right">Thao tác</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -117,7 +146,10 @@ export function RoomList({
               <TableRow
                 key={room.id}
                 hover
-                sx={room.currentLeaseId ? { cursor: 'pointer' } : undefined}
+                sx={{
+                  ...(room.currentLeaseId ? { cursor: 'pointer' } : {}),
+                  ...(room.isActive ? {} : NGUNG_SX),
+                }}
                 onClick={
                   room.currentLeaseId
                     ? () => onOpenLease(room.currentLeaseId!)
@@ -144,19 +176,21 @@ export function RoomList({
                 </TableCell>
                 <TableCell>
                   <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-                    {room.isActive ? (
-                      <Chip label="Đang hoạt động" size="small" color="success" variant="outlined" />
-                    ) : (
-                      <RetiredChip />
-                    )}
-                    {room.isActive && <OccupancyChip isLet={room.isLet} />}
+                    {/*
+                      Phòng đã ngưng KHÔNG hiện "Còn trống": nó trống thật,
+                      nhưng không cho thuê được, và nói "còn trống" là mời
+                      người ta ký vào một phòng API sẽ từ chối.
+                    */}
+                    {room.isActive ? <OccupancyChip isLet={room.isLet} /> : <RetiredChip />}
                   </Stack>
                 </TableCell>
                 {/* The actions are their own targets; a click here is not a
                     click on the row. */}
-                <TableCell align="right" onClick={(event) => event.stopPropagation()}>
-                  {actions(room)}
-                </TableCell>
+                {coThaoTac && (
+                  <TableCell align="right" onClick={(event) => event.stopPropagation()}>
+                    {actions(room)}
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
@@ -169,7 +203,10 @@ export function RoomList({
           <Card
             key={room.id}
             variant="outlined"
-            sx={room.currentLeaseId ? { cursor: 'pointer' } : undefined}
+            sx={{
+              ...(room.currentLeaseId ? { cursor: 'pointer' } : {}),
+              ...(room.isActive ? {} : NGUNG_SX),
+            }}
             onClick={room.currentLeaseId ? () => onOpenLease(room.currentLeaseId!) : undefined}
           >
             <CardContent sx={{ pb: 1.5 }}>
@@ -191,10 +228,11 @@ export function RoomList({
                   )}
                 </Box>
                 <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
-                  {!room.isActive && <RetiredChip />}
-                  {room.isActive && <OccupancyChip isLet={room.isLet} />}
+                  {room.isActive ? <OccupancyChip isLet={room.isLet} /> : <RetiredChip />}
                   {/* Their own targets, not the card's. */}
-                  <Box onClick={(event) => event.stopPropagation()}>{actions(room)}</Box>
+                  {coThaoTac && (
+                    <Box onClick={(event) => event.stopPropagation()}>{actions(room)}</Box>
+                  )}
                 </Stack>
               </Box>
             </CardContent>

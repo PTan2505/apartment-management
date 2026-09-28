@@ -16,6 +16,7 @@ import PhoneIcon from '@mui/icons-material/Phone'
 import EventIcon from '@mui/icons-material/Event'
 import DoneIcon from '@mui/icons-material/Done'
 
+import { PickerField } from '@/components/PickerField'
 import { EmptyState } from '@/components/EmptyState'
 import { ListSurface } from '@/components/ListSurface'
 import { PageHeader } from '@/components/PageHeader'
@@ -247,23 +248,19 @@ export function DamageReportsPage() {
             else it is a filter with a single value, which answers nothing.
           */}
           {buildings.length > 1 && (
-            <TextField
-              select
-              label="Toà nhà"
-              size="small"
-              value={filters.buildingId ?? ''}
-              onChange={(event) =>
-                setFilter('buildingId', event.target.value === '' ? undefined : event.target.value)
-              }
-              sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
-            >
-              <MenuItem value="">Tất cả toà bạn phụ trách</MenuItem>
-              {buildings.map((building) => (
-                <MenuItem key={building.id} value={String(building.id)}>
-                  {building.displayName}
-                </MenuItem>
-              ))}
-            </TextField>
+            <Box sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}>
+              <PickerField
+                label="Toà nhà"
+                size="small"
+                value={filters.buildingId ?? ''}
+                onChange={(value) => setFilter('buildingId', value || undefined)}
+                options={buildings.map((building) => ({
+                  value: String(building.id),
+                  label: building.displayName,
+                }))}
+                allLabel="Tất cả toà bạn phụ trách"
+              />
+            </Box>
           )}
 
           {hasFilters && (

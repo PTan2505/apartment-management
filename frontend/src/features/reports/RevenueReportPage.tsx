@@ -26,6 +26,7 @@ import IconButton from '@mui/material/IconButton'
 
 import { isApiError } from '@/lib/api-error'
 import { errorMessage } from '@/lib/error-messages'
+import { PickerField } from '@/components/PickerField'
 import { formatMoney } from '@/lib/format'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
 import { useBuildings } from '@/features/buildings/hooks'
@@ -961,23 +962,19 @@ export function RevenueReportPage() {
           ))}
         </TextField>
 
-        <TextField
-          select
-          label="Toà nhà"
-          size="small"
-          value={buildingIds.length === 1 ? String(buildingIds[0]) : ''}
-          onChange={(event) =>
-            setBuildingIds(event.target.value === '' ? [] : [Number(event.target.value)])
-          }
-          sx={{ minWidth: 220 }}
-        >
-          <MenuItem value="">Tất cả toà nhà</MenuItem>
-          {(buildingsQuery.data?.data ?? []).map((building) => (
-            <MenuItem key={building.id} value={String(building.id)}>
-              {building.displayName}
-            </MenuItem>
-          ))}
-        </TextField>
+        <Box sx={{ minWidth: 220 }}>
+          <PickerField
+            label="Toà nhà"
+            size="small"
+            value={buildingIds.length === 1 ? String(buildingIds[0]) : ''}
+            onChange={(value) => setBuildingIds(value === '' ? [] : [Number(value)])}
+            options={(buildingsQuery.data?.data ?? []).map((building) => ({
+              value: String(building.id),
+              label: building.displayName,
+            }))}
+            allLabel="Tất cả toà nhà"
+          />
+        </Box>
       </Box>
 
       {/*

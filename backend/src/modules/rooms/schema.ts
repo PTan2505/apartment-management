@@ -64,6 +64,16 @@ export const listRoomsQuerySchema = z.object({
     .optional()
     .transform((value) => value === "true"),
   /*
+    Let, free, or either — the question a screen listing rooms actually asks.
+
+    Separate from `vacant` rather than replacing it: `vacant` is a flag that
+    only ever NARROWS to free rooms, and "false" on it means "do not narrow"
+    rather than "only the let ones". A caller wanting the let ones had no way
+    to say so, and filtering after the fact would page wrongly — twenty rows
+    fetched, six shown, and a pager still claiming twenty.
+  */
+  occupancy: z.enum(["all", "let", "vacant"]).default("all"),
+  /*
     Which rooms can take a tenancy BEGINNING on this date.
     
     A different question from `vacant`, which answers "free right now". A room

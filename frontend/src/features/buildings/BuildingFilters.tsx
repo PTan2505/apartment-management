@@ -3,6 +3,8 @@ import Button from '@mui/material/Button'
 import MenuItem from '@mui/material/MenuItem'
 import TextField from '@mui/material/TextField'
 
+import { PickerField } from '@/components/PickerField'
+
 import { ACTIVE_STATUS_OPTIONS, type ActiveStatus } from '@/lib/active-status'
 import type { BuildingLocation } from '@/features/buildings/types'
 
@@ -65,37 +67,31 @@ export function BuildingFilters({
         mb: 2,
       }}
     >
-      <TextField
-        select
-        label="Tỉnh/Thành"
-        size="small"
-        value={city ?? ''}
-        onChange={(event) => handleCityChange(event.target.value)}
-        sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
-      >
-        <MenuItem value="">Tất cả tỉnh/thành</MenuItem>
-        {locations.map((location) => (
-          <MenuItem key={location.city} value={location.city}>
-            {location.city}
-          </MenuItem>
-        ))}
-      </TextField>
+      {/*
+        Gõ được, vì hai danh sách này do chủ nhà nhập và dài ra theo số toà —
+        cuộn tìm một phường trong danh sách phẳng là việc không ai muốn làm.
+      */}
+      <Box sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}>
+        <PickerField
+          label="Tỉnh/Thành"
+          size="small"
+          value={city ?? ''}
+          onChange={handleCityChange}
+          options={locations.map((location) => ({ value: location.city, label: location.city }))}
+          allLabel="Tất cả tỉnh/thành"
+        />
+      </Box>
 
-      <TextField
-        select
-        label="Phường/Xã"
-        size="small"
-        value={ward ?? ''}
-        onChange={(event) => onWardChange(event.target.value === '' ? undefined : event.target.value)}
-        sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}
-      >
-        <MenuItem value="">Tất cả phường/xã</MenuItem>
-        {wardsForCity.map((wardName) => (
-          <MenuItem key={wardName} value={wardName}>
-            {wardName}
-          </MenuItem>
-        ))}
-      </TextField>
+      <Box sx={{ minWidth: 200, flexGrow: { xs: 1, sm: 0 } }}>
+        <PickerField
+          label="Phường/Xã"
+          size="small"
+          value={ward ?? ''}
+          onChange={(value) => onWardChange(value || undefined)}
+          options={wardsForCity.map((wardName) => ({ value: wardName, label: wardName }))}
+          allLabel="Tất cả phường/xã"
+        />
+      </Box>
 
       <TextField
         select

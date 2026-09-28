@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Alert from '@mui/material/Alert'
 import AlertTitle from '@mui/material/AlertTitle'
 import Box from '@mui/material/Box'
@@ -84,9 +84,32 @@ export function MoveOutDialog({ open, lease, onClose }: MoveOutDialogProps) {
     if (!open) return
     setLeftOn(today())
     setReading('')
+    // Số thật tới sau, ở effect bên dưới, khi phòng trả lời.
     setCharges([])
     setError(null)
   }, [open])
+
+  /*
+    Điền sẵn số cũ, thay vì để trống.
+
+    Trước đây ô này CỐ Ý để trống: nó quyết định hoá đơn cuối, là con số duy
+    nhất trên hình không ai kiểm lại được sau đó, và một giá trị điền sẵn thì
+    rất dễ bị bấm qua mà không ai ra xem công tơ. Chủ nhà chọn đổi lại cho
+    đồng bộ với mọi ô khác — đánh đổi là nếu không ai sửa thì hoá đơn ra 0 kWh
+    tiền điện, khách không phàn nàn, và tiền mất âm thầm.
+  */
+  const daDienSan = useRef(false)
+  useEffect(() => {
+    if (!open) {
+      daDienSan.current = false
+      return
+    }
+    if (daDienSan.current) return
+    const cu = lease.lastInvoicedMeterReading ?? meterQuery.data?.reading
+    if (cu === null || cu === undefined) return
+    daDienSan.current = true
+    setReading(String(cu))
+  }, [open, lease.lastInvoicedMeterReading, meterQuery.data])
 
   const soDien = Number(reading)
   /*

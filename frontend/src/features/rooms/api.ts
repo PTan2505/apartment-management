@@ -17,6 +17,8 @@ function toQuery(params: ListRoomsParams): Record<string, string | number> {
   if (params.status && params.status !== 'active') query.status = params.status
   // Likewise: absent means every room, let or not.
   if (params.vacant) query.vacant = 'true'
+  // "all" is the API's own default, so it stays out of the URL.
+  if (params.occupancy && params.occupancy !== 'all') query.occupancy = params.occupancy
   if (params.availableOn) query.availableOn = params.availableOn
   return query
 }
