@@ -190,6 +190,8 @@ model DamageReport {
 
   photos  DamageReportPhoto[]
   notices ReportNotice[]
+  /// What the repair cost the owner, if anybody has said. At most one.
+  cost    Expense?
 
   /// The listing is "oldest open first", which is this index read backwards.
   @@index([state, reportedAt])
@@ -974,6 +976,19 @@ model Expense {
   description String
   incurredAt  DateTime
   origin      ExpenseOrigin   @default(manual)
+
+  /// The damage report this expense is the cost of, where it is one.
+  ///
+  /// The reference points from the MONEY to the repair, and the report carries
+  /// no amount of its own. A `cost` column there plus this `amount` would be
+  /// two records of one number, and nothing would keep them agreeing — the
+  /// failure this schema warns about in several other places.
+  ///
+  /// Unique, so a repair can be costed only once. Recording a second cost
+  /// updates this row rather than inserting beside it, and a repair therefore
+  /// cannot be counted twice in a month's total even from two open tabs.
+  damageReportId Int?          @unique
+  damageReport   DamageReport? @relation(fields: [damageReportId], references: [id], onDelete: SetNull)
 
   // Present for measured costs. When both are set the amount is computed from
   // them, so the recorded figure can never disagree with what it came from.

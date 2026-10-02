@@ -37,3 +37,20 @@ export function useCloseReport() {
     onSuccess: () => void invalidate(),
   })
 }
+
+export function useRecordRepairCost() {
+  const invalidate = useInvalidateReports()
+  return useMutation({
+    mutationFn: ({ id, input }: { id: number; input: reportsApi.RepairCostInput }) =>
+      reportsApi.recordRepairCost(id, input),
+    onSuccess: invalidate,
+  })
+}
+
+export function useRemoveRepairCost() {
+  const invalidate = useInvalidateReports()
+  return useMutation({
+    mutationFn: (id: number) => reportsApi.removeRepairCost(id),
+    onSuccess: invalidate,
+  })
+}

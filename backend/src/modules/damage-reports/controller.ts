@@ -5,6 +5,7 @@ import { parseIdParam, RESOURCE } from "@/lib/parse-id.js";
 import { scopeOf } from "@/middleware/staff-scope.js";
 import {
   closeReportSchema,
+  repairCostSchema,
   listReportsQuerySchema,
   scheduleReportSchema,
 } from "./schema.js";
@@ -80,4 +81,32 @@ export async function listNoticesHandler(req: Request, res: Response) {
 
 export async function markNoticesReadHandler(req: Request, res: Response) {
   res.status(200).json(await notices.markAllRead(actingUserId(req)));
+}
+
+/**
+ * What the repair cost the owner.
+ *
+ * The role is enforced on the route rather than here — the router admits three
+ * roles to this module, and these two endpoints are the owner's alone.
+ */
+export async function recordRepairCostHandler(req: Request, res: Response) {
+  const parsed = repairCostSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw new ValidationError("REPAIR_COST_INVALID", "Invalid repair cost", parsed.error.flatten());
+  }
+
+  const report = await reportService.recordRepairCost(
+    parseIdParam(req.params.id, RESOURCE.damageReport),
+    parsed.data,
+    scopeOf(req),
+  );
+  res.status(200).json(report);
+}
+
+export async function removeRepairCostHandler(req: Request, res: Response) {
+  const report = await reportService.removeRepairCost(
+    parseIdParam(req.params.id, RESOURCE.damageReport),
+    scopeOf(req),
+  );
+  res.status(200).json(report);
 }
