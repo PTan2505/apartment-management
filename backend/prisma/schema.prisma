@@ -200,6 +200,30 @@ model DamageReport {
 
 /// A photograph attached to a report. The same shape as a contract page, for
 /// the same reason: the database keeps a key, the bytes stay in storage.
+/// A photograph of a room.
+///
+/// Belongs to the ROOM, not to any tenancy in it: a picture taken under one
+/// tenant is still a picture of the same room under the next.
+///
+/// The fourth table of this shape — damage report photographs, contract pages
+/// and ID cards are the others. Four similar tables rather than one
+/// configurable one: each has a different parent, a different ceiling and a
+/// different set of roles, and a reader who has understood one understands
+/// all four.
+model RoomPhoto {
+  id          Int      @id @default(autoincrement())
+  roomId      Int
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  key         String   @unique
+  contentType String
+  uploadedAt  DateTime @default(now())
+
+  // Ordered by upload, and the first stands for the room wherever only one can
+  // be shown. No position column: a position is a second thing to keep correct,
+  // to migrate, and to repair when the photograph holding it is deleted.
+  @@index([roomId, uploadedAt])
+}
+
 model DamageReportPhoto {
   id          Int          @id @default(autoincrement())
   reportId    Int
@@ -317,6 +341,7 @@ model Room {
 
   leases   Lease[]
   expenses Expense[]
+  photos   RoomPhoto[]
 
   // Uniqueness of (buildingId, roomCode) among ACTIVE rooms is enforced by a
   // partial unique index added manually in the migration — Prisma's @@unique

@@ -30,6 +30,7 @@ export const RESOURCE = {
   leaseServiceFee: { code: "LEASE_SERVICE_FEE_NOT_FOUND", label: "Lease service fee" },
   staff: { code: "STAFF_NOT_FOUND", label: "Staff account" },
   damageReport: { code: "REPORT_NOT_FOUND", label: "Report" },
+  roomPhoto: { code: "ROOM_PHOTO_NOT_FOUND", label: "Photograph" },
   reportPhoto: { code: "REPORT_PHOTO_NOT_FOUND", label: "Photograph" },
 } as const;
 

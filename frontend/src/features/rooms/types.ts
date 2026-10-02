@@ -13,6 +13,12 @@ export interface RoomBuilding {
   displayName: string
 }
 
+export interface RoomPhoto {
+  id: number
+  contentType: string
+  uploadedAt: string
+}
+
 export interface Room {
   id: number
   buildingId: number
@@ -41,6 +47,14 @@ export interface Room {
    * tenancy.
    */
   isLet: boolean
+  /**
+   * The room's photographs, oldest first.
+   *
+   * Order IS the model: the first stands for the room wherever only one can be
+   * shown. Present on the listing as well as on one room, so the list can show
+   * a thumbnail without a request per row.
+   */
+  photos: RoomPhoto[]
   /**
    * The tenancy holding this room, and the day it comes free.
    *

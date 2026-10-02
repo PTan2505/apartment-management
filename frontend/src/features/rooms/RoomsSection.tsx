@@ -146,7 +146,14 @@ export function RoomsSection({
             setRestoring(room)
           }}
           onStartLease={setLettingRoom}
-          onOpenLease={(leaseId) => navigate(`/leases/${leaseId}`)}
+          /*
+            Mở TRANG PHÒNG, không nhảy thẳng sang hợp đồng nữa.
+
+            Trước đây bấm vào hàng là đi tới hợp đồng đang thuê — tiện, nhưng
+            phòng trống thì bấm không ra gì, và bản thân cái phòng không có
+            chỗ nào để xem. Hợp đồng vẫn cách một cú bấm, từ chính trang đó.
+          */
+          onOpenRoom={(roomId) => navigate(`/rooms/${roomId}`)}
         />
         {meta && <Pagination meta={meta} onPageChange={onPageChange} />}
       </>

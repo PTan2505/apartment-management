@@ -87,3 +87,41 @@ export function useRoomMeterReading(roomId: number | undefined) {
     enabled: roomId !== undefined && roomId > 0,
   })
 }
+
+// ── Photographs ────────────────────────────────────────────────────────────
+
+export function useRoomPhotos(roomId: number) {
+  return useQuery({
+    queryKey: [...ROOMS_KEY, roomId, 'photos'],
+    queryFn: () => roomsApi.listRoomPhotos(roomId),
+  })
+}
+
+/**
+ * Attaches several photographs, one at a time, and reports how many failed.
+ *
+ * In sequence rather than at once: a phone on a weak connection sending four
+ * images in parallel is four stalls, and the progress a person reads is
+ * "which one are we on", not "all of them at some percentage".
+ */
+export function useAttachRoomPhotos(roomId: number) {
+  const invalidate = useInvalidateRooms()
+  return useMutation({
+    mutationFn: async (files: File[]) => {
+      const failed: string[] = []
+      for (const file of files) {
+        if (!(await roomsApi.attachRoomPhoto(roomId, file))) failed.push(file.name)
+      }
+      return failed
+    },
+    onSuccess: invalidate,
+  })
+}
+
+export function useRemoveRoomPhoto(roomId: number) {
+  const invalidate = useInvalidateRooms()
+  return useMutation({
+    mutationFn: (photoId: number) => roomsApi.removeRoomPhoto(roomId, photoId),
+    onSuccess: invalidate,
+  })
+}

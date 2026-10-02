@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
@@ -13,6 +14,7 @@ import Typography from '@mui/material/Typography'
 
 import { formatMoney } from '@/lib/format'
 import { useIsOwner } from '@/features/auth/useAuth'
+import { roomPhotoDownload } from '@/features/rooms/api'
 // The same "last day covered" rendering the tenancy screens use: a stored end
 // is the first day NOT covered, so showing it raw would be a day late.
 import { formatCoveredThrough } from '@/features/leases/dates'
@@ -40,7 +42,7 @@ interface RoomListProps {
    * the room is how they got there. A vacant room has no tenancy to open, so
    * its row stays inert.
    */
-  onOpenLease: (leaseId: number) => void
+  onOpenRoom: (roomId: number) => void
 }
 
 /**
@@ -56,6 +58,49 @@ interface RoomListProps {
  */
 function RetiredChip() {
   return <Chip label="Đã ngưng" size="small" variant="outlined" />
+}
+
+/**
+ * Ảnh đại diện của một phòng: tấm ĐẦU TIÊN, hoặc một ô giữ chỗ cùng kích cỡ.
+ *
+ * Ô giữ chỗ phải cùng kích cỡ, nếu không bảng sẽ nhảy cao thấp giữa các trang
+ * tuỳ trang đó có phòng nào có ảnh hay không.
+ *
+ * Link tải về sống ngắn nên không gắn thẳng vào src được — hỏi khi ô hiện ra.
+ */
+function Thumb({ room }: { room: Room }) {
+  const first = room.photos?.[0]
+  const [url, setUrl] = useState<string | null>(null)
+  const asked = useRef(false)
+
+  if (first && !asked.current) {
+    asked.current = true
+    roomPhotoDownload(room.id, first.id)
+      .then((signed) => setUrl(signed.url))
+      .catch(() => undefined)
+  }
+
+  return (
+    <Box
+      sx={{
+        width: 56,
+        height: 42,
+        borderRadius: 1,
+        bgcolor: 'action.hover',
+        overflow: 'hidden',
+        flexShrink: 0,
+      }}
+    >
+      {url && (
+        <Box
+          component="img"
+          src={url}
+          alt=""
+          sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        />
+      )}
+    </Box>
+  )
 }
 
 /** Nền xám cho phòng đã ngưng, lấy từ theme chứ không gõ mã màu. */
@@ -97,7 +142,7 @@ export function RoomList({
   onRetire,
   onRestore,
   onStartLease,
-  onOpenLease,
+  onOpenRoom,
 }: RoomListProps) {
   /*
     Cột thao tác chỉ dành cho chủ nhà.
@@ -125,6 +170,7 @@ export function RoomList({
         <Table size="small">
           <TableHead>
             <TableRow>
+              <TableCell sx={{ width: 72 }} />
               <TableCell>Phòng</TableCell>
               {!hideBuilding && <TableCell>Toà nhà</TableCell>}
               <TableCell>Giá thuê</TableCell>
@@ -146,16 +192,14 @@ export function RoomList({
               <TableRow
                 key={room.id}
                 hover
-                sx={{
-                  ...(room.currentLeaseId ? { cursor: 'pointer' } : {}),
-                  ...(room.isActive ? {} : NGUNG_SX),
-                }}
-                onClick={
-                  room.currentLeaseId
-                    ? () => onOpenLease(room.currentLeaseId!)
-                    : undefined
-                }
+                // Mọi hàng mở được, kể cả phòng trống: trang phòng nói về
+                // PHÒNG, nên nó luôn có gì đó để xem.
+                sx={{ cursor: 'pointer', ...(room.isActive ? {} : NGUNG_SX) }}
+                onClick={() => onOpenRoom(room.id)}
               >
+                <TableCell sx={{ width: 72 }}>
+                  <Thumb room={room} />
+                </TableCell>
                 <TableCell>
                   <Typography variant="body2" sx={{ fontWeight: 500 }}>
                     {room.roomCode}
@@ -203,14 +247,12 @@ export function RoomList({
           <Card
             key={room.id}
             variant="outlined"
-            sx={{
-              ...(room.currentLeaseId ? { cursor: 'pointer' } : {}),
-              ...(room.isActive ? {} : NGUNG_SX),
-            }}
-            onClick={room.currentLeaseId ? () => onOpenLease(room.currentLeaseId!) : undefined}
+            sx={{ cursor: 'pointer', ...(room.isActive ? {} : NGUNG_SX) }}
+            onClick={() => onOpenRoom(room.id)}
           >
             <CardContent sx={{ pb: 1.5 }}>
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                <Thumb room={room} />
                 <Box sx={{ minWidth: 0, flexGrow: 1 }}>
                   <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
                     {room.roomCode}

@@ -13,6 +13,7 @@ import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { BuildingsPage } from '@/features/buildings/BuildingsPage'
 import { BuildingDetailPage } from '@/features/buildings/BuildingDetailPage'
 import { RoomsPage } from '@/features/rooms/RoomsPage'
+import { RoomDetailPage } from '@/features/rooms/RoomDetailPage'
 import { CustomersPage } from '@/features/customers/CustomersPage'
 import { LeasesPage } from '@/features/leases/LeasesPage'
 import { LeaseDetailPage } from '@/features/leases/LeaseDetailPage'
@@ -103,6 +104,7 @@ export const router = createBrowserRouter([
                   { path: 'buildings', element: <BuildingsPage /> },
                   { path: 'buildings/:id', element: <BuildingDetailPage /> },
                   { path: 'rooms', element: <RoomsPage /> },
+                  { path: 'rooms/:id', element: <RoomDetailPage /> },
                   { path: 'customers', element: <CustomersPage /> },
                   { path: 'leases', element: <LeasesPage /> },
                   { path: 'leases/:id', element: <LeaseDetailPage /> },
