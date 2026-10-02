@@ -19,6 +19,14 @@ export interface DamageReport {
   closedAt: string | null
   closingNote: string | null
   photos: DamageReportPhoto[]
+  /**
+   * What the repair cost the owner, or null where nobody has priced it.
+   *
+   * Null and an amount of zero are different facts: zero is a repair somebody
+   * recorded as costing nothing. The amount lives on the expense this points
+   * at, never on the report itself — see the API's schema.
+   */
+  cost: { id: number; amount: number; incurredAt: string; description: string } | null
   room: { id: number; roomCode: string }
   building: { id: number; displayName: string }
   /**

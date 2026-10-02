@@ -82,7 +82,17 @@ export const router = createBrowserRouter([
 
               {
                 element: <RoleRoute allow={['owner']} />,
-                children: [{ path: 'staff', element: <StaffPage /> }],
+                children: [
+                  { path: 'staff', element: <StaffPage /> },
+                  /*
+                    Ghi điện phòng trống là GHI một dòng chi phí, nên nó thuộc
+                    về chủ nhà như mọi lối ghi chi phí khác. Nút vào đã ẩn với
+                    quản lí, nhưng gõ thẳng địa chỉ thì vẫn tới — và để họ vào
+                    một màn mà mọi thao tác đều trả 403 thì tệ hơn là từ chối
+                    ngay ở cửa, tử tế, có lối quay lại.
+                  */
+                  { path: 'expenses/empty-rooms', element: <VacancyRunPage /> },
+                ],
               },
 
               {
@@ -101,7 +111,6 @@ export const router = createBrowserRouter([
                   { path: 'invoices/billing-run', element: <BillingRunPage /> },
                   { path: 'invoices/:id', element: <InvoiceDetailPage /> },
                   { path: 'expenses', element: <ExpensesPage /> },
-                  { path: 'expenses/empty-rooms', element: <VacancyRunPage /> },
                 ],
               },
 

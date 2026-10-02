@@ -33,6 +33,23 @@ export const closeReportSchema = z.object({
   note: z.string().trim().min(1, "say what was done").max(1000),
 });
 
+/**
+ * What a repair cost the owner.
+ *
+ * The date is optional: omitted, the service dates the expense to the day the
+ * report was closed, because the money belongs to the month the work happened
+ * in rather than the month somebody typed it.
+ *
+ * Zero is accepted. A repair that cost nothing is a fact somebody recorded,
+ * and it is not the same as a repair nobody has priced — which is the absence
+ * of this record entirely.
+ */
+export const repairCostSchema = z.object({
+  amount: z.coerce.number().nonnegative("must not be negative"),
+  incurredAt: z.coerce.date().optional(),
+  description: z.string().trim().min(1).max(300).optional(),
+});
+
 export const listReportsQuerySchema = z.object({
   state: z.enum(["new", "scheduled", "done"]).optional(),
   buildingId: z.coerce.number().int().positive().optional(),
@@ -45,6 +62,7 @@ export const listReportsQuerySchema = z.object({
 export type CreateReportInput = z.infer<typeof createReportSchema>;
 export type ScheduleReportInput = z.infer<typeof scheduleReportSchema>;
 export type CloseReportInput = z.infer<typeof closeReportSchema>;
+export type RepairCostInput = z.infer<typeof repairCostSchema>;
 export type ListReportsQuery = z.infer<typeof listReportsQuerySchema>;
 export type ReportPhotoUploadInput = z.infer<typeof reportPhotoUploadSchema>;
 export type ReportPhotoConfirmInput = z.infer<typeof reportPhotoConfirmSchema>;

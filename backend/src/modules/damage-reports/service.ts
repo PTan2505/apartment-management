@@ -1,4 +1,4 @@
-import type { Prisma } from "@/generated/prisma/client.js";
+import { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import * as storage from "@/lib/storage.js";
@@ -8,6 +8,7 @@ import type {
   CloseReportInput,
   CreateReportInput,
   ListReportsQuery,
+  RepairCostInput,
   ReportPhotoConfirmInput,
   ReportPhotoUploadInput,
   ScheduleReportInput,
@@ -33,6 +34,14 @@ const reportSelect = {
   scheduledAt: true,
   closedAt: true,
   closingNote: true,
+  /*
+    What the repair cost, read from the expense that holds it.
+
+    The report has no amount column of its own — see the schema. Absent here
+    means nobody has priced the repair, which is a different fact from a
+    repair that cost nothing.
+  */
+  cost: { select: { id: true, amount: true, incurredAt: true, description: true } },
   photos: { select: { id: true, contentType: true, uploadedAt: true }, orderBy: { uploadedAt: "asc" as const } },
   lease: {
     select: {
@@ -295,6 +304,89 @@ export async function scheduleReport(
  * and inventing an appointment to record that would be writing down something
  * that did not happen.
  */
+/* ------------------------------------------------------------------ */
+/* What the repair cost                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Records, or corrects, what a repair cost the owner.
+ *
+ * A broken window is the owner's bill. Nothing here reaches a tenant: the
+ * amount becomes an EXPENSE against the room, which the revenue report already
+ * subtracts from what the building earned.
+ *
+ * Written as an upsert on the expense's unique `damageReportId`, so recording
+ * a second time corrects the figure instead of adding a row. That uniqueness
+ * is what stops one repair being counted twice in a month — including from two
+ * tabs open at once, where a read-then-insert would race.
+ *
+ * The date defaults to the day the report was CLOSED, not to today: the money
+ * belongs to the month the work happened in. Recording it late therefore moves
+ * a past month's figures, which is how every other expense in this system
+ * already behaves — `createExpense` has always taken a date the owner chooses.
+ */
+export async function recordRepairCost(
+  id: number,
+  input: RepairCostInput,
+  scope: BuildingScope,
+) {
+  const report = await prisma.damageReport.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      closedAt: true,
+      reportedAt: true,
+      description: true,
+      lease: { select: { room: { select: { id: true, buildingId: true } } } },
+    },
+  });
+  if (!report || !withinScope(scope, report.lease.room.buildingId)) {
+    throw new NotFoundError("REPORT_NOT_FOUND", "Damage report not found");
+  }
+
+  const incurredAt = input.incurredAt ?? report.closedAt ?? report.reportedAt;
+  const amount = new Prisma.Decimal(input.amount).toDecimalPlaces(0);
+
+  await prisma.expense.upsert({
+    where: { damageReportId: id },
+    create: {
+      damageReportId: id,
+      buildingId: report.lease.room.buildingId,
+      roomId: report.lease.room.id,
+      category: "repair",
+      // Produced by an operation rather than typed on a blank form, exactly as
+      // vacancy electricity is.
+      origin: "system",
+      description: input.description?.trim() || `Sửa chữa: ${report.description.slice(0, 120)}`,
+      incurredAt,
+      amount,
+    },
+    // Only what the owner restated. The room and the building come from the
+    // report and cannot move; re-deriving them on every correction would let a
+    // re-homed report rewrite history.
+    update: {
+      amount,
+      incurredAt,
+      ...(input.description === undefined ? {} : { description: input.description.trim() }),
+    },
+  });
+
+  return getReportById(id, scope);
+}
+
+/**
+ * Un-prices a repair.
+ *
+ * Deletes the expense rather than zeroing it: nobody having said is a
+ * different fact from a repair that cost nothing, and a zero row would report
+ * the second while meaning the first.
+ */
+export async function removeRepairCost(id: number, scope: BuildingScope) {
+  await getReportById(id, scope);
+  await prisma.expense.deleteMany({ where: { damageReportId: id } });
+  return getReportById(id, scope);
+}
+
 export async function closeReport(
   id: number,
   input: CloseReportInput,

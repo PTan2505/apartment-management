@@ -44,3 +44,30 @@ export async function photoDownload(
   )
   return data
 }
+
+export interface RepairCostInput {
+  amount: number
+  /** Omitted lets the API date it to the day the report was closed. */
+  incurredAt?: string
+  description?: string
+}
+
+/**
+ * Records or corrects what a repair cost. Owner only; the API answers 403 for
+ * anybody else.
+ *
+ * Recording twice corrects the figure — the expense is keyed to the report —
+ * so the screen never has to check whether one exists first.
+ */
+export async function recordRepairCost(
+  id: number,
+  input: RepairCostInput,
+): Promise<DamageReport> {
+  const { data } = await apiClient.post<DamageReport>(`/damage-reports/${id}/cost`, input)
+  return data
+}
+
+export async function removeRepairCost(id: number): Promise<DamageReport> {
+  const { data } = await apiClient.delete<DamageReport>(`/damage-reports/${id}/cost`)
+  return data
+}

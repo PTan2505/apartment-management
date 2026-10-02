@@ -49,6 +49,7 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   REPORT_PHOTO_PAYLOAD_INVALID: 'Yêu cầu tải ảnh chưa hợp lệ.',
   REPORT_PHOTO_TOO_LARGE: 'Ảnh quá lớn, tối đa 10 MB.',
   REPORT_SCHEDULE_INVALID: 'Lịch hẹn chưa hợp lệ.',
+  REPAIR_COST_INVALID: 'Chi phí sửa chữa chưa hợp lệ.',
   ROLE_NOT_PERMITTED: 'Tài khoản của bạn không có quyền với mục này.',
   // Bốn con số tiền trên hợp đồng là của chủ nhà. Câu này không nói "bạn không
   // có quyền" mà nói tiền lấy ở đâu ra, vì quản lí cần biết ai sửa được nó.

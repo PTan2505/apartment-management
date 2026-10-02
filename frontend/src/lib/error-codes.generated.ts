@@ -136,6 +136,7 @@ export type BackendErrorCode =
   | 'QUERY_INVALID'
   | 'REFRESH_TOKEN_INVALID'
   | 'REFRESH_TOKEN_MISSING'
+  | 'REPAIR_COST_INVALID'
   | 'REPORT_ALREADY_DONE'
   | 'REPORT_CLOSE_INVALID'
   | 'REPORT_NOT_FOUND'
@@ -188,4 +189,4 @@ export type BackendErrorCode =
   | 'VACANCY_READING_BELOW_LAST'
   | 'VACANCY_ROOM_WAS_LET'
 
-export const BACKEND_ERROR_CODES = 180 as const
+export const BACKEND_ERROR_CODES = 181 as const

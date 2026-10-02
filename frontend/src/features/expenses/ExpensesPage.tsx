@@ -33,6 +33,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { PickerField } from '@/components/PickerField'
 import { ListSurface } from '@/components/ListSurface'
 import { isApiError } from '@/lib/api-error'
+import { useIsOwner } from '@/features/auth/useAuth'
 import { errorMessage } from '@/lib/error-messages'
 import { formatMoney } from '@/lib/format'
 import { useListParams } from '@/lib/useListParams'
@@ -69,6 +70,7 @@ function basis(expense: Expense): string {
 }
 
 export function ExpensesPage() {
+  const isOwner = useIsOwner()
   const { filters, page, setFilter, setFilters, clearFilters, setPage, hasFilters } =
     useListParams<ExpenseFilters>(FILTER_KEYS)
   const [formOpen, setFormOpen] = useState(false)
@@ -113,8 +115,15 @@ export function ExpensesPage() {
     }
   }
 
-  /** The controls on a row, shared by both layouts. */
+  /**
+   * The controls on a row, shared by both layouts.
+   *
+   * Absent entirely for a manager, who reads what their buildings cost and
+   * states none of it. Nothing stands in their place: an empty actions column
+   * down the page is worse than no column.
+   */
   function RowActions({ expense }: { expense: Expense }) {
+    if (!isOwner) return null
     return (
       <Stack direction="row" spacing={0.5}>
         <IconButton size="small" aria-label="Sửa" onClick={() => openEdit(expense)}>
@@ -175,11 +184,17 @@ export function ExpensesPage() {
       ) : (
         <EmptyState
           title="Chưa ghi chi phí nào"
-          description="Chưa ghi chi phí thì báo cáo doanh thu không trừ gì cả, và mọi con số trong đó đều đẹp hơn thực tế."
+          description={
+            isOwner
+              ? 'Chưa ghi chi phí thì báo cáo doanh thu không trừ gì cả, và mọi con số trong đó đều đẹp hơn thực tế.'
+              : 'Chủ nhà chưa ghi chi phí nào cho phần bạn phụ trách.'
+          }
           action={
-            <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
-              Ghi chi phí
-            </Button>
+            isOwner ? (
+              <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
+                Ghi chi phí
+              </Button>
+            ) : undefined
           }
         />
       )
@@ -284,19 +299,22 @@ export function ExpensesPage() {
     <Box>
       <PageHeader
         action={
-          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-            <Button
-              variant="outlined"
-              startIcon={<PowerOffIcon />}
-              component={RouterLink}
-              to="/expenses/empty-rooms"
-            >
-              Phòng trống
-            </Button>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
-              Ghi chi phí
-            </Button>
-          </Stack>
+          // Cả hai đều ghi vào sổ chi phí, nên cả hai đều của chủ nhà.
+          isOwner ? (
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+              <Button
+                variant="outlined"
+                startIcon={<PowerOffIcon />}
+                component={RouterLink}
+                to="/expenses/empty-rooms"
+              >
+                Phòng trống
+              </Button>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
+                Ghi chi phí
+              </Button>
+            </Stack>
+          ) : undefined
         }
       />
 

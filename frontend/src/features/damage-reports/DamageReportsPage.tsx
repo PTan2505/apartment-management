@@ -14,6 +14,7 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import PhoneIcon from '@mui/icons-material/Phone'
 import EventIcon from '@mui/icons-material/Event'
+import PaymentsIcon from '@mui/icons-material/Payments'
 import DoneIcon from '@mui/icons-material/Done'
 
 import { PickerField } from '@/components/PickerField'
@@ -24,6 +25,10 @@ import { Pagination } from '@/components/Pagination'
 import { errorMessage } from '@/lib/error-messages'
 import { useAuth } from '@/features/auth/useAuth'
 import { CloseDialog } from '@/features/damage-reports/CloseDialog'
+import { useIsOwner } from '@/features/auth/useAuth'
+import { formatDate } from '@/features/leases/dates'
+import { formatMoney } from '@/lib/format'
+import { RepairCostDialog } from '@/features/damage-reports/RepairCostDialog'
 import { ScheduleDialog } from '@/features/damage-reports/ScheduleDialog'
 import {
   REPORT_STATES,
@@ -53,11 +58,14 @@ function ReportCard({
   report,
   onSchedule,
   onClose,
+  onCost,
 }: {
   report: DamageReport
   onSchedule: () => void
   onClose: () => void
+  onCost: () => void
 }) {
+  const isOwner = useIsOwner()
   const done = report.state === 'done'
 
   return (
@@ -138,6 +146,42 @@ function ReportCard({
               </Button>
             </Stack>
           )}
+
+          {/*
+            Chi phí sửa chữa. Chỉ hiện trên báo hỏng ĐÃ XONG: hỏi tiền một việc
+            chưa làm xong là hỏi một con số chưa ai biết.
+
+            "Chưa tính tiền" phải nói thành lời, vì đó chính là trạng thái chủ
+            nhà đang quét tìm — một ô trống thì không phân biệt được với một
+            khoản 0 đồng.
+          */}
+          {done && (
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1 }}
+            >
+              <PaymentsIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+              {report.cost ? (
+                <Typography variant="body2">
+                  Chi phí sửa chữa: <strong>{formatMoney(report.cost.amount)}</strong>
+                  {' · '}
+                  <Box component="span" color="text.secondary">
+                    tính vào {formatDate(report.cost.incurredAt)}
+                  </Box>
+                </Typography>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  Chưa tính tiền sửa chữa
+                </Typography>
+              )}
+              {isOwner && (
+                <Button size="small" onClick={onCost}>
+                  {report.cost ? 'Sửa' : 'Ghi chi phí'}
+                </Button>
+              )}
+            </Stack>
+          )}
         </Stack>
       </CardContent>
     </Card>
@@ -160,6 +204,7 @@ export function DamageReportsPage() {
 
   const [scheduling, setScheduling] = useState<DamageReport | null>(null)
   const [closing, setClosing] = useState<DamageReport | null>(null)
+  const [costing, setCosting] = useState<DamageReport | null>(null)
 
   const query = useReports({
     page,
@@ -211,6 +256,7 @@ export function DamageReportsPage() {
               report={report}
               onSchedule={() => setScheduling(report)}
               onClose={() => setClosing(report)}
+              onCost={() => setCosting(report)}
             />
           ))}
         </Stack>
@@ -275,6 +321,11 @@ export function DamageReportsPage() {
 
       <ScheduleDialog report={scheduling} onClose={() => setScheduling(null)} />
       <CloseDialog report={closing} onClose={() => setClosing(null)} />
+      <RepairCostDialog
+        open={costing !== null}
+        report={costing}
+        onClose={() => setCosting(null)}
+      />
     </Box>
   )
 }

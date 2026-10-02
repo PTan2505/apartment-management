@@ -5,6 +5,8 @@ import { requireRole } from "@/middleware/require-role.js";
 import { accountGuard } from "@/middleware/staff-scope.js";
 import {
   closeReportHandler,
+  recordRepairCostHandler,
+  removeRepairCostHandler,
   listNoticesHandler,
   markNoticesReadHandler,
   unreadNoticeCountHandler,
@@ -48,3 +50,16 @@ damageReportsRouter.get("/:id", getReportHandler);
 damageReportsRouter.post("/:id/schedule", scheduleReportHandler);
 damageReportsRouter.post("/:id/close", closeReportHandler);
 damageReportsRouter.get("/:id/photos/:photoId/download", reportPhotoDownloadHandler);
+
+/*
+  What the repair cost. The OWNER's alone, though all three roles reach the
+  rest of this module.
+
+  A manager may not write an expense anywhere, and this would be the one place
+  they could. Maintenance was considered and declined: the person who did the
+  work reports the figure in the closing note above, and the owner reads it
+  there — a number that reduces the owner's reported earnings is theirs to
+  state.
+*/
+damageReportsRouter.post("/:id/cost", requireRole("owner"), recordRepairCostHandler);
+damageReportsRouter.delete("/:id/cost", requireRole("owner"), removeRepairCostHandler);
