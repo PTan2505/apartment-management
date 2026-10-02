@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma.js";
 import { mapPaginated, paginate, toSkipTake } from "@/lib/pagination.js";
 import { findLatestKnownReading } from "@/lib/meter-history.js";
+import * as storage from "@/lib/storage.js";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors.js";
 import { inServiceWhere } from "@/modules/buildings/service.js";
 import { buildingWhere, withinScope, type BuildingScope } from "@/middleware/staff-scope.js";
@@ -8,7 +9,13 @@ import { HOLDS_ITS_ROOM } from "@/modules/leases/occupancy.js";
 // The same arithmetic the lease's own expected end uses. Computed in one place
 // so a room and its tenancy can never disagree about the day it comes free.
 import { addMonths } from "@/modules/leases/mapper.js";
-import type { CreateRoomInput, ListRoomsQuery, UpdateRoomInput } from "./schema.js";
+import type {
+  CreateRoomInput,
+  ListRoomsQuery,
+  RoomPhotoConfirmInput,
+  RoomPhotoUploadInput,
+  UpdateRoomInput,
+} from "./schema.js";
 
 /**
  * Every room reports the building it belongs to.
@@ -38,6 +45,20 @@ const roomSelect = {
   updatedAt: true,
   building: {
     select: { id: true, displayName: true },
+  },
+  /*
+    The room's photographs, carried on the room itself.
+
+    On the LISTING as well as on one room, so the rooms table can show a
+    thumbnail without one request per row. They are three small columns and a
+    room rarely has many; a second round trip per row to learn the first key
+    would cost far more than this does.
+
+    Ordered by upload, because the first one stands for the room.
+  */
+  photos: {
+    select: { id: true, contentType: true, uploadedAt: true },
+    orderBy: { uploadedAt: "asc" as const },
   },
   /**
    * Whether a tenancy is running here, fetched alongside rather than asked for
@@ -298,4 +319,125 @@ export async function getLatestMeterReading(id: number, scope: BuildingScope = n
   return latest === null
     ? { reading: null, at: null, source: null }
     : { reading: latest.reading, at: latest.at, source: latest.source };
+}
+
+/* ------------------------------------------------------------------ */
+/* Photographs                                                         */
+/* ------------------------------------------------------------------ */
+
+function assertStorage() {
+  if (!storage.isConfigured()) {
+    throw new ValidationError("STORAGE_NOT_CONFIGURED", "File storage is not configured");
+  }
+}
+
+/**
+ * The room's photographs, oldest first.
+ *
+ * Order is the whole ordering model: the FIRST is the one that stands for the
+ * room wherever only one can be shown. No position column — a position is a
+ * second thing to keep correct, and re-uploading is cheap.
+ */
+export async function listRoomPhotos(roomId: number, scope: BuildingScope = null) {
+  await getRoomById(roomId, scope);
+  return prisma.roomPhoto.findMany({
+    where: { roomId },
+    select: { id: true, contentType: true, uploadedAt: true },
+    orderBy: { uploadedAt: "asc" },
+  });
+}
+
+export async function signRoomPhotoUpload(
+  roomId: number,
+  input: RoomPhotoUploadInput,
+  scope: BuildingScope = null,
+) {
+  await getRoomById(roomId, scope);
+  assertStorage();
+  return storage.signRoomPhotoUpload(roomId, input.contentType);
+}
+
+/**
+ * Records a photograph that has arrived.
+ *
+ * The object is DESCRIBED rather than listed, for the reason the damage-report
+ * photographs already state: a listing is eventually consistent and would miss
+ * an upload that finished a moment ago.
+ */
+export async function confirmRoomPhoto(
+  roomId: number,
+  input: RoomPhotoConfirmInput,
+  scope: BuildingScope = null,
+) {
+  await getRoomById(roomId, scope);
+  assertStorage();
+
+  // The key must sit under THIS room's prefix. Without this a caller could
+  // confirm somebody else's object into their own room.
+  if (!input.key.startsWith(storage.roomPhotoPrefix(roomId))) {
+    throw new ValidationError("ROOM_PHOTO_KEY_INVALID", "That key does not belong to this room");
+  }
+
+  const object = await storage.describeObject(input.key);
+  if (!object) {
+    throw new ValidationError("ROOM_PHOTO_NOT_UPLOADED", "No photograph has been uploaded under that key");
+  }
+  if (object.size > storage.MAX_ROOM_PHOTO_BYTES) {
+    throw new ValidationError("ROOM_PHOTO_TOO_LARGE", "That photograph is too large");
+  }
+
+  await prisma.roomPhoto.create({
+    data: {
+      roomId,
+      key: input.key,
+      // What storage says it holds, not what the extension suggests.
+      contentType: object.contentType ?? "application/octet-stream",
+    },
+  });
+
+  return listRoomPhotos(roomId, scope);
+}
+
+/** A short-lived link to one photograph. */
+export async function roomPhotoDownload(
+  roomId: number,
+  photoId: number,
+  scope: BuildingScope = null,
+) {
+  await getRoomById(roomId, scope);
+  assertStorage();
+  const photo = await prisma.roomPhoto.findFirst({
+    where: { id: photoId, roomId },
+    select: { key: true },
+  });
+  if (!photo) {
+    throw new NotFoundError("ROOM_PHOTO_NOT_FOUND", "Photograph not found");
+  }
+  return storage.signDownload(photo.key);
+}
+
+/**
+ * Removes a photograph, from the record and from storage.
+ *
+ * Deleted rather than retired. Every other removable thing here is retired so
+ * it stays provable; a photograph proves nothing anybody will be asked to
+ * produce, and a room's picture gallery full of hidden rows helps nobody.
+ */
+export async function removeRoomPhoto(
+  roomId: number,
+  photoId: number,
+  scope: BuildingScope = null,
+) {
+  await getRoomById(roomId, scope);
+  const photo = await prisma.roomPhoto.findFirst({ where: { id: photoId, roomId } });
+  if (!photo) {
+    throw new NotFoundError("ROOM_PHOTO_NOT_FOUND", "Photograph not found");
+  }
+
+  await prisma.roomPhoto.delete({ where: { id: photoId } });
+  // After the row, and never the other way round: an object deleted while the
+  // row survives leaves a gallery of links to nothing.
+  await storage.deleteObject(photo.key).catch(() => undefined);
+
+  return listRoomPhotos(roomId, scope);
 }

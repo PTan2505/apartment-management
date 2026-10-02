@@ -1,5 +1,41 @@
 ## ADDED Requirements
 
+### Requirement: A room has a page of its own
+
+A room SHALL have its own page, reachable by opening it from the rooms list.
+
+It did not have one. A room was a row, and opening that row went to the TENANCY in it —
+useful, but it left the room itself with nowhere to live, and it did nothing at all for a
+vacant room. Photographs needed a home, and so does the furniture inventory that
+follows; two features wanting the same missing page is what earned it.
+
+The page SHALL carry what the room IS — its code, its building, whether it is let, its
+rent, the meter position it was added at, and when it comes free — and SHALL link to the
+tenancy currently in it rather than replacing it. Opening a room SHALL work for every
+room, including a vacant or a retired one.
+
+Editing the room SHALL be offered here, to the roles that may.
+
+#### Scenario: Opening a room
+
+- **WHEN** the owner clicks a row in the rooms list
+- **THEN** the room's own page opens, not the tenancy in it
+
+#### Scenario: A vacant room
+
+- **WHEN** a vacant room is opened
+- **THEN** its page opens and says it is free to let, where before clicking did nothing
+
+#### Scenario: The tenancy is still a click away
+
+- **WHEN** a let room is opened
+- **THEN** the page offers to open the tenancy currently in it
+
+#### Scenario: A manager
+
+- **WHEN** a manager opens a room in a building they cover
+- **THEN** the page opens and offers no control that edits the room
+
 ### Requirement: A room's page shows its photographs, and the list shows the first
 
 A room's own page SHALL show the photographs it holds, and SHALL let an `owner` or a

@@ -1,9 +1,11 @@
 import { apiClient } from '@/lib/api-client'
+import { storageFetch } from '@/lib/storage-fetch'
 import type {
   ListRoomsParams,
   Paginated,
   Room,
   RoomMeterReading,
+  RoomPhoto,
 } from '@/features/rooms/types'
 import type { CreateRoomFormOutput, UpdateRoomFormOutput } from '@/features/rooms/schema'
 
@@ -60,4 +62,69 @@ export async function getRoom(id: number): Promise<Room> {
 export async function getRoomMeterReading(id: number): Promise<RoomMeterReading> {
   const { data } = await apiClient.get<RoomMeterReading>(`/rooms/${id}/latest-meter-reading`)
   return data
+}
+
+// ── Photographs ────────────────────────────────────────────────────────────
+//
+// The same three steps as a contract page and a damage-report photograph: the
+// API signs, the BROWSER sends the bytes to storage, the API confirms. A
+// megabyte of image never passes through the API process.
+
+export const ROOM_PHOTO_ACCEPT = 'image/jpeg,image/png,image/heic'
+
+export interface SignedUpload {
+  url: string
+  key: string
+  expiresAt: string
+  maxBytes: number
+}
+
+export async function listRoomPhotos(roomId: number): Promise<RoomPhoto[]> {
+  const { data } = await apiClient.get<{ photos: RoomPhoto[] }>(`/rooms/${roomId}/photos`)
+  return data.photos
+}
+
+export async function roomPhotoDownload(roomId: number, photoId: number): Promise<{ url: string }> {
+  const { data } = await apiClient.get<{ url: string }>(
+    `/rooms/${roomId}/photos/${photoId}/download`,
+  )
+  return data
+}
+
+export async function removeRoomPhoto(roomId: number, photoId: number): Promise<RoomPhoto[]> {
+  const { data } = await apiClient.delete<{ photos: RoomPhoto[] }>(
+    `/rooms/${roomId}/photos/${photoId}`,
+  )
+  return data.photos
+}
+
+/**
+ * Uploads one photograph, and says whether it worked.
+ *
+ * Never throws. Several files are attached one at a time, and one rejection
+ * must not lose the others — the caller reports which failed rather than
+ * abandoning the batch.
+ */
+export async function attachRoomPhoto(roomId: number, file: File): Promise<boolean> {
+  try {
+    const { data: signed } = await apiClient.post<SignedUpload>(
+      `/rooms/${roomId}/photos/upload-url`,
+      { contentType: file.type },
+    )
+    // Checked here as well as at confirmation: a 10 MB upload that will be
+    // refused afterwards is a 10 MB upload nobody needed to make.
+    if (file.size > signed.maxBytes) return false
+
+    const response = await storageFetch(signed.url, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type },
+      body: file,
+    })
+    if (!response.ok) return false
+
+    await apiClient.post(`/rooms/${roomId}/photos`, { key: signed.key })
+    return true
+  } catch {
+    return false
+  }
 }

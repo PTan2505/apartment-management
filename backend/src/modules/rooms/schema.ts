@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { paginationQueryFields } from "@/lib/pagination.js";
+import { ROOM_PHOTO_CONTENT_TYPES } from "@/lib/storage.js";
 
 const money = z.coerce.number().nonnegative("must not be negative");
 
@@ -87,3 +88,15 @@ export const listRoomsQuerySchema = z.object({
 export type CreateRoomInput = z.infer<typeof createRoomSchema>;
 export type UpdateRoomInput = z.infer<typeof updateRoomSchema>;
 export type ListRoomsQuery = z.infer<typeof listRoomsQuerySchema>;
+
+/** Asking for somewhere to put one photograph. The key is derived, not named. */
+export const roomPhotoUploadSchema = z.object({
+  contentType: z.enum(ROOM_PHOTO_CONTENT_TYPES),
+});
+
+export const roomPhotoConfirmSchema = z.object({
+  key: z.string().min(1, "key is required"),
+});
+
+export type RoomPhotoUploadInput = z.infer<typeof roomPhotoUploadSchema>;
+export type RoomPhotoConfirmInput = z.infer<typeof roomPhotoConfirmSchema>;

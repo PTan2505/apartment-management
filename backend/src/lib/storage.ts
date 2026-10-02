@@ -169,6 +169,27 @@ export function newReportPhotoKey(reportId: number, contentType: ReportPhotoCont
   return `${reportPhotoPrefix(reportId)}${randomUUID()}.${REPORT_PHOTO_EXTENSIONS[contentType]}`;
 }
 
+export const ROOM_PHOTO_CONTENT_TYPES = ["image/jpeg", "image/png", "image/heic"] as const;
+export type RoomPhotoContentType = (typeof ROOM_PHOTO_CONTENT_TYPES)[number];
+
+/** 10 MB — a photograph taken on a phone, as for a report and an ID card. */
+export const MAX_ROOM_PHOTO_BYTES = 10 * 1024 * 1024;
+
+export function roomPhotoPrefix(roomId: number): string {
+  return `rooms/${roomId}/photos/`;
+}
+
+const ROOM_PHOTO_EXTENSIONS: Record<RoomPhotoContentType, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/heic": "heic",
+};
+
+/** Derived, never accepted: the caller names a room, not a destination. */
+export function newRoomPhotoKey(roomId: number, contentType: RoomPhotoContentType): string {
+  return `${roomPhotoPrefix(roomId)}${randomUUID()}.${ROOM_PHOTO_EXTENSIONS[contentType]}`;
+}
+
 /** The sides of an ID card. Two objects, kept apart. */
 export const ID_CARD_SIDES = ["front", "back"] as const;
 export type IdCardSide = (typeof ID_CARD_SIDES)[number];
@@ -519,5 +540,32 @@ export async function signReportPhotoUpload(
     key,
     expiresAt: new Date(Date.now() + UPLOAD_URL_TTL_SECONDS * 1000),
     maxBytes: MAX_REPORT_PHOTO_BYTES,
+  };
+}
+
+/**
+ * A signed upload for one photograph of a room.
+ *
+ * The fourth of these, and deliberately identical to the third: the key is
+ * derived here rather than accepted, the content type is bound into the
+ * signature, and the size is checked at confirmation because a presigned PUT
+ * cannot bind it.
+ */
+export async function signRoomPhotoUpload(
+  roomId: number,
+  contentType: RoomPhotoContentType,
+): Promise<SignedUpload> {
+  const key = newRoomPhotoKey(roomId, contentType);
+  const url = await getSignedUrl(
+    s3(),
+    new PutObjectCommand({ Bucket: env.R2_BUCKET!, Key: key, ContentType: contentType }),
+    { expiresIn: UPLOAD_URL_TTL_SECONDS, signableHeaders: new Set(["content-type"]) },
+  );
+
+  return {
+    url,
+    key,
+    expiresAt: new Date(Date.now() + UPLOAD_URL_TTL_SECONDS * 1000),
+    maxBytes: MAX_ROOM_PHOTO_BYTES,
   };
 }

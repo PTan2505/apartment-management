@@ -15,7 +15,10 @@ the only one of the four that is missing.
 
 - **A room carries photographs.** The owner or a manager uploads them; they belong to the
   room and outlive every tenancy in it.
-- **They are shown on the room's own page**, and the first one stands in for the room as
+- **A room gains a page of its own.** It had none: a room was a row, and clicking it
+  opened the tenancy inside it. Discovered while building this, and unavoidable —
+  photographs had nowhere to go, and the furniture change plans the same page.
+- **They are shown on that page**, and the first one stands in for the room as
   a thumbnail in the rooms list. Fifty-eight rows of text is hard to scan; a picture in
   the first column is how people recognise a room.
   - The thumbnail goes beyond what was asked ("show on room detail"). It is called out

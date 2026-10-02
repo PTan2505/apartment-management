@@ -79,6 +79,11 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   ROOM_RETIRE_HAS_ACTIVE_LEASE: 'Không thể ngưng hoạt động phòng đang có hợp đồng.',
   ROOM_BUILDING_MISMATCH: 'Phòng này không thuộc toà nhà đã chọn.',
   ROOM_ALREADY_LET: 'Phòng này đang có hợp đồng.',
+  ROOM_PHOTO_NOT_FOUND: 'Không tìm thấy ảnh này.',
+  ROOM_PHOTO_PAYLOAD_INVALID: 'Yêu cầu tải ảnh chưa hợp lệ.',
+  ROOM_PHOTO_KEY_INVALID: 'Ảnh này không thuộc phòng đang xem.',
+  ROOM_PHOTO_NOT_UPLOADED: 'Chưa thấy ảnh trên máy chủ lưu trữ — thử tải lại.',
+  ROOM_PHOTO_TOO_LARGE: 'Ảnh quá lớn, tối đa 10 MB.',
 
   // ── Khách ────────────────────────────────────────────────────────────────
   CUSTOMER_NOT_FOUND: 'Không tìm thấy khách.',

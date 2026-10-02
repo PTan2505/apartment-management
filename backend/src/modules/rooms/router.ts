@@ -3,7 +3,12 @@ import { authenticate } from "@/middleware/authenticate.js";
 import { accountGuard } from "@/middleware/staff-scope.js";
 import { requireRole } from "@/middleware/require-role.js";
 import {
+  confirmRoomPhotoHandler,
   createRoomHandler,
+  listRoomPhotosHandler,
+  removeRoomPhotoHandler,
+  roomPhotoDownloadHandler,
+  roomPhotoUploadUrlHandler,
   listRoomsHandler,
   getRoomHandler,
   getRoomMeterHandler,
@@ -40,3 +45,19 @@ roomsRouter.get("/:id/latest-meter-reading", requireRole("owner", "manager"), ge
 roomsRouter.patch("/:id", requireRole("owner"), updateRoomHandler);
 roomsRouter.post("/:id/retire", requireRole("owner"), retireRoomHandler);
 roomsRouter.post("/:id/restore", requireRole("owner"), restoreRoomHandler);
+
+/*
+  Photographs of a room.
+
+  A deliberate exception to "rooms are the owner's": a manager may add and
+  remove them though they may not edit the room. What a room CHARGES is the
+  business deciding what it sells; what a room LOOKS like is the person
+  standing in it with a phone.
+
+  Narrow, and stated here so the next reader does not file it as an oversight.
+*/
+roomsRouter.get("/:id/photos", requireRole("owner", "manager"), listRoomPhotosHandler);
+roomsRouter.post("/:id/photos/upload-url", requireRole("owner", "manager"), roomPhotoUploadUrlHandler);
+roomsRouter.post("/:id/photos", requireRole("owner", "manager"), confirmRoomPhotoHandler);
+roomsRouter.get("/:id/photos/:photoId/download", requireRole("owner", "manager"), roomPhotoDownloadHandler);
+roomsRouter.delete("/:id/photos/:photoId", requireRole("owner", "manager"), removeRoomPhotoHandler);
