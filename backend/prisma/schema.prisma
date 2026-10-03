@@ -53,6 +53,22 @@ model User {
   // Independent of each other: one side can be on file without the other.
   idCardFrontKey String?
   idCardBackKey  String?
+  /// The number printed on that card, as text.
+  ///
+  /// Alongside the photographs, not instead of them. The photographs are what
+  /// proves the document; this is what gets typed into a form, and a system
+  /// holding only pictures cannot fill one in — which is exactly where the
+  /// residence paperwork stopped being automatable.
+  ///
+  /// Nullable, and null means NOBODY HAS SAID. Every person recorded before this
+  /// column existed has none, and an owner entering an old paper tenancy may
+  /// never have been given it. The form prints that box empty and says so,
+  /// rather than refusing to print.
+  ///
+  /// Deliberately NOT unique. Two rows carrying the same number is a data-entry
+  /// mistake worth finding, but a unique index would turn it into a save that
+  /// fails on an unrelated person's record, naming neither of them.
+  idCardNumber   String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -503,6 +519,7 @@ model Lease {
   // revoked. Kept as history so "when was this replaced" is answerable.
   portalTokens  LeasePortalToken[]
   damageReports DamageReport[]
+  visitors      LeaseVisitor[]
 
   // One ACTIVE lease per room is enforced by a partial unique index added
   // manually in the migration. Its predicate is "moveOutDate IS NULL AND
@@ -554,6 +571,99 @@ model LeaseOccupant {
   //   one active primary per lease, and no duplicate active occupant.
   @@index([leaseId])
   @@index([userId])
+}
+
+/// Nam or Nữ, as the residence form asks it. Two values because the form has
+/// two boxes; this is a field transcribed onto government paperwork, not a
+/// place to describe a person.
+enum Sex {
+  male
+  female
+}
+
+/// Somebody staying in a room who is not on the tenancy — a visiting relative,
+/// a friend for a fortnight.
+///
+/// A FOURTH population, deliberately separate from the three that already
+/// exist: the signatory, the listed occupants, and the occupant COUNT that
+/// water is billed on. Nothing here reaches billing. See design.md.
+///
+/// Its own table rather than a `customer`, because the customer list is what a
+/// lease signatory is picked from and filling it with people who stayed two
+/// nights makes that choice worse at its job. The cost is that a visitor who
+/// later rents is typed twice — acceptable, and rare.
+///
+/// Attached to the TENANCY, not the room: a visit is somebody's guest, not the
+/// room's, and when the tenancy ends these go into its history where they
+/// belong.
+model LeaseVisitor {
+  id      Int   @id @default(autoincrement())
+  leaseId Int
+  lease   Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  fullName String
+
+  // --- the boxes the residence form requires ---
+  //
+  // Required, all four, and that is not thoroughness for its own sake: a
+  // registration missing one produces a form that cannot be filed, which is
+  // discovered by the owner weeks later at the police station. They are asked
+  // at the one moment somebody is holding the identity document.
+  //
+  /// The number on the card, as text — see User.idCardNumber for why a
+  /// photograph is not enough. Not unique: the same person may be registered
+  /// across several visits and several tenancies, and each visit is its own
+  /// record of its own dates.
+  idCardNumber        String
+  dateOfBirth         DateTime
+  sex                 Sex
+  /// Nơi thường trú — where this person normally lives, which is the whole
+  /// point of a form recording that they are temporarily somewhere else.
+  permanentAddress    String
+  /// How they are related to the person who signed the tenancy, in their own
+  /// words: "em ruột", "bạn". Free text rather than an enum — the form takes a
+  /// phrase, and an enum here would be a list of relationships somebody has to
+  /// maintain forever, with "other" at the bottom doing all the work.
+  relationToSignatory String
+
+  // --- the boxes the form is routinely filed without ---
+  //
+  // Optional, because the form itself tolerates them empty: a visiting
+  // grandmother has no workplace and a child has no telephone. A required
+  // field here would be filled with a lie, which is worse on a government form
+  // than a blank.
+  phone      String?
+  email      String?
+  /// Nghề nghiệp, nơi làm việc — one line, as the form asks it.
+  occupation String?
+
+  /// The two sides of the identity document, as storage keys. Same shape and
+  /// same reasons as User.idCardFrontKey, and independent of each other.
+  ///
+  /// Optional at registration, deliberately: a tenant standing in a corridor
+  /// without their cousin's card will abandon a form that demands it, and the
+  /// registration is worth more than the photograph.
+  idCardFrontKey String?
+  idCardBackKey  String?
+
+  arrivesOn     DateTime
+  /// REQUIRED. The fourteen-day flag is this feature's whole value, and a
+  /// nullable end date is how every record quietly becomes "still here,
+  /// indefinitely" — the state the feature exists to make visible. The form
+  /// turns "I don't know" into a date and says the stay can be extended.
+  expectedUntil DateTime
+  note          String?
+
+  /// Whether staff filed this rather than the tenant. Shown, because "the
+  /// owner wrote this down" and "the tenant declared this" are different
+  /// claims about the same row.
+  addedByStaff Boolean   @default(false)
+  cancelledAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([leaseId])
 }
 
 /// Whether an INVOICE has been settled. Distinct from PaymentState, which is
