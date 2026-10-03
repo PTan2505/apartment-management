@@ -326,6 +326,7 @@ model Building {
   rooms       Room[]
   expenses    Expense[]
   serviceFees BuildingServiceFee[]
+  furniture   FurnitureItem[]
   staff       StaffBuilding[]
 }
 
@@ -355,9 +356,10 @@ model Room {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  leases   Lease[]
-  expenses Expense[]
-  photos   RoomPhoto[]
+  leases    Lease[]
+  expenses  Expense[]
+  photos    RoomPhoto[]
+  furniture RoomFurniture[]
 
   // Uniqueness of (buildingId, roomCode) among ACTIVE rooms is enforced by a
   // partial unique index added manually in the migration — Prisma's @@unique
@@ -520,6 +522,26 @@ model Lease {
   portalTokens  LeasePortalToken[]
   damageReports DamageReport[]
   visitors      LeaseVisitor[]
+  furniture     LeaseFurniture[]
+
+  /// When the hand-over record for this tenancy was written.
+  ///
+  /// Exists to tell two things apart that otherwise look identical — both have
+  /// zero furniture rows:
+  ///
+  ///   NULL  nobody ever recorded a hand-over. Every tenancy signed before
+  ///         furniture existed in this system is in this state.
+  ///   set   a hand-over WAS recorded, and it listed nothing. The room was
+  ///         handed over unfurnished, which is a fact somebody established.
+  ///
+  /// A screen that reads an empty list as "handed over with nothing" would say
+  /// something untrue about every older tenancy, at exactly the moment it
+  /// matters — a move-out with nothing to check in.
+  ///
+  /// A column rather than comparing the tenancy's age against the date the
+  /// feature shipped: that comparison is a constant nobody would maintain, and
+  /// it would quietly answer wrongly for anything backfilled later.
+  furnitureRecordedAt DateTime?
 
   // One ACTIVE lease per room is enforced by a partial unique index added
   // manually in the migration. Its predicate is "moveOutDate IS NULL AND
@@ -659,6 +681,148 @@ model LeaseVisitor {
   /// claims about the same row.
   addedByStaff Boolean   @default(false)
   cancelledAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([leaseId])
+}
+
+/// What state a piece of furniture is in.
+///
+/// Four fixed values, never free text. The whole reason a condition is stored
+/// is so the one at hand-over can be COMPARED with the one at return, and
+/// "hơi xước" and "xước nhẹ" are the same condition written twice.
+///
+/// Four rather than three: `new` and `good` differ on the first tenancy of a
+/// newly furnished room, where everything really is new and the tenant should
+/// be told so.
+enum FurnitureCondition {
+  new
+  good
+  worn
+  damaged
+}
+
+/// What a building furnishes its rooms with — the catalogue, declared once.
+///
+/// Per building rather than system-wide, following the fee catalogue: the
+/// picker a room chooses from stays short, and one building's inventory does
+/// not fill another's list.
+///
+/// This furnishes NOBODY by itself. A room has to hold it — the same two-level
+/// split as service fees, and the same place people get it wrong.
+model FurnitureItem {
+  id         Int      @id @default(autoincrement())
+  buildingId Int
+  building   Building @relation(fields: [buildingId], references: [id])
+
+  name      String
+  /// Loại: giường, tủ lạnh, máy lạnh. Free text, unlike condition above —
+  /// condition is an enum because something compares it, and nothing compares
+  /// this. An enum here would be a list somebody maintains forever with
+  /// "khác" at the bottom doing all the work.
+  kind      String
+  /// Hãng. Optional: an owner recording a second-hand wardrobe may not know.
+  make      String?
+  /// What one of them is worth. Copied onto a room when it is furnished, so
+  /// re-pricing here never restates what a room already holds.
+  unitValue Decimal @db.Decimal(12, 2)
+
+  /// Retired rather than deleted, because rooms refer to it. A retired entry
+  /// is no longer offered; rooms already holding it are untouched.
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roomHoldings RoomFurniture[]
+
+  // Name is unique among a building's OFFERED entries — a partial unique index
+  // added manually in the migration, same shape as BuildingServiceFee.name.
+  // Two entries called "Giường" cannot be told apart at the moment of choosing
+  // one, and retiring must release the name.
+  @@index([buildingId])
+}
+
+/// What a room actually holds, today.
+///
+/// On the ROOM, not on a tenancy. A fridge does not leave when the tenant does,
+/// and requiring the list to be re-entered at every signing is how it stops
+/// being maintained — which was the whole reason "what is in P101?" had no
+/// answer.
+model RoomFurniture {
+  id              Int           @id @default(autoincrement())
+  roomId          Int
+  room            Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  furnitureItemId Int
+  furnitureItem   FurnitureItem @relation(fields: [furnitureItemId], references: [id])
+
+  quantity  Int
+  /// COPIED from the catalogue at the moment this room was furnished, for the
+  /// same reason a tenancy copies its rent: re-pricing the catalogue must not
+  /// silently restate what a room was furnished with.
+  unitValue Decimal @db.Decimal(12, 2)
+
+  /// The room's CURRENT condition, which changes as things wear. Distinct from
+  /// the condition frozen onto a hand-over record.
+  condition FurnitureCondition
+  /// What the enum cannot carry — "xước ở cạnh bên phải" — without being the
+  /// thing anything branches on.
+  note      String?
+
+  acquiredOn DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([roomId])
+  @@index([furnitureItemId])
+}
+
+/// What THIS tenant was handed, on the day they moved in.
+///
+/// ── Why every field is a copy, including the text ──────────────────────────
+///
+/// Frozen rather than looked up. The room's furniture goes on changing — things
+/// are added, replaced, thrown out — and the question this answers is what was
+/// handed over, which stops being derivable the moment anything changes.
+///
+/// The NAME, KIND and MAKE are copied as text rather than pointed at, so
+/// retiring a catalogue entry or throwing the item out cannot quietly empty a
+/// record that exists to settle a disagreement.
+///
+/// ── Immutable, deliberately ────────────────────────────────────────────────
+///
+/// No endpoint changes a value or a hand-over condition. A record of what
+/// somebody received that the interested party can edit afterwards settles
+/// nothing. Correcting a genuine mistake means a note on the tenancy, which is
+/// visibly a note — a real cost, and the point.
+model LeaseFurniture {
+  id      Int   @id @default(autoincrement())
+  leaseId Int
+  lease   Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  name      String
+  kind      String
+  make      String?
+  quantity  Int
+  /// What one was worth at hand-over. The starting figure for a damage charge,
+  /// never the verdict: a three-year-old fridge is not worth what it cost.
+  unitValue Decimal @db.Decimal(12, 2)
+
+  handoverCondition FurnitureCondition
+  handoverNote      String?
+  handedOverOn      DateTime
+
+  /// NULL means NOBODY LOOKED — a third state, not "came back fine".
+  ///
+  /// A form where skipping means "fine" converts a tenancy nobody inspected
+  /// into a tenancy inspected and cleared, which is exactly the record somebody
+  /// gets shown later.
+  returnCondition FurnitureCondition?
+  returnNote      String?
+  returnedAt      DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
