@@ -19,6 +19,10 @@ const customerSelect = {
   phone: true,
   fullName: true,
   role: true,
+  // The number on the card. Unlike the two keys below it this DOES reach a
+  // caller: it is what gets copied onto the residence form, so the screen that
+  // shows a customer has to be able to show it.
+  idCardNumber: true,
   createdAt: true,
   updatedAt: true,
   // Read to answer WHETHER a card is on file. The keys themselves never reach a
@@ -71,6 +75,7 @@ export async function registerCustomer(input: RegisterCustomerInput) {
       fullName: input.fullName,
       fullNameSearch: normalizeVi(input.fullName),
       phone: input.phone ?? null,
+      idCardNumber: input.idCardNumber ?? null,
       role: "customer",
     },
     select: customerSelect,

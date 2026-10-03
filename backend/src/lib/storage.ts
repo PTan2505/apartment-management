@@ -230,14 +230,27 @@ export function newIdCardKey(
 }
 
 /**
- * The one blank contract the owner prints to sign with a new tenant.
+ * A document there is exactly ONE of, system-wide, with no database row behind
+ * it: the blank contract, the blank residence form.
  *
- * A fixed place with no database row behind it: there is one of it, it belongs
- * to nobody in particular, and a row holding a single key would be a second
- * place for the same fact — which is how a record and a bucket come to
- * disagree. Everything a screen needs is on the object itself.
+ * A fixed place in storage rather than a record, because storage IS the record
+ * here. There is one of it, it belongs to nobody in particular, and a row
+ * holding a single key would be a second place for the same fact — which is how
+ * a record and a bucket come to disagree. Everything a screen needs is on the
+ * object itself.
+ *
+ * Two of these now exist, which is why it is a shape rather than a second copy
+ * of four near-identical functions.
  */
-export const CONTRACT_TEMPLATE_PREFIX = "templates/contract/";
+export interface DocumentSlot {
+  /** Where the one object lives. Must end in a separator. */
+  prefix: string;
+  /** What this slot plausibly holds. Narrower than "a file" on purpose. */
+  contentTypes: readonly string[];
+  maxBytes: number;
+  /** Used when an uploaded name cleans down to nothing. */
+  fallbackName: string;
+}
 
 /** What a blank contract plausibly is: something to print. */
 export const TEMPLATE_CONTENT_TYPES = [
@@ -254,6 +267,47 @@ export type TemplateContentType = (typeof TEMPLATE_CONTENT_TYPES)[number];
 /** 20 MB, matching a signed contract. */
 export const MAX_TEMPLATE_BYTES = 20 * 1024 * 1024;
 
+/** The one blank contract the owner prints to sign with a new tenant. */
+export const CONTRACT_TEMPLATE_SLOT: DocumentSlot = {
+  prefix: "templates/contract/",
+  contentTypes: TEMPLATE_CONTENT_TYPES,
+  maxBytes: MAX_TEMPLATE_BYTES,
+  fallbackName: "hop-dong-mau",
+};
+
+/**
+ * The ONLY type a residence form may be.
+ *
+ * Not a choice of convenience. This file is not merely stored and handed back —
+ * it is opened, filled in and streamed, and the filler reads one format. A PDF
+ * here would upload cleanly, sit in storage looking correct, and fail at the
+ * one moment the owner needed a filled form, so it is refused at the door with
+ * a reason instead.
+ */
+export const RESIDENCE_FORM_CONTENT_TYPES = [
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+] as const;
+
+export type ResidenceFormContentType = (typeof RESIDENCE_FORM_CONTENT_TYPES)[number];
+
+/** 5 MB. A government form is a few pages of text; 20 MB would be a photograph album. */
+export const MAX_RESIDENCE_FORM_BYTES = 5 * 1024 * 1024;
+
+/**
+ * The blank residence form (CT01), carrying named placeholders where the
+ * answers go.
+ *
+ * Uploaded by the owner rather than shipped with the code, because the
+ * authorities reissue the form when the regulation changes and an owner who can
+ * replace the file themselves is not waiting on a deployment.
+ */
+export const RESIDENCE_FORM_SLOT: DocumentSlot = {
+  prefix: "templates/residence-form/",
+  contentTypes: RESIDENCE_FORM_CONTENT_TYPES,
+  maxBytes: MAX_RESIDENCE_FORM_BYTES,
+  fallbackName: "to-khai-ct01",
+};
+
 /**
  * A file name safe to put inside a key.
  *
@@ -261,13 +315,13 @@ export const MAX_TEMPLATE_BYTES = 20 * 1024 * 1024;
  * length is capped because a key has one, and an empty result falls back to
  * something rather than producing a key that ends in the separator.
  */
-export function safeFileName(name: string): string {
+export function safeFileName(name: string, fallback: string): string {
   const cleaned = name
     .replace(/[\\/]/g, "-")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 120);
-  return cleaned === "" ? "hop-dong-mau" : cleaned;
+  return cleaned === "" ? fallback : cleaned;
 }
 
 /**
@@ -277,13 +331,13 @@ export function safeFileName(name: string): string {
  * suffix is what makes the download land under the name the owner uploaded
  * rather than a random identifier.
  */
-export function newTemplateKey(fileName: string): string {
-  return `${CONTRACT_TEMPLATE_PREFIX}${randomUUID()}__${safeFileName(fileName)}`;
+export function newSlotKey(slot: DocumentSlot, fileName: string): string {
+  return `${slot.prefix}${randomUUID()}__${safeFileName(fileName, slot.fallbackName)}`;
 }
 
 /** The original name back out of a key. */
-export function templateFileName(key: string): string {
-  const last = key.slice(CONTRACT_TEMPLATE_PREFIX.length);
+export function slotFileName(slot: DocumentSlot, key: string): string {
+  const last = key.slice(slot.prefix.length);
   const at = last.indexOf("__");
   return at === -1 ? last : last.slice(at + 2);
 }
@@ -341,6 +395,32 @@ export async function signContractUpload(
  * into the signature, the size is not bindable and is enforced at confirmation,
  * and the key is derived here rather than taken from the caller.
  */
+/**
+ * The same thing for a holder that is not a customer.
+ *
+ * A visitor's document is the second kind of card this system keeps, and it
+ * hangs off a registration rather than a person — so the caller names the PLACE
+ * rather than a customer id. The ceiling and the accepted types stay the card's
+ * own, because it is the same object being photographed.
+ */
+export async function signIdCardUploadAt(
+  prefix: string,
+  contentType: IdCardContentType,
+): Promise<SignedUpload> {
+  const key = `${prefix}${randomUUID()}.${ID_CARD_EXTENSIONS[contentType]}`;
+  const url = await getSignedUrl(
+    s3(),
+    new PutObjectCommand({ Bucket: env.R2_BUCKET!, Key: key, ContentType: contentType }),
+    { expiresIn: UPLOAD_URL_TTL_SECONDS, signableHeaders: new Set(["content-type"]) },
+  );
+  return {
+    url,
+    key,
+    expiresAt: new Date(Date.now() + UPLOAD_URL_TTL_SECONDS * 1000),
+    maxBytes: MAX_ID_CARD_BYTES,
+  };
+}
+
 export async function signIdCardUpload(
   customerId: number,
   side: IdCardSide,
@@ -360,11 +440,12 @@ export async function signIdCardUpload(
   };
 }
 
-export async function signTemplateUpload(
+export async function signSlotUpload(
+  slot: DocumentSlot,
   fileName: string,
-  contentType: TemplateContentType,
+  contentType: string,
 ): Promise<SignedUpload> {
-  const key = newTemplateKey(fileName);
+  const key = newSlotKey(slot, fileName);
   const url = await getSignedUrl(
     s3(),
     new PutObjectCommand({ Bucket: env.R2_BUCKET!, Key: key, ContentType: contentType }),
@@ -374,7 +455,7 @@ export async function signTemplateUpload(
     url,
     key,
     expiresAt: new Date(Date.now() + UPLOAD_URL_TTL_SECONDS * 1000),
-    maxBytes: MAX_TEMPLATE_BYTES,
+    maxBytes: slot.maxBytes,
   };
 }
 
@@ -384,10 +465,11 @@ export async function signTemplateUpload(
  * `ResponseContentDisposition` is part of the signature, so the browser saves
  * "hop-dong-mau.pdf" rather than the uuid the key starts with.
  */
-export async function signTemplateDownload(
+export async function signSlotDownload(
+  slot: DocumentSlot,
   key: string,
 ): Promise<{ url: string; expiresAt: Date }> {
-  const name = templateFileName(key);
+  const name = slotFileName(slot, key);
   const url = await getSignedUrl(
     s3(),
     new GetObjectCommand({
@@ -408,11 +490,11 @@ export async function signTemplateDownload(
  * while another was in flight; the most recent one wins, which is the same
  * answer a replacement gives.
  */
-export async function findTemplate(): Promise<
-  { key: string; fileName: string; size: number; uploadedAt: Date } | null
-> {
+export async function findSlotObject(
+  slot: DocumentSlot,
+): Promise<{ key: string; fileName: string; size: number; uploadedAt: Date } | null> {
   const listed = await s3().send(
-    new ListObjectsV2Command({ Bucket: env.R2_BUCKET!, Prefix: CONTRACT_TEMPLATE_PREFIX }),
+    new ListObjectsV2Command({ Bucket: env.R2_BUCKET!, Prefix: slot.prefix }),
   );
   const objects = (listed.Contents ?? []).filter((object) => object.Key !== undefined);
   if (objects.length === 0) return null;
@@ -422,10 +504,31 @@ export async function findTemplate(): Promise<
   )[0]!;
   return {
     key: newest.Key!,
-    fileName: templateFileName(newest.Key!),
+    fileName: slotFileName(slot, newest.Key!),
     size: newest.Size ?? 0,
     uploadedAt: newest.LastModified ?? new Date(),
   };
+}
+
+/**
+ * The object's BYTES, into memory.
+ *
+ * The exception to this file's rule, and narrowly: everything else hands the
+ * browser a signed URL so bytes never cross the Express process. A blank form
+ * being filled in has to be opened by the server that fills it, and it is a few
+ * pages of text — there is no version of this that goes around the API.
+ *
+ * Not for anything a user uploads as content. Reserved for the document slots,
+ * whose size ceilings are small and enforced on the way in.
+ */
+export async function readObject(key: string): Promise<Buffer> {
+  const got = await s3().send(
+    new GetObjectCommand({ Bucket: env.R2_BUCKET!, Key: key }),
+  );
+  if (got.Body === undefined) {
+    throw new Error(`Object ${key} came back with no body`);
+  }
+  return Buffer.from(await got.Body.transformToByteArray());
 }
 
 /** A short-lived URL for reading. The stored object is never public. */

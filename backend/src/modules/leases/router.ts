@@ -32,6 +32,14 @@ import {
   departOccupantHandler,
   transferPrimaryHandler,
 } from "./controller.js";
+import {
+  createLeaseVisitorHandler,
+  listLeaseVisitorsHandler,
+} from "@/modules/visitors/controller.js";
+import {
+  downloadResidenceFilingHandler,
+  previewResidenceFilingHandler,
+} from "@/modules/residence-filing/controller.js";
 
 export const leasesRouter = Router();
 
@@ -79,6 +87,35 @@ leasesRouter.post("/:id/contract-upload-url", contractUploadUrlHandler);
 leasesRouter.post("/:id/contract", contractConfirmHandler);
 leasesRouter.get("/:id/contract", contractPagesHandler);
 leasesRouter.delete("/:id/contract/:pageId", contractPageRemoveHandler);
+
+/*
+  Who is STAYING, as distinct from who lives here.
+
+  Deliberately a separate list from the occupants above, and not merged into
+  it: only one of the two is billed, and a reader who treats them as one list
+  will go looking for a water charge that is not there.
+
+  Registering is open to both roles. A manager is who the tenant rings when
+  their cousin turns up, and the paperwork this feeds is the manager's to file
+  as much as the owner's — nothing here moves money, which is what the rest of
+  the manager's restrictions are about.
+*/
+leasesRouter.get("/:id/visitors", listLeaseVisitorsHandler);
+leasesRouter.post("/:id/visitors", createLeaseVisitorHandler);
+
+/*
+  The temporary-residence filing for registrations chosen on this tenancy.
+
+  The preview is a separate route from the download so the screen can name the
+  boxes nothing could fill BEFORE the owner walks to the printer.
+
+  Not open to a portal token, and not mounted on the portal router: the document
+  carries the signatory's identity number and every co-arriving visitor's
+  personal details, which is more reach than registering one guest was meant to
+  grant.
+*/
+leasesRouter.get("/:id/residence-filing", previewResidenceFilingHandler);
+leasesRouter.get("/:id/residence-filing/document", downloadResidenceFilingHandler);
 
 leasesRouter.get("/:id/occupants", listOccupantsHandler);
 leasesRouter.post("/:id/occupants", addOccupantHandler);

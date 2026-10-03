@@ -32,6 +32,7 @@ export const RESOURCE = {
   damageReport: { code: "REPORT_NOT_FOUND", label: "Report" },
   roomPhoto: { code: "ROOM_PHOTO_NOT_FOUND", label: "Photograph" },
   reportPhoto: { code: "REPORT_PHOTO_NOT_FOUND", label: "Photograph" },
+  visitor: { code: "VISITOR_NOT_FOUND", label: "Visitor registration" },
 } as const;
 
 export type Resource = (typeof RESOURCE)[keyof typeof RESOURCE];

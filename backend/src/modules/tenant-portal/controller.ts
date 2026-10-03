@@ -6,6 +6,12 @@ import {
   reportPhotoConfirmSchema,
   reportPhotoUploadSchema,
 } from "@/modules/damage-reports/schema.js";
+import {
+  createVisitorSchema,
+  updateVisitorSchema,
+  visitorIdCardConfirmSchema,
+  visitorIdCardUploadSchema,
+} from "@/modules/visitors/schema.js";
 import { parseIdParam, RESOURCE } from "@/lib/parse-id.js";
 import * as portalService from "./service.js";
 
@@ -105,4 +111,94 @@ export async function portalReportPhotoConfirmHandler(req: Request, res: Respons
   res
     .status(200)
     .json(await portalService.confirmPortalReportPhoto(readPortalToken(req), reportId, parsed.data));
+}
+
+/* --- registering somebody who is staying --- */
+
+/** The side out of the path, where a download names it there rather than in a body. */
+function sideParam(value: string | string[] | undefined): "front" | "back" {
+  if (value === "front" || value === "back") return value;
+  throw new ValidationError(
+    "VISITOR_ID_CARD_SIDE_INVALID",
+    "Mặt giấy tờ phải là front hoặc back",
+  );
+}
+
+export async function registerPortalVisitorHandler(req: Request, res: Response) {
+  const parsed = createVisitorSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw new ValidationError(
+      "VISITOR_PAYLOAD_INVALID",
+      "Thông tin khách không hợp lệ",
+      parsed.error.flatten(),
+    );
+  }
+  res
+    .status(201)
+    .json(await portalService.registerPortalVisitor(readPortalToken(req), parsed.data));
+}
+
+export async function listPortalVisitorsHandler(req: Request, res: Response) {
+  res.status(200).json({ data: await portalService.listPortalVisitors(readPortalToken(req)) });
+}
+
+export async function updatePortalVisitorHandler(req: Request, res: Response) {
+  const parsed = updateVisitorSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw new ValidationError(
+      "VISITOR_PAYLOAD_INVALID",
+      "Thông tin khách không hợp lệ",
+      parsed.error.flatten(),
+    );
+  }
+  const id = parseIdParam(req.params.id, RESOURCE.visitor);
+  res
+    .status(200)
+    .json(await portalService.updatePortalVisitor(readPortalToken(req), id, parsed.data));
+}
+
+export async function cancelPortalVisitorHandler(req: Request, res: Response) {
+  const id = parseIdParam(req.params.id, RESOURCE.visitor);
+  res.status(200).json(await portalService.cancelPortalVisitor(readPortalToken(req), id));
+}
+
+export async function portalVisitorIdCardUrlHandler(req: Request, res: Response) {
+  const parsed = visitorIdCardUploadSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw new ValidationError(
+      "VISITOR_ID_CARD_INVALID",
+      "Yêu cầu tải ảnh không hợp lệ",
+      parsed.error.flatten(),
+    );
+  }
+  const id = parseIdParam(req.params.id, RESOURCE.visitor);
+  res
+    .status(201)
+    .json(await portalService.signPortalVisitorIdCard(readPortalToken(req), id, parsed.data));
+}
+
+export async function portalVisitorIdCardConfirmHandler(req: Request, res: Response) {
+  const parsed = visitorIdCardConfirmSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw new ValidationError(
+      "VISITOR_ID_CARD_INVALID",
+      "Yêu cầu tải ảnh không hợp lệ",
+      parsed.error.flatten(),
+    );
+  }
+  const id = parseIdParam(req.params.id, RESOURCE.visitor);
+  res
+    .status(200)
+    .json(await portalService.confirmPortalVisitorIdCard(readPortalToken(req), id, parsed.data));
+}
+
+export async function portalVisitorIdCardDownloadHandler(req: Request, res: Response) {
+  const id = parseIdParam(req.params.id, RESOURCE.visitor);
+  res.status(200).json(
+    await portalService.portalVisitorIdCardDownload(
+      readPortalToken(req),
+      id,
+      sideParam(req.params.side),
+    ),
+  );
 }

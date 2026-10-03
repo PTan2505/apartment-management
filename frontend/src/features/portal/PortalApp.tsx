@@ -19,6 +19,7 @@ import {
 } from '@/features/portal/api'
 import { InvoiceCard, PayButton } from '@/features/portal/InvoiceCard'
 import { ReportsSection } from '@/features/portal/ReportsSection'
+import { VisitorsSection } from '@/features/portal/VisitorsSection'
 import { PaymentPanel } from '@/features/portal/PaymentPanel'
 import { fragmentHasToken, resolveToken } from '@/features/portal/token'
 
@@ -341,6 +342,14 @@ export function PortalApp() {
           onChanged={loadReports}
           onLinkInvalid={() => setLinkInvalid(true)}
         />
+
+        {/*
+          Last on the page, and deliberately: a tenant opens this link to pay a
+          bill or to report something broken. Declaring a guest is the thing
+          they do occasionally, on purpose, having been asked to — so it sits
+          below the two reasons they came.
+        */}
+        <VisitorsSection onLinkInvalid={() => setLinkInvalid(true)} />
       </Stack>
     </Container>
   )

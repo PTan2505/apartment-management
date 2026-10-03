@@ -92,15 +92,31 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (response.ok) return (await response.json()) as T
 
-  // 404 is what the API answers for every kind of bad token, and also for an
-  // invoice this token cannot see — the two are indistinguishable by design.
   // 401 is a request that carried no token at all.
-  if (response.status === 404 || response.status === 401) {
+  if (response.status === 401) {
     forgetToken()
     throw new PortalLinkInvalid()
   }
 
   const body = (await response.json().catch(() => null)) as BackendError | null
+
+  /*
+    A 404 means the LINK is dead only when it says so.
+
+    Every kind of bad token — unknown, withdrawn, malformed — answers
+    `PORTAL_NOT_FOUND`, and that is the one worth throwing the session away for.
+
+    This used to treat every 404 that way, which was safe while the portal only
+    read bills. It stopped being safe once the portal could name a record by id:
+    asking after a registration that is not this tenancy's also answers 404, and
+    the tenant would have been signed out of their own link and told it had
+    expired. So the code decides, and anything else becomes a message on the
+    page the tenant is already on.
+  */
+  if (response.status === 404 && (body?.code === undefined || body.code === 'PORTAL_NOT_FOUND')) {
+    forgetToken()
+    throw new PortalLinkInvalid()
+  }
   // Phrased from the code, not taken from the body. The API answers callers; a
   // tenant is a reader, and this used to put the API's English sentence in front
   // of one.
@@ -246,5 +262,97 @@ export async function confirmReportPhoto(reportId: number, key: string): Promise
   return request<PortalReport>(`/portal/reports/${reportId}/photos`, {
     method: 'POST',
     body: JSON.stringify({ key }),
+  })
+}
+
+/* ---------------- registering somebody who is staying ---------------- */
+
+/**
+ * A visitor, as the tenant's own portal sees one.
+ *
+ * The same record the staff screens read, minus nothing — a tenant may see what
+ * they filed. The storage keys for the identity photographs are not in it
+ * because they are not in the API's answer to anybody.
+ */
+export interface PortalVisitor {
+  id: number
+  fullName: string
+  idCardNumber: string
+  dateOfBirth: string
+  sex: 'male' | 'female'
+  permanentAddress: string
+  relationToSignatory: string
+  phone: string | null
+  email: string | null
+  occupation: string | null
+  arrivesOn: string
+  expectedUntil: string
+  note: string | null
+  addedByStaff: boolean
+  cancelledAt: string | null
+  state: 'upcoming' | 'staying' | 'finished' | 'cancelled'
+  stayDays: number
+  isOverlong: boolean
+  needsAttention: boolean
+  overlongAfterDays: number
+  hasIdCardFront: boolean
+  hasIdCardBack: boolean
+}
+
+export interface PortalVisitorInput {
+  fullName: string
+  idCardNumber: string
+  dateOfBirth: string
+  sex: 'male' | 'female'
+  permanentAddress: string
+  relationToSignatory: string
+  phone?: string
+  email?: string
+  occupation?: string
+  arrivesOn: string
+  expectedUntil: string
+  note?: string
+}
+
+export async function fetchVisitors(): Promise<PortalVisitor[]> {
+  const { data } = await request<{ data: PortalVisitor[] }>('/portal/visitors')
+  return data
+}
+
+/**
+ * Registers somebody. Nothing about WHERE: the link already answers that.
+ */
+export async function registerVisitor(input: PortalVisitorInput): Promise<PortalVisitor> {
+  return request<PortalVisitor>('/portal/visitors', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export async function cancelVisitor(id: number): Promise<PortalVisitor> {
+  return request<PortalVisitor>(`/portal/visitors/${id}/cancel`, { method: 'POST' })
+}
+
+/** Step one of a photograph of an identity document: somewhere to put it. */
+export async function signVisitorIdCard(
+  id: number,
+  side: 'front' | 'back',
+  contentType: string,
+): Promise<{ url: string; key: string; maxBytes: number }> {
+  return request<{ url: string; key: string; maxBytes: number }>(
+    `/portal/visitors/${id}/id-card-url`,
+    { method: 'POST', body: JSON.stringify({ side, contentType }) },
+  )
+}
+
+/** Step three: tell the API the bytes arrived. */
+export async function confirmVisitorIdCard(
+  id: number,
+  side: 'front' | 'back',
+  key: string,
+): Promise<PortalVisitor> {
+  return request<PortalVisitor>(`/portal/visitors/${id}/id-card`, {
+    method: 'POST',
+    body: JSON.stringify({ side, key }),
   })
 }

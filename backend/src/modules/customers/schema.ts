@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { idCardNumberSchema } from "@/lib/id-card.js";
 import { paginationQueryFields } from "@/lib/pagination.js";
 
 // Phone is optional: occupants such as children need a record but may have no
@@ -6,12 +7,20 @@ import { paginationQueryFields } from "@/lib/pagination.js";
 export const registerCustomerSchema = z.object({
   fullName: z.string().min(1, "fullName is required"),
   phone: z.string().min(1).optional(),
+  // The NUMBER on the card, alongside the photographs of it. Optional: every
+  // customer recorded before this field existed has none, and an owner entering
+  // a tenancy from an old paper file may never have been given it.
+  idCardNumber: idCardNumberSchema.optional(),
 });
 
 export const updateCustomerSchema = z
   .object({
     fullName: z.string().min(1),
     phone: z.string().min(1),
+    // Nullable as well as optional: absent means "leave it", null means "clear
+    // it". A number typed against the wrong person is worse than an absent one,
+    // because it is the box copied onto a government form without re-checking.
+    idCardNumber: idCardNumberSchema.nullable(),
   })
   .partial();
 

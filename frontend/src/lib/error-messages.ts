@@ -267,6 +267,34 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   // ── Cổng thông tin người thuê ────────────────────────────────────────────
   PORTAL_NOT_FOUND: 'Liên kết không còn hiệu lực.',
   PORTAL_LINK_NONE: 'Hợp đồng này chưa có link thanh toán.',
+
+  // ── Khách ghé thăm / ở lại ────────────────────────────────────────────────
+  VISITOR_NOT_FOUND: 'Không tìm thấy đăng ký khách này.',
+  VISITOR_PAYLOAD_INVALID: 'Thông tin khách chưa hợp lệ. Kiểm tra lại các ô bắt buộc.',
+  VISITOR_DATES_INVALID: 'Ngày dự kiến đi phải sau ngày đến.',
+  VISITOR_CANCELLED: 'Đăng ký này đã bị huỷ.',
+  VISITOR_STAY_FINISHED: 'Lần ở này đã kết thúc nên không sửa được nữa. Nếu khách đến lại, hãy tạo đăng ký mới.',
+  VISITOR_ID_CARD_INVALID: 'Yêu cầu tải ảnh giấy tờ chưa hợp lệ.',
+  VISITOR_ID_CARD_SIDE_INVALID: 'Mặt giấy tờ phải là mặt trước hoặc mặt sau.',
+  VISITOR_ID_CARD_KEY_FOREIGN: 'Tệp đó không thuộc về ảnh giấy tờ của khách này.',
+  VISITOR_ID_CARD_OBJECT_MISSING: 'Ảnh chưa có trong kho. Có thể tải lên chưa xong — thử lại.',
+  VISITOR_ID_CARD_TOO_LARGE: 'Ảnh vượt quá dung lượng cho phép.',
+  VISITOR_ID_CARD_NONE: 'Chưa có ảnh mặt này.',
+
+  // ── Tờ khai cư trú (CT01) ─────────────────────────────────────────────────
+  RESIDENCE_FORM_NONE_ON_FILE: 'Chưa có mẫu tờ khai nào. Tải mẫu CT01 lên trước đã.',
+  RESIDENCE_FORM_UPLOAD_INVALID: 'Yêu cầu tải mẫu tờ khai lên chưa hợp lệ.',
+  RESIDENCE_FORM_KEY_FOREIGN: 'Tệp đó không phải là mẫu tờ khai được tải lên.',
+  RESIDENCE_FORM_OBJECT_MISSING: 'Tệp chưa có trong kho. Có thể tải lên chưa xong — thử lại.',
+  RESIDENCE_FORM_TOO_LARGE: 'Tệp mẫu vượt quá dung lượng cho phép.',
+  RESIDENCE_FORM_NOT_A_DOCX:
+    'Tệp này không mở được như một tệp Word .docx. Nếu đang có bản .doc cũ, hãy mở bằng Word rồi Save As sang .docx.',
+  RESIDENCE_FORM_TEMPLATE_BROKEN:
+    'Không điền được mẫu tờ khai. Kiểm tra lại các chỗ đánh dấu trong tệp mẫu rồi tải lại.',
+  RESIDENCE_FILING_QUERY_INVALID: 'Chưa chọn được người để khai.',
+  RESIDENCE_FILING_VISITOR_FOREIGN: 'Có người không thuộc hợp đồng này.',
+  RESIDENCE_FILING_VISITOR_CANCELLED:
+    'Đăng ký đó đã bị huỷ — lần ở không diễn ra thì không có gì để khai.',
 }
 
 /**

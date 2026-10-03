@@ -17,7 +17,11 @@ import { useTheme } from '@mui/material/styles'
 import { isApiError } from '@/lib/api-error'
 import { MOBILE_BREAKPOINT } from '@/app/theme'
 import { useCreateCustomer, useUpdateCustomer } from '@/features/customers/hooks'
-import { customerFormSchema, type CustomerFormValues } from '@/features/customers/schema'
+import {
+  customerFormSchema,
+  toCustomerPayload,
+  type CustomerFormValues,
+} from '@/features/customers/schema'
 import type { Customer } from '@/features/customers/types'
 import { errorMessage } from '@/lib/error-messages'
 
@@ -66,7 +70,7 @@ export function CustomerFormDialog({
     formState: { errors },
   } = useForm<CustomerFormValues>({
     resolver: zodResolver(customerFormSchema) as never,
-    defaultValues: { fullName: '', phone: '' },
+    defaultValues: { fullName: '', phone: '', idCardNumber: '' },
   })
 
   useEffect(() => {
@@ -75,15 +79,20 @@ export function CustomerFormDialog({
     setMatched(null)
     reset(
       customer
-        ? { fullName: customer.fullName, phone: customer.phone ?? '' }
-        : { fullName: '', phone: '' },
+        ? {
+            fullName: customer.fullName,
+            phone: customer.phone ?? '',
+            idCardNumber: customer.idCardNumber ?? '',
+          }
+        : { fullName: '', phone: '', idCardNumber: '' },
     )
   }, [open, customer, reset])
 
   async function onSubmit(values: CustomerFormValues) {
     setFormError(null)
     setMatched(null)
-    const input = customerFormSchema.parse(values)
+    const parsed = customerFormSchema.parse(values)
+    const input = toCustomerPayload(parsed, customer !== null && customer !== undefined)
 
     try {
       if (customer) {
@@ -115,7 +124,7 @@ export function CustomerFormDialog({
       const fieldErrors = error.fieldErrors
       let attributed = false
       for (const [field, messages] of Object.entries(fieldErrors)) {
-        if (['fullName', 'phone'].includes(field) && messages[0]) {
+        if (['fullName', 'phone', 'idCardNumber'].includes(field) && messages[0]) {
           setError(field as keyof CustomerFormValues, { type: 'server', message: messages[0] })
           attributed = true
         }
@@ -170,6 +179,25 @@ export function CustomerFormDialog({
                 (isEdit && customer?.phone
                   ? 'Leaving this empty keeps the current number — a phone number cannot be removed once recorded.'
                   : 'Không bắt buộc. Người không có điện thoại riêng thì để trống.')
+              }
+              fullWidth
+            />
+
+            {/*
+              The NUMBER on the card, which is not the same thing as the
+              photographs of it that this person may already have on file. A
+              picture cannot be typed into a form, and this is the box that gets
+              copied onto the residence paperwork — so the label says what it is
+              for, or an owner who has already uploaded both sides reads it as
+              the same thing asked twice.
+            */}
+            <TextField
+              label="Số định danh cá nhân / CMND"
+              {...register('idCardNumber')}
+              error={Boolean(errors.idCardNumber)}
+              helperText={
+                errors.idCardNumber?.message ??
+                'Không bắt buộc. Dùng để điền tờ khai cư trú CT01 — khác với ảnh CCCD.'
               }
               fullWidth
             />

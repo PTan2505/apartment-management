@@ -6,7 +6,7 @@ import type {
   ListCustomersParams,
   Paginated,
 } from '@/features/customers/types'
-import type { CustomerFormOutput } from '@/features/customers/schema'
+import type { CustomerPayload } from '@/features/customers/schema'
 
 function toQuery(params: ListCustomersParams): Record<string, string | number> {
   const query: Record<string, string | number> = {}
@@ -51,7 +51,7 @@ export async function getCustomer(id: number): Promise<Customer> {
 }
 
 export async function createCustomer(
-  input: CustomerFormOutput,
+  input: CustomerPayload,
 ): Promise<CreateCustomerResult> {
   const response = await apiClient.post<Customer>('/customers', input)
   return { created: response.status === 201, customer: response.data }
@@ -60,7 +60,7 @@ export async function createCustomer(
 /** Answers 409 when the phone number already belongs to someone else. */
 export async function updateCustomer(
   id: number,
-  input: CustomerFormOutput,
+  input: CustomerPayload,
 ): Promise<Customer> {
   const { data } = await apiClient.patch<Customer>(`/customers/${id}`, input)
   return data

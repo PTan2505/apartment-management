@@ -45,6 +45,7 @@ import { EditTermsDialog } from '@/features/leases/EditTermsDialog'
 import { LeaseInvoicesPanel } from '@/features/leases/LeaseInvoicesPanel'
 import { LeaseServiceFeesCard } from '@/features/leases/LeaseServiceFeesCard'
 import { OccupantsCard } from '@/features/leases/OccupantsCard'
+import { VisitorsCard } from '@/features/visitors/VisitorsCard'
 import { PortalLinkCard } from '@/features/leases/PortalLinkCard'
 import { isLive, leaseStatusColor, leaseStatusLabel } from '@/features/leases/status'
 import type { Lease } from '@/features/leases/types'
@@ -600,6 +601,17 @@ export function LeaseDetailPage() {
           */}
           <LeaseServiceFeesCard lease={lease} />
           <OccupantsCard lease={lease} />
+          {/*
+            Directly below the occupants and deliberately NOT inside them.
+
+            Three populations sit near each other here: the people whose details
+            the owner holds, the `occupantCount` the utilities are billed on, and
+            the guests logged here. Only the middle one is money. Keeping this a
+            separate card is what stops a reader treating a guest list as a
+            billing input — the mistake the occupant card's own comment warns
+            about, one layer out.
+          */}
+          <VisitorsCard lease={lease} />
           <ContractCard lease={lease} />
           {lease.tenant !== null && (
             <IdCardCard customerId={lease.tenant.id} name={lease.tenant.fullName} />
