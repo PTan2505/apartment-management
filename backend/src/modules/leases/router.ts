@@ -40,6 +40,7 @@ import {
   downloadResidenceFilingHandler,
   previewResidenceFilingHandler,
 } from "@/modules/residence-filing/controller.js";
+import { listLeaseFurnitureHandler } from "@/modules/furniture/controller.js";
 
 export const leasesRouter = Router();
 
@@ -116,6 +117,15 @@ leasesRouter.post("/:id/visitors", createLeaseVisitorHandler);
 */
 leasesRouter.get("/:id/residence-filing", previewResidenceFilingHandler);
 leasesRouter.get("/:id/residence-filing/document", downloadResidenceFilingHandler);
+
+/*
+  What this tenant was handed, frozen on the day they signed.
+
+  READ ONLY, and there is deliberately no sibling that writes: a record of what
+  somebody received that the interested party can edit afterwards settles
+  nothing. Conditions at RETURN are written by the move-out, and only there.
+*/
+leasesRouter.get("/:id/furniture", listLeaseFurnitureHandler);
 
 leasesRouter.get("/:id/occupants", listOccupantsHandler);
 leasesRouter.post("/:id/occupants", addOccupantHandler);

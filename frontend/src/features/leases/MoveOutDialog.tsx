@@ -20,6 +20,14 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { MoneyInput } from '@/components/MoneyField'
 import { errorMessage } from '@/lib/error-messages'
+import { DamageInvoiceDialog } from '@/features/furniture/DamageInvoiceDialog'
+import {
+  FurnitureCheckInSection,
+  toCheckInEntries,
+  worseThanHandedOver,
+  type CheckInState,
+} from '@/features/furniture/FurnitureCheckInSection'
+import { useLeaseFurniture } from '@/features/furniture/hooks'
 import { formatCoveredThrough, formatDate } from '@/features/leases/dates'
 import { useRecordMoveOut } from '@/features/leases/hooks'
 // Danh mục là của TOÀ NHÀ; hộp này chỉ mượn tên khoản thu từ đó.
@@ -27,6 +35,7 @@ import { useBuildingServiceFees } from '@/features/buildings/hooks'
 import { UnpaidInvoicesWarning } from '@/features/leases/UnpaidInvoicesWarning'
 import { useRoomMeterReading } from '@/features/rooms/hooks'
 import type { Lease } from '@/features/leases/types'
+import type { LeaseFurniture } from '@/features/furniture/types'
 
 interface MoveOutDialogProps {
   open: boolean
@@ -75,6 +84,14 @@ export function MoveOutDialog({ open, lease, onClose }: MoveOutDialogProps) {
   const [reading, setReading] = useState('')
   const [charges, setCharges] = useState<KhoanQuaHan[]>([])
   const [error, setError] = useState<string | null>(null)
+  /*
+    Conditions at return, keyed by hand-over entry. Empty means UNCHECKED, and
+    that is the state every item starts in — see the section component.
+  */
+  const [checkIn, setCheckIn] = useState<CheckInState>({})
+  /** Raised after the tenancy is closed, and refusable. Never automatic. */
+  const [damage, setDamage] = useState<LeaseFurniture[]>([])
+  const furnitureQuery = useLeaseFurniture(lease.id)
 
   // Late departures only: the days beyond the term are what these charge for.
   const late = leftOn > lease.expectedEndDate.slice(0, 10)
@@ -87,6 +104,8 @@ export function MoveOutDialog({ open, lease, onClose }: MoveOutDialogProps) {
     // Số thật tới sau, ở effect bên dưới, khi phòng trả lời.
     setCharges([])
     setError(null)
+    setCheckIn({})
+    setDamage([])
   }, [open])
 
   /*
@@ -149,9 +168,24 @@ export function MoveOutDialog({ open, lease, onClose }: MoveOutDialogProps) {
                   amount: c.amount!,
                 }))
             : [],
+          // Only the items somebody actually looked at. The rest stay
+          // unchecked, which is a third state and not "returned fine".
+          furniture: toCheckInEntries(checkIn),
         },
       })
       setConfirmOpen(false)
+
+      /*
+        The offer, AFTER the tenancy is closed and only if anything came back
+        worse. Closing does not depend on it: an owner who walks away here has
+        a correctly closed tenancy with the conditions recorded, which is the
+        point of making the charge a separate decision.
+      */
+      const worse = worseThanHandedOver(furnitureQuery.data?.data ?? [], checkIn)
+      if (worse.length > 0) {
+        setDamage(worse)
+        return
+      }
       onClose()
     } catch (cause) {
       // Stays open: a refusal means the tenancy is untouched, and the reading is
@@ -298,6 +332,12 @@ export function MoveOutDialog({ open, lease, onClose }: MoveOutDialogProps) {
             Khi xác nhận: hoá đơn tháng cuối được phát hành (tính điện theo số vừa nhập), những
             người đang ở được ghi là đã rời đi, và phòng trở lại trạng thái trống.
           </Typography>
+          <FurnitureCheckInSection
+            entries={furnitureQuery.data?.data ?? []}
+            loading={furnitureQuery.isPending}
+            state={checkIn}
+            onChange={setCheckIn}
+          />
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -331,6 +371,22 @@ export function MoveOutDialog({ open, lease, onClose }: MoveOutDialogProps) {
           action="Khoản này vẫn còn sau khi kết thúc hợp đồng."
         />
       </ConfirmDialog>
+
+      {/*
+        The damage offer, opened only after the tenancy has already closed.
+        Declining it leaves a correctly closed tenancy with every condition
+        recorded — which is why the charge is a separate decision rather than
+        a step in the same form.
+      */}
+      <DamageInvoiceDialog
+        open={damage.length > 0}
+        leaseId={lease.id}
+        items={damage}
+        onClose={() => {
+          setDamage([])
+          onClose()
+        }}
+      />
     </Dialog>
   )
 }

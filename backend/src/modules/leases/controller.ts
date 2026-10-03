@@ -70,6 +70,7 @@ export async function moveOutHandler(req: Request, res: Response) {
     parsed.data.moveOutDate,
     parsed.data.endMeterReading,
     parsed.data.overdueCharges,
+    parsed.data.furniture,
   );
   res.status(200).json(toLeaseResponse(lease));
 }

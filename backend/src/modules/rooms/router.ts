@@ -2,6 +2,7 @@ import { Router } from "express";
 import { authenticate } from "@/middleware/authenticate.js";
 import { accountGuard } from "@/middleware/staff-scope.js";
 import { requireRole } from "@/middleware/require-role.js";
+import { roomFurnitureRouter } from "@/modules/furniture/router.js";
 import {
   confirmRoomPhotoHandler,
   createRoomHandler,
@@ -61,3 +62,13 @@ roomsRouter.post("/:id/photos/upload-url", requireRole("owner", "manager"), room
 roomsRouter.post("/:id/photos", requireRole("owner", "manager"), confirmRoomPhotoHandler);
 roomsRouter.get("/:id/photos/:photoId/download", requireRole("owner", "manager"), roomPhotoDownloadHandler);
 roomsRouter.delete("/:id/photos/:photoId", requireRole("owner", "manager"), removeRoomPhotoHandler);
+
+/*
+  What this room actually holds. Two segments deep, so it cannot be captured by
+  the single-segment "/:id" routes above.
+
+  On the ROOM rather than on a tenancy: a fridge does not leave when the tenant
+  does, and re-entering the list at every signing is how it stops being kept up
+  to date.
+*/
+roomsRouter.use("/:id/furniture", roomFurnitureRouter);

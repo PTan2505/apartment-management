@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "@/middleware/authenticate.js";
 import { buildingServiceFeesRouter } from "@/modules/service-fees/router.js";
+import { buildingFurnitureRouter } from "@/modules/furniture/router.js";
 import { accountGuard } from "@/middleware/staff-scope.js";
 import { requireRole } from "@/middleware/require-role.js";
 import {
@@ -37,3 +38,11 @@ buildingsRouter.post("/:id/restore", requireRole("owner"), restoreBuildingHandle
 // A building's service fees. Two segments deep, so this cannot be captured by
 // the single-segment "/:id" routes above.
 buildingsRouter.use("/:buildingId/service-fees", buildingServiceFeesRouter);
+
+/*
+  The furniture this building supplies. Beside the fee catalogue above and
+  easily confused with it, so each says what it does: a service fee is charged
+  every month, a furniture entry is handed over once and furnishes nobody until
+  a room holds it.
+*/
+buildingsRouter.use("/:buildingId/furniture", buildingFurnitureRouter);

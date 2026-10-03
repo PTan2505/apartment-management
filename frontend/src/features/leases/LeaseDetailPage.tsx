@@ -46,6 +46,7 @@ import { LeaseInvoicesPanel } from '@/features/leases/LeaseInvoicesPanel'
 import { LeaseServiceFeesCard } from '@/features/leases/LeaseServiceFeesCard'
 import { OccupantsCard } from '@/features/leases/OccupantsCard'
 import { VisitorsCard } from '@/features/visitors/VisitorsCard'
+import { HandoverCard } from '@/features/furniture/HandoverCard'
 import { PortalLinkCard } from '@/features/leases/PortalLinkCard'
 import { isLive, leaseStatusColor, leaseStatusLabel } from '@/features/leases/status'
 import type { Lease } from '@/features/leases/types'
@@ -612,6 +613,11 @@ export function LeaseDetailPage() {
             about, one layer out.
           */}
           <VisitorsCard lease={lease} />
+          {/*
+            A frozen record, so it sits with the tenancy's other papers rather
+            than with the live lists above it.
+          */}
+          <HandoverCard lease={lease} />
           <ContractCard lease={lease} />
           {lease.tenant !== null && (
             <IdCardCard customerId={lease.tenant.id} name={lease.tenant.fullName} />
