@@ -281,6 +281,18 @@ const MESSAGES: Record<BackendErrorCode, string> = {
   VISITOR_ID_CARD_TOO_LARGE: 'Ảnh vượt quá dung lượng cho phép.',
   VISITOR_ID_CARD_NONE: 'Chưa có ảnh mặt này.',
 
+  // ── Nội thất ──────────────────────────────────────────────────────────────
+  FURNITURE_ITEM_NOT_FOUND: 'Không tìm thấy món nội thất này.',
+  FURNITURE_ITEM_INVALID: 'Thông tin món nội thất chưa hợp lệ.',
+  FURNITURE_ITEM_NAME_TAKEN: 'Toà này đã có món đang dùng trùng tên. Đổi tên khác.',
+  FURNITURE_ITEM_RETIRED:
+    'Món này đã ngưng dùng nên không thêm vào phòng được. Dùng lại nó ở trang toà nhà trước.',
+  FURNITURE_ITEM_ALREADY_RETIRED: 'Món này đã ngưng dùng rồi.',
+  FURNITURE_ITEM_ALREADY_ACTIVE: 'Món này đang dùng.',
+  ROOM_FURNITURE_NOT_FOUND: 'Phòng này không có món đó.',
+  ROOM_FURNITURE_INVALID: 'Thông tin nội thất của phòng chưa hợp lệ.',
+  LEASE_FURNITURE_FOREIGN: 'Có món không thuộc bản bàn giao của hợp đồng này.',
+
   // ── Tờ khai cư trú (CT01) ─────────────────────────────────────────────────
   RESIDENCE_FORM_NONE_ON_FILE: 'Chưa có mẫu tờ khai nào. Tải mẫu CT01 lên trước đã.',
   RESIDENCE_FORM_UPLOAD_INVALID: 'Yêu cầu tải mẫu tờ khai lên chưa hợp lệ.',

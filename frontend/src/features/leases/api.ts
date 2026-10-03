@@ -283,6 +283,18 @@ export interface MoveOutInput {
    * departure falls within the term; an empty list is a deliberate waiver.
    */
   overdueCharges?: { buildingServiceFeeId: number; amount: number }[]
+  /**
+   * Conditions at return, for the items somebody actually looked at.
+   *
+   * Items left out of this list stay UNCHECKED — a third state, and not
+   * "returned in good order". Omitting the field entirely closes the tenancy
+   * with nothing checked, which is a legitimate way to close one.
+   */
+  furniture?: {
+    leaseFurnitureId: number
+    returnCondition: 'new' | 'good' | 'worn' | 'damaged'
+    returnNote?: string
+  }[]
 }
 
 /**

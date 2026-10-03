@@ -104,3 +104,25 @@ export async function reversePayment(
   const { data } = await apiClient.post(`/payments/${paymentId}/reverse`, { reversedAt })
   return data
 }
+
+export interface AdhocCharge {
+  category: 'damage' | 'cleaning' | 'lost_item' | 'penalty' | 'other'
+  description: string
+  amount: number
+}
+
+/**
+ * A bill for what cannot be calculated — damage, a lost key, a penalty.
+ *
+ * The endpoint has existed since deposits were built and nothing on the
+ * frontend called it until now: keeping part of a deposit is charged here, and
+ * the deposit then settles against the invoice rather than being reduced
+ * directly.
+ */
+export async function issueAdhocInvoice(
+  leaseId: number,
+  charges: AdhocCharge[],
+): Promise<Invoice> {
+  const { data } = await apiClient.post<Invoice>('/invoices/adhoc', { leaseId, charges })
+  return data
+}

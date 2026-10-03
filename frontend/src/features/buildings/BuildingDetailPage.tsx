@@ -25,6 +25,7 @@ import { useBuilding } from '@/features/buildings/hooks'
 import { BuildingFormDialog } from '@/features/buildings/BuildingFormDialog'
 import { useIsOwner } from '@/features/auth/useAuth'
 import { ServiceFeesCard } from '@/features/buildings/ServiceFeesCard'
+import { FurnitureCatalogueCard } from '@/features/furniture/FurnitureCatalogueCard'
 import { useRooms } from '@/features/rooms/hooks'
 import { RoomsSection } from '@/features/rooms/RoomsSection'
 
@@ -233,6 +234,7 @@ export function BuildingDetailPage() {
       <ConfigCard building={building} onEdit={isOwner ? () => setSuaMo(true) : null} />
 
       <ServiceFeesCard buildingId={building.id} />
+      <FurnitureCatalogueCard buildingId={building.id} />
 
       <BuildingFormDialog
         open={suaMo}

@@ -22,6 +22,7 @@ import { formatCoveredThrough } from '@/features/leases/dates'
 import { useRoom } from '@/features/rooms/hooks'
 import { RoomFormDialog } from '@/features/rooms/RoomFormDialog'
 import { RoomPhotosCard } from '@/features/rooms/RoomPhotosCard'
+import { RoomFurnitureCard } from '@/features/furniture/RoomFurnitureCard'
 import type { Room } from '@/features/rooms/types'
 
 /** One fact: what it is called, and what it is. Same shape as the tenancy page. */
@@ -189,6 +190,14 @@ export function RoomDetailPage() {
         nhà": giá phòng là chuyện kinh doanh, còn phòng TRÔNG thế nào là chuyện
         của người đang đứng trong đó với cái điện thoại.
       */}
+      {/*
+        Above the photographs, because this one is operational and they are
+        descriptive: what the room HOLDS is copied onto every tenancy signed
+        from here and is what a departing tenant is checked against, while the
+        pictures are how the room looks.
+      */}
+      <RoomFurnitureCard roomId={room.id} buildingId={room.building.id} />
+
       <RoomPhotosCard roomId={room.id} canEdit />
 
       <RoomFormDialog
