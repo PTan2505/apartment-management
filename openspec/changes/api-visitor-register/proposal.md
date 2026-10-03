@@ -28,26 +28,48 @@ owner is housing and not billing — and nothing today would ever say so.
   shown it so they can decide — the system does not decide for them.
 - **ID card images are handled like the ones already in the system**: uploaded straight to
   storage, read back through short-lived links, never proxied through the API.
+- **The registration collects what the official form asks for** — date of birth, sex, where
+  the person normally lives, how they are related to the signatory — at the one moment
+  somebody is holding the identity document, instead of being reconstructed weeks later.
+- **The system fills the form.** The owner uploads the blank CT01 once; from a tenancy they
+  pick the registrations and get back a filled document to print, sign and submit. A family
+  that arrived together is one form, which is how the form itself is built.
+- **Nothing is guessed.** A box the system has no record for prints empty, and the owner is
+  told which boxes those are before they print — not after the trip to the station.
+- **The signatory's identity number becomes a field on the customer**, because today the
+  system holds photographs of the card and not the number on it, and a photograph cannot be
+  typed into a form.
 
 ## Capabilities
 
 ### New Capabilities
 
 - `visitor`: who is staying in a room besides the people on the tenancy, and for how long.
+- `residence-filing`: the temporary-residence paperwork, produced from those records
+  instead of copied out by hand.
 
 ### Modified Capabilities
 
 - `tenant-portal`: the link a tenant pays and reports faults through also registers a
   visitor.
 - `web-tenant-portal`: the portal gains a page for it.
-- `web-leases`: a tenancy shows who is registered, and flags anyone past two weeks.
+- `web-leases`: a tenancy shows who is registered, flags anyone past two weeks, and
+  produces the filing.
+- `customer`: a customer can carry the number on their identity document, not only
+  photographs of it.
+- `web-customers`: the add and edit forms carry that number.
 
 ## Impact
 
-- Affected specs: `visitor` (new), `tenant-portal`, `web-tenant-portal`, `web-leases`
-- Affected code: `backend/prisma/schema.prisma` (one table, + migration),
-  `backend/src/lib/storage.ts` (a fifth key prefix), a new
-  `backend/src/modules/visitors/*`, the portal router, and the portal and tenancy screens
+- Affected specs: `visitor` (new), `residence-filing` (new), `tenant-portal`,
+  `web-tenant-portal`, `web-leases`, `customer`, `web-customers`
+- Affected code: `backend/prisma/schema.prisma` (one table, one enum, one nullable column
+  on `User`, + migration), `backend/src/lib/storage.ts` (two more key prefixes), new
+  `backend/src/modules/visitors/*` and `backend/src/modules/residence-filing/*`, the
+  customers module, the portal router, and the portal, tenancy and customers screens
+- **One new dependency**: a `.docx` template filler. The blank form is a Word document
+  because that is what the authorities publish and what the owner can replace themselves;
+  nothing else in the project reads one today.
 - **No change to billing, occupant count, or the revenue report.**
 - **Privacy**: these are photographs of real identity documents. They are stored like the
   tenant ID cards already in the system and are subject to the same rule — the images are

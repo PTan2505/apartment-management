@@ -9,9 +9,19 @@ quietly become residence is visible rather than invisible.
 
 ### Requirement: A visitor is registered against a tenancy
 
-A visitor registration SHALL record a full name, an identity-document number, the date
-the stay begins, the date it is expected to end, and an optional note, against one
-tenancy.
+A visitor registration SHALL record, against one tenancy: a full name, an
+identity-document number, a date of birth, a sex, a place of permanent residence, the
+relationship to the lease signatory, the date the stay begins, the date it is expected to
+end, and optionally a telephone number, an email address, an occupation and a note.
+
+Those first six are not a wish-list. They are the fields the official residence form
+requires, and a registration missing one produces a form that cannot be filed. The data
+is collected at the one moment somebody is looking at the identity document, rather than
+reconstructed weeks later when the form is wanted.
+
+A telephone number, an email address and an occupation SHALL be optional, because the
+form itself is routinely filed without them: a visiting grandmother has no workplace and
+a child has no telephone, and a required field there would be filled with a lie.
 
 It SHALL be its own record, NOT a customer. A customer is somebody who rents; the list of
 customers is what a lease signatory is chosen from, and filling it with people who stayed
@@ -30,8 +40,18 @@ deliberately separate, as the occupant list and the occupant count already are.
 
 #### Scenario: Registering
 
-- **WHEN** a visitor is registered with a name, document number and dates
+- **WHEN** a visitor is registered with a name, document number, date of birth, sex, permanent residence, relationship to the signatory and dates
 - **THEN** the tenancy carries the registration
+
+#### Scenario: A field the form requires is missing
+
+- **WHEN** a registration is submitted without a date of birth, a sex, a place of permanent residence or a relationship to the signatory
+- **THEN** the system responds with HTTP 400 and records nothing
+
+#### Scenario: A field the form tolerates is missing
+
+- **WHEN** a registration is submitted with no telephone number, no email address and no occupation
+- **THEN** it is recorded, and the residence form reports those boxes as ones to complete by hand
 
 #### Scenario: No end date
 
