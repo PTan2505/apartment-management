@@ -1,7 +1,10 @@
 # contract-template Specification
 
 ## Purpose
-TBD - created by archiving change web-contract-template. Update Purpose after archive.
+The one blank contract an owner prints to sign with a new tenant. Deliberately the only
+thing in this system held with no database row behind it — there is one of it, it belongs
+to nobody in particular, and storage is the record — which is why its absence is reported
+as an answer rather than as a failure.
 ## Requirements
 ### Requirement: The system keeps one blank contract template
 The system SHALL allow an authenticated `owner` to keep one blank contract template — the document they print to sign with a new tenant — and to download, replace or remove it.
