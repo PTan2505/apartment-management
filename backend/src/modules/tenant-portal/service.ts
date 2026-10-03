@@ -9,11 +9,18 @@ import {
 import type { Prisma } from "@/generated/prisma/client.js";
 import { createGatewayPayment } from "@/modules/payment-gateway/service.js";
 import * as reports from "@/modules/damage-reports/service.js";
+import * as visitors from "@/modules/visitors/service.js";
 import type {
   CreateReportInput,
   ReportPhotoConfirmInput,
   ReportPhotoUploadInput,
 } from "@/modules/damage-reports/schema.js";
+import type {
+  CreateVisitorInput,
+  UpdateVisitorInput,
+  VisitorIdCardConfirmInput,
+  VisitorIdCardUploadInput,
+} from "@/modules/visitors/schema.js";
 import { toPortalInvoice } from "./mapper.js";
 
 /* ------------------------------------------------------------------ */
@@ -352,4 +359,72 @@ export async function confirmPortalReportPhoto(
 ) {
   await ownReportOrThrow(token, reportId);
   return reports.confirmPhoto(reportId, input);
+}
+
+/* ------------------------------------------------------------------ */
+/* Registering somebody who is staying                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The tenant's own guest log.
+ *
+ * Every function here resolves the token to a tenancy and passes it as the
+ * reach — `{ leaseId }` rather than `{ scope }` — so the visitors service
+ * answers NOT FOUND for any registration that is not this tenancy's. A
+ * registration id is just a number, and the link that reaches these endpoints
+ * is held by somebody the system knows nothing else about.
+ *
+ * `addedByStaff` is false: this came through the tenant's door. It records
+ * which door, which is a fact about the request rather than something the
+ * request asserts.
+ */
+export async function registerPortalVisitor(token: string, input: CreateVisitorInput) {
+  const lease = await resolveToken(token);
+  return visitors.createVisitor(lease.id, input, false);
+}
+
+export async function listPortalVisitors(token: string) {
+  const lease = await resolveToken(token);
+  return visitors.listVisitorsForLease(lease.id);
+}
+
+export async function updatePortalVisitor(
+  token: string,
+  visitorId: number,
+  input: UpdateVisitorInput,
+) {
+  const lease = await resolveToken(token);
+  return visitors.updateVisitor(visitorId, input, { leaseId: lease.id });
+}
+
+export async function cancelPortalVisitor(token: string, visitorId: number) {
+  const lease = await resolveToken(token);
+  return visitors.cancelVisitor(visitorId, { leaseId: lease.id });
+}
+
+export async function signPortalVisitorIdCard(
+  token: string,
+  visitorId: number,
+  input: VisitorIdCardUploadInput,
+) {
+  const lease = await resolveToken(token);
+  return visitors.signIdCardUpload(visitorId, input, { leaseId: lease.id });
+}
+
+export async function confirmPortalVisitorIdCard(
+  token: string,
+  visitorId: number,
+  input: VisitorIdCardConfirmInput,
+) {
+  const lease = await resolveToken(token);
+  return visitors.confirmIdCard(visitorId, input, { leaseId: lease.id });
+}
+
+export async function portalVisitorIdCardDownload(
+  token: string,
+  visitorId: number,
+  side: "front" | "back",
+) {
+  const lease = await resolveToken(token);
+  return visitors.idCardDownload(visitorId, side, { leaseId: lease.id });
 }

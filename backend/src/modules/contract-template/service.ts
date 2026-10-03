@@ -22,7 +22,7 @@ function assertStorage() {
 /** What is on file, or that there is none. Absence is an answer, not a failure. */
 export async function getTemplate() {
   assertStorage();
-  const found = await storage.findTemplate();
+  const found = await storage.findSlotObject(storage.CONTRACT_TEMPLATE_SLOT);
   if (found === null) {
     return { exists: false as const };
   }
@@ -36,7 +36,7 @@ export async function getTemplate() {
 
 export async function signUpload(input: TemplateUploadInput) {
   assertStorage();
-  return storage.signTemplateUpload(input.fileName, input.contentType);
+  return storage.signSlotUpload(storage.CONTRACT_TEMPLATE_SLOT, input.fileName, input.contentType);
 }
 
 export async function confirmUpload(input: TemplateConfirmInput) {
@@ -44,7 +44,7 @@ export async function confirmUpload(input: TemplateConfirmInput) {
 
   // Checked against the template's own place rather than trusted: without it, a
   // confirmation could point this at any object in the bucket.
-  if (!input.key.startsWith(storage.CONTRACT_TEMPLATE_PREFIX)) {
+  if (!input.key.startsWith(storage.CONTRACT_TEMPLATE_SLOT.prefix)) {
     throw new ValidationError(
       "TEMPLATE_KEY_FOREIGN",
       "That file is not a contract template upload",
@@ -72,7 +72,9 @@ export async function confirmUpload(input: TemplateConfirmInput) {
 
   // Exactly one object is left behind: the template being replaced goes, and so
   // does any upload that reached storage and was never confirmed.
-  await storage.clearPrefixExcept(storage.CONTRACT_TEMPLATE_PREFIX, input.key).catch(() => {});
+  await storage
+    .clearPrefixExcept(storage.CONTRACT_TEMPLATE_SLOT.prefix, input.key)
+    .catch(() => {});
 
   // Described from the object just confirmed, NOT by listing the prefix. A
   // listing lags a write by a second or two, and reporting it here showed the
@@ -80,7 +82,7 @@ export async function confirmUpload(input: TemplateConfirmInput) {
   // nothing. The key names the file, and the head answers for its size and time.
   return {
     exists: true as const,
-    fileName: storage.templateFileName(input.key),
+    fileName: storage.slotFileName(storage.CONTRACT_TEMPLATE_SLOT, input.key),
     size: object.size,
     uploadedAt: object.uploadedAt,
   };
@@ -88,20 +90,20 @@ export async function confirmUpload(input: TemplateConfirmInput) {
 
 export async function getDownload() {
   assertStorage();
-  const found = await storage.findTemplate();
+  const found = await storage.findSlotObject(storage.CONTRACT_TEMPLATE_SLOT);
   if (found === null) {
     throw new NotFoundError("TEMPLATE_NONE_ON_FILE", "No contract template has been uploaded");
   }
-  return storage.signTemplateDownload(found.key);
+  return storage.signSlotDownload(storage.CONTRACT_TEMPLATE_SLOT, found.key);
 }
 
 export async function removeTemplate() {
   assertStorage();
-  const found = await storage.findTemplate();
+  const found = await storage.findSlotObject(storage.CONTRACT_TEMPLATE_SLOT);
   if (found === null) {
     throw new NotFoundError("TEMPLATE_NONE_ON_FILE", "No contract template has been uploaded");
   }
-  await storage.clearPrefixExcept(storage.CONTRACT_TEMPLATE_PREFIX, null);
+  await storage.clearPrefixExcept(storage.CONTRACT_TEMPLATE_SLOT.prefix, null);
   // Stated rather than re-listed, for the same reason as confirmation: a
   // listing taken right after the delete can still be showing the deleted file.
   return { exists: false as const };

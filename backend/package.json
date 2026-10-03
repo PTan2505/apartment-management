@@ -16,7 +16,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "codes:generate": "tsx scripts/generate-error-codes.ts",
     "codes:check": "tsx scripts/generate-error-codes.ts --check",
-    "atomic:check": "tsx scripts/check-atomic-writes.ts"
+    "atomic:check": "tsx scripts/check-atomic-writes.ts",
+    "ct01:template": "tsx scripts/build-ct01-template.ts"
   },
   "keywords": [],
   "author": "",
@@ -31,12 +32,14 @@
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "docxtemplater": "^3.71.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.0",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
+    "pizzip": "^3.3.0",
     "ws": "^8.21.3",
     "zod": "^4.4.3"
   },

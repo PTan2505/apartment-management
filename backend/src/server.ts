@@ -20,6 +20,8 @@ import { addressesRouter } from "@/modules/addresses/router.js";
 import { depositsRouter } from "@/modules/deposits/router.js";
 import { paymentsRouter } from "@/modules/payments/router.js";
 import { damageReportsRouter } from "@/modules/damage-reports/router.js";
+import { visitorsRouter } from "@/modules/visitors/router.js";
+import { residenceFormRouter } from "@/modules/residence-filing/router.js";
 import { staffRouter } from "@/modules/staff/router.js";
 import { tenantPortalRouter } from "@/modules/tenant-portal/router.js";
 import { paymentGatewayRouter } from "@/modules/payment-gateway/router.js";
@@ -40,6 +42,26 @@ const app = express();
  * `WEB_ORIGINS`, because an API that names no origins is one no browser can
  * sign in to.
  */
+/*
+  Response headers a browser may READ.
+
+  A cross-origin response hands JavaScript only a handful of headers unless they
+  are listed here, so anything the frontend is expected to act on has to be
+  named. Both of these belong to one endpoint — the generated residence form,
+  which is sent as bytes rather than as a signed URL:
+
+    Content-Disposition  carries the file name the download should land under,
+                         so the server owns the name rather than the screen
+                         guessing it.
+    X-Empty-Boxes        which boxes on the form nothing could fill, for a
+                         caller that fetched the document without asking for
+                         the preview first.
+
+  Without this list the headers are still SENT and simply unreadable, which is
+  the worst of both: the code looks like it works.
+*/
+const EXPOSED_HEADERS = ["Content-Disposition", "X-Empty-Boxes"];
+
 app.use(
   cors(
     env.WEB_ORIGINS.length === 0
@@ -51,8 +73,8 @@ app.use(
         // This is a real permission and would be wrong in production — which
         // is exactly why production is refused above rather than being given
         // this branch.
-        { origin: true, credentials: true }
-      : { origin: env.WEB_ORIGINS, credentials: true },
+        { origin: true, credentials: true, exposedHeaders: EXPOSED_HEADERS }
+      : { origin: env.WEB_ORIGINS, credentials: true, exposedHeaders: EXPOSED_HEADERS },
   ),
 );
 
@@ -84,6 +106,16 @@ app.use("/payments", paymentsRouter);
 app.use("/staff", staffRouter);
 // What tenants say is broken. The only place a maintenance account is admitted.
 app.use("/damage-reports", damageReportsRouter);
+
+/*
+  Who is staying besides the people on the tenancies. Owner and manager only —
+  maintenance is refused, because this holds dates of birth, home addresses and
+  identity documents of people with no relationship to the business.
+*/
+app.use("/visitors", visitorsRouter);
+
+// The blank CT01 the filled forms are produced from. One per system.
+app.use("/residence-form", residenceFormRouter);
 
 // PUBLIC. Every router above requires an owner's access token; this one takes a
 // tenant's portal token instead, which grants sight of that person's own bills
