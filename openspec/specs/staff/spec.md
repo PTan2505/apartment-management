@@ -127,8 +127,8 @@ created account before the owner has assigned it is a real state.
 
 A `manager` SHALL be able to do what running a building requires: register customers,
 sign tenancies, renew and close them, record occupants, issue invoices, run a month's
-billing, record expenses, settle deposits, and issue a tenancy's payment link — all
-within their assigned buildings.
+billing, settle deposits, and issue a tenancy's payment link — all within their assigned
+buildings.
 
 A `manager` SHALL NOT reach the revenue report, the deposits-held listing, the staff
 endpoints, or any endpoint that creates or changes a BUILDING, including its electricity
@@ -151,6 +151,11 @@ A `manager` SHALL NOT declare money settled or unsettled: recording a payment ag
 invoice, withdrawing an invoice, and reversing a recorded payment are the owner's.
 Money that arrives through a tenancy's payment link is unaffected, because no person
 declares it — the payment gateway reports it.
+
+A `manager` SHALL NOT write EXPENSES either: creating, correcting and deleting one, and
+recording a vacant room's electricity, are the owner's. What the business spends is the
+same kind of statement as what it has received, and a repair cost reduces the reported
+earnings a manager may not read.
 
 These bound what a manager may WRITE. Everything in the list above remains readable to
 them within their buildings: a manager who cannot set a rent still has to be able to see
@@ -220,6 +225,16 @@ it, and a manager who cannot record a payment still has to know which invoices a
 
 - **WHEN** a manager lists the invoices of a building they cover
 - **THEN** each invoice is returned with what it charges and what it still owes
+
+#### Scenario: A manager records an expense
+
+- **WHEN** a manager creates, corrects or deletes an expense, or records a vacant room's electricity
+- **THEN** the system responds with HTTP 403 and nothing is written
+
+#### Scenario: A manager reads the expenses of their buildings
+
+- **WHEN** a manager lists or retrieves the expenses of a building they cover
+- **THEN** they are returned, with their amounts
 
 ### Requirement: Maintenance sees what needs fixing and nothing else
 

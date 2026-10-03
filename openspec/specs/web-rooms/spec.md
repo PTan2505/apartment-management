@@ -469,3 +469,179 @@ date and occupancy stay.
 - **WHEN** the owner opens the rooms list
 - **THEN** the actions column is present, exactly as before
 
+### Requirement: A room has a page of its own
+
+A room SHALL have its own page, reachable by opening it from the rooms list.
+
+It did not have one. A room was a row, and opening that row went to the TENANCY in it —
+useful, but it left the room itself with nowhere to live, and it did nothing at all for a
+vacant room. Photographs needed a home, and so does the furniture inventory that
+follows; two features wanting the same missing page is what earned it.
+
+The page SHALL carry what the room IS — its code, its building, whether it is let, its
+rent, the meter position it was added at, and when it comes free — and SHALL link to the
+tenancy currently in it rather than replacing it. Opening a room SHALL work for every
+room, including a vacant or a retired one.
+
+Editing the room SHALL be offered here, to the roles that may.
+
+#### Scenario: Opening a room
+
+- **WHEN** the owner clicks a row in the rooms list
+- **THEN** the room's own page opens, not the tenancy in it
+
+#### Scenario: A vacant room
+
+- **WHEN** a vacant room is opened
+- **THEN** its page opens and says it is free to let, where before clicking did nothing
+
+#### Scenario: The tenancy is still a click away
+
+- **WHEN** a let room is opened
+- **THEN** the page offers to open the tenancy currently in it
+
+#### Scenario: A manager
+
+- **WHEN** a manager opens a room in a building they cover
+- **THEN** the page opens and offers no control that edits the room
+
+### Requirement: A room's page shows its photographs, and the list shows the first
+
+A room's own page SHALL show the photographs it holds, and SHALL let an `owner` or a
+`manager` add and remove them.
+
+The rooms LIST SHALL show the first photograph of each room beside its code, small. A
+list of fifty-eight rows of text is read by searching; a list with pictures is read by
+recognising. A room with no photograph SHALL leave a plain placeholder of the same size,
+so rows do not change height and the column does not collapse and reappear as the page
+changes.
+
+Uploading SHALL show that it is happening and SHALL report a failure against the file
+that failed, not against the group: several photographs chosen at once must not all be
+lost because one was rejected.
+
+Removing a photograph SHALL be confirmed, because it cannot be undone.
+
+Where storage is not configured, the page SHALL say so and SHALL NOT offer to upload.
+
+A role that may not upload SHALL see the photographs and no control — the rule already
+set for every other control in this application.
+
+#### Scenario: Looking at a room
+
+- **WHEN** the owner opens a room that has photographs
+- **THEN** they are shown, largest first in upload order, each opening to full size
+
+#### Scenario: Adding some
+
+- **WHEN** the owner chooses three photographs
+- **THEN** progress is shown, and on success they appear without a reload
+
+#### Scenario: One of several fails
+
+- **WHEN** three are chosen and one is rejected
+- **THEN** the two that worked are recorded and the page names the one that did not
+
+#### Scenario: The list
+
+- **WHEN** the owner opens the rooms list
+- **THEN** each row shows its first photograph, and rows without one keep the same height
+
+#### Scenario: A room with no photographs
+
+- **WHEN** the owner opens a room that has none
+- **THEN** the page says so and offers to add some
+
+#### Scenario: Removing
+
+- **WHEN** the owner removes a photograph
+- **THEN** they are asked to confirm first, and it disappears without a reload
+
+#### Scenario: A manager
+
+- **WHEN** a manager opens a room in a building they cover
+- **THEN** the photographs are shown and they may add and remove them
+
+#### Scenario: Storage not configured
+
+- **WHEN** the page loads and storage is not configured
+- **THEN** it says so and offers no upload control
+
+#### Scenario: On a phone
+
+- **WHEN** the room page is read at 390px
+- **THEN** the photographs fit the width and the page does not scroll sideways
+
+### Requirement: A room's page lists what furnishes it
+
+A room's page SHALL show the furniture the room holds — name, make, quantity, value and
+current condition — and SHALL let the `owner` add from the building's catalogue, change a
+quantity or condition, and remove an item.
+
+It SHALL say what this list is for, because the list alone is ambiguous: these items are
+written into the hand-over record of every tenancy signed from now on, and they are what
+a departing tenant is checked against. A reader who thinks it is an inventory for its own
+sake will not keep it current.
+
+A room with nothing SHALL say so, and SHALL say that tenancies signed there will record
+an empty hand-over.
+
+Where the building's catalogue is empty, the add control SHALL say so and point at the
+building's page rather than opening an empty picker.
+
+A `manager` SHALL see all of it and be offered none of the controls.
+
+#### Scenario: A furnished room
+
+- **WHEN** the owner opens a room holding three items
+- **THEN** each is listed with its make, quantity, value and condition, and the total value is stated
+
+#### Scenario: Adding
+
+- **WHEN** the owner adds an item from the catalogue with a quantity
+- **THEN** it appears without a reload, at the catalogue's current price
+
+#### Scenario: An empty catalogue
+
+- **WHEN** the owner opens a room whose building has no catalogue entries
+- **THEN** the page says so and points at the building's page
+
+#### Scenario: An unfurnished room
+
+- **WHEN** the owner opens a room holding nothing
+- **THEN** it says so, and says that tenancies signed there will hand over nothing
+
+#### Scenario: A manager
+
+- **WHEN** a manager opens the room
+- **THEN** the furniture is listed and nothing offers to change it
+
+### Requirement: The building's page maintains the furniture catalogue
+
+The building's page SHALL let the `owner` maintain its furniture catalogue — add an
+entry, correct its name, kind, make or price, retire one and bring it back — beside the
+service-fee catalogue it already carries.
+
+It SHALL say that an entry here furnishes nobody by itself: a room has to hold it. The
+same two-level split as service fees, and the same place people get it wrong.
+
+Re-pricing SHALL be described as reaching rooms furnished afterwards. Rooms already
+holding the item keep the value they were furnished at.
+
+A retired entry SHALL stay visible to the owner, set apart.
+
+#### Scenario: Adding a catalogue entry
+
+- **WHEN** the owner adds a bed with a make and a price
+- **THEN** rooms in that building may choose it, and the page says choosing is a separate step
+
+#### Scenario: Re-pricing
+
+- **WHEN** the owner changes an entry's price
+- **THEN** the form says rooms already furnished keep their value
+
+#### Scenario: A manager
+
+- **WHEN** a manager opens the building's page
+- **THEN** the catalogue is listed and nothing offers to change it
+

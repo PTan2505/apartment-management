@@ -1,9 +1,7 @@
 ## Purpose
 
 Covers managing customers from the browser: finding them by name or phone number, adding them, and correcting their details — including telling the owner honestly when a phone number they entered already belongs to someone.
-
 ## Requirements
-
 ### Requirement: The owner can see the customers on file
 
 The screen at `/customers` SHALL list the customers the owner has on file, replacing the placeholder that stands there now.
@@ -97,7 +95,9 @@ When a search matches nothing the screen SHALL say that nothing matched and offe
 
 ### Requirement: The owner can add a customer
 
-The screen SHALL let the owner add a customer by entering a name and, optionally, a phone number. A name SHALL be required; a phone number SHALL NOT be, because a person such as a child occupant may have none.
+The screen SHALL let the owner add a customer by entering a name and, optionally, a phone number and an identity-document number. A name SHALL be required; neither of the others SHALL be, because a person such as a child occupant may have no telephone, and an owner entering a tenancy from an old paper file may never have been given the document number.
+
+The identity-document field SHALL say what it is for — it is the number copied onto the residence paperwork — because an owner who has already uploaded photographs of the card will otherwise read it as the same thing asked twice.
 
 Adding a customer has three distinct outcomes and the screen SHALL tell them apart, because they are not variations of success:
 
@@ -144,9 +144,19 @@ Validation messages SHALL appear against the field they concern, and the form SH
 - **WHEN** an owner submits the form without a name
 - **THEN** the form reports that a name is required, against the name field, and does not submit
 
+#### Scenario: Adding a customer with an identity-document number
+
+- **WHEN** an owner adds a customer entering a name and an identity-document number
+- **THEN** the customer is created carrying that number
+
+#### Scenario: The identity-document field explains itself
+
+- **WHEN** an owner opens the add form
+- **THEN** the identity-document field says it is the number used on the residence paperwork
+
 ### Requirement: The owner can correct a customer's details
 
-The screen SHALL let the owner edit an existing customer's name and phone number, including adding a phone number to a customer recorded without one.
+The screen SHALL let the owner edit an existing customer's name, phone number and identity-document number, including adding any of them to a customer recorded without one, and clearing a document number that was entered wrongly.
 
 The form SHALL open with the customer's current values already in it, so that correcting one field does not mean retyping the other.
 
@@ -178,6 +188,16 @@ After a successful edit the list SHALL show the updated details without the owne
 
 - **WHEN** an owner renames a customer and then searches for the new name
 - **THEN** that customer is listed
+
+#### Scenario: The edit form opens with the document number already in it
+
+- **WHEN** an owner opens the edit form for a customer carrying an identity-document number
+- **THEN** that number is already in the form
+
+#### Scenario: Clearing a wrongly entered document number
+
+- **WHEN** an owner empties the identity-document field and saves
+- **THEN** the change is saved and the customer carries no document number
 
 ### Requirement: A customer's row offers only what the API supports
 
@@ -215,3 +235,4 @@ Both presentations SHALL show the same customers and offer the same actions, and
 
 - **WHEN** an owner views customers at any supported width down to a small phone
 - **THEN** the page does not scroll horizontally
+

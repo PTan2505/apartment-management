@@ -3,7 +3,9 @@
 Lets an owner register and look up the people who rent or occupy rooms, stored as `customer`-role users so the same person keeps one identity across every lease and room they appear in.
 ## Requirements
 ### Requirement: Owner can register a customer
-The system SHALL allow an authenticated `owner` to register a person by full name, with an optional phone number. The person SHALL be stored with the `customer` role and no password, and SHALL NOT be able to log in. A phone number is optional because occupants such as children may not have one, while still needing a stable identity.
+The system SHALL allow an authenticated `owner` to register a person by full name, with an optional phone number and an optional identity-document number. The person SHALL be stored with the `customer` role and no password, and SHALL NOT be able to log in. A phone number is optional because occupants such as children may not have one, while still needing a stable identity.
+
+The identity-document number SHALL be the number as text, alongside — not instead of — the photographs of the card. The photographs are what proves the document; the number is what gets typed into a form, and a system holding only pictures cannot fill one in. It is optional because every customer recorded before it existed has none, and because an owner entering a tenancy from an old paper file may never have been given it.
 
 #### Scenario: Registering a person with a phone number
 - **WHEN** an authenticated owner registers a person with a full name and a phone number not already in the system
@@ -28,6 +30,14 @@ The system SHALL allow an authenticated `owner` to register a person by full nam
 #### Scenario: Missing full name
 - **WHEN** an authenticated owner submits a request without a full name
 - **THEN** the system responds with HTTP 400 identifying the invalid input
+
+#### Scenario: Registering with an identity-document number
+- **WHEN** an authenticated owner registers a person with a full name and an identity-document number
+- **THEN** the system records the number on the customer and responds with HTTP 201
+
+#### Scenario: Registering without an identity-document number
+- **WHEN** an authenticated owner registers a person with no identity-document number
+- **THEN** the system creates the customer with none recorded, and responds with HTTP 201
 
 ### Requirement: Owner can list and retrieve customers
 The system SHALL allow an authenticated `owner` to list customers, search them, and retrieve a single customer by id. Customer records SHALL never expose password material. Listing SHALL be paginated using the shared paginated response contract, so the response carries a `data` array and a `meta` object describing the page and totals rather than a bare array.
@@ -95,9 +105,11 @@ The normalised form used for matching SHALL NOT appear in any response. It exist
 - **THEN** the items and totals describe only the customers matching the search
 
 ### Requirement: Owner can update a customer
-The system SHALL allow an authenticated `owner` to update a customer's full name and phone number, including adding a phone number to a record that had none. A phone number already in use by a different user SHALL be rejected.
+The system SHALL allow an authenticated `owner` to update a customer's full name, phone number and identity-document number, including adding any of them to a record that had none. A phone number already in use by a different user SHALL be rejected.
 
 A customer SHALL remain findable by their current name. Searching by a name that has been changed SHALL find the customer by the new name and SHALL NOT find them by the old one.
+
+An identity-document number SHALL be clearable, because a number entered against the wrong person is worse than an absent one — it is the box that gets copied onto a government form without being re-checked.
 
 #### Scenario: Successful update
 - **WHEN** an authenticated owner updates an existing customer with valid values
@@ -118,6 +130,14 @@ A customer SHALL remain findable by their current name. Searching by a name that
 #### Scenario: A renamed customer is not found by their old name
 - **WHEN** an authenticated owner changes a customer's full name and then searches for the previous name
 - **THEN** the response does not contain that customer
+
+#### Scenario: Adding an identity-document number to a customer who had none
+- **WHEN** an authenticated owner sets a previously absent identity-document number on a customer
+- **THEN** the system saves the change and responds with HTTP 200
+
+#### Scenario: Clearing an identity-document number
+- **WHEN** an authenticated owner clears a customer's identity-document number
+- **THEN** the system saves the change and the customer carries none
 
 ### Requirement: Customer endpoints require an authenticated owner
 The system SHALL reject any customer request that is unauthenticated or made by a user whose role is not `owner`.

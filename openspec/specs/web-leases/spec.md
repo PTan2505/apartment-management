@@ -1549,3 +1549,188 @@ refused before the request, with the figure named.
 - **WHEN** no invoice has established a reading for the tenancy
 - **THEN** the field falls back to the room's last known reading, or stays blank when there is none
 
+### Requirement: A tenancy shows who is registered as staying
+
+A tenancy's page SHALL show the visitors registered against it — name, dates, and whether
+the stay is upcoming, current or finished — and SHALL let the `owner` and the building's
+`manager` add and cancel one.
+
+It SHALL be kept visually apart from the occupant list. The two answer different
+questions and only one of them is billed, and a reader who merges them will go looking
+for a water charge that is not there.
+
+A stay that has run past two weeks SHALL be marked, and the mark SHALL say what the
+consequence is: this person is being housed, and the tenancy's occupant count does not
+include them. It SHALL offer the way to act — correcting the occupant count — without
+doing it.
+
+The identity photographs SHALL be reachable from here by roles that may see them.
+
+A tenancy with nobody registered SHALL say so plainly rather than showing an empty area.
+
+#### Scenario: Reading the registrations
+
+- **WHEN** the owner opens a tenancy with two registrations
+- **THEN** both are listed with their dates and state, apart from the occupant list
+
+#### Scenario: Somebody is overdue
+
+- **WHEN** a registration has run more than fourteen days
+- **THEN** it is marked, the page says the occupant count does not include them, and it offers to correct the count
+
+#### Scenario: Nothing is done automatically
+
+- **WHEN** the owner ignores the mark
+- **THEN** nothing changes: no count moves and no charge appears
+
+#### Scenario: Staff add one
+
+- **WHEN** the owner registers a visitor from this page
+- **THEN** it is recorded, and shown as added by staff rather than by the tenant
+
+#### Scenario: Nobody registered
+
+- **WHEN** the tenancy has no registrations
+- **THEN** the page says so
+
+#### Scenario: Maintenance
+
+- **WHEN** a maintenance account could reach this page
+- **THEN** it shows no registrations at all
+
+### Requirement: A tenancy can produce the residence filing
+
+The tenancy page SHALL let the `owner`, and a `manager` covering the building, produce the
+filled residence form for registrations chosen on that tenancy.
+
+Several registrations SHALL be selectable for one filing, because a family that arrived
+together is one form rather than three, and the person filing it should not have to know
+that to get it right.
+
+The screen SHALL name the boxes the system could not fill BEFORE the document is produced,
+not after. An owner who discovers at the printer that the signatory's identity number is
+missing has wasted the trip; one who is told on screen can enter it first.
+
+Where the missing box is one the system can hold — the signatory's identity number — the
+screen SHALL offer the way to record it rather than only reporting it absent.
+
+A tenancy whose signatory or building is missing something the form requires SHALL still be
+able to produce the document, with those boxes empty. A form that is nine-tenths filled is
+worth more than a refusal, because the remaining tenth can be written in by hand.
+
+#### Scenario: Producing a filing
+
+- **WHEN** the owner selects one registration and produces the filing
+- **THEN** a filled residence form is downloaded
+
+#### Scenario: A family in one form
+
+- **WHEN** the owner selects three registrations and produces the filing
+- **THEN** one document is downloaded carrying all three
+
+#### Scenario: Told before printing
+
+- **WHEN** the signatory has no identity number recorded
+- **THEN** the screen says so before the document is produced, and offers to record it
+
+#### Scenario: Produced anyway
+
+- **WHEN** the owner produces the filing with a box the system cannot fill
+- **THEN** the document is still downloaded, with that box empty
+
+#### Scenario: No blank form uploaded
+
+- **WHEN** no blank residence form is on file
+- **THEN** the screen says the blank form must be uploaded first, and offers no download
+
+#### Scenario: A manager outside their buildings
+
+- **WHEN** a manager could reach a tenancy in a building they do not cover
+- **THEN** no filing can be produced from it
+
+### Requirement: A tenancy shows what was handed over
+
+A tenancy's page SHALL show its hand-over record: each item, its make, its value, and the
+condition it was handed over in, with the date.
+
+It SHALL be presented as a frozen record rather than as a live list — this is what the
+tenant received, not what the room currently holds — because the two diverge and a reader
+who confuses them will check the wrong list at move-out.
+
+A tenancy whose record is empty SHALL say the room was handed over unfurnished.
+
+Nothing on this page SHALL offer to change a hand-over entry.
+
+Once the tenancy has been closed, the page SHALL show each item's return condition beside
+its hand-over condition, and SHALL mark the ones that came back worse.
+
+#### Scenario: Reading the record
+
+- **WHEN** the owner opens a tenancy of a furnished room
+- **THEN** each item is listed with its value and hand-over condition, dated
+
+#### Scenario: The room has changed since
+
+- **WHEN** the room has gained an item since the tenancy began
+- **THEN** the tenancy's record does not show it, and the page makes clear it is a record of that day
+
+#### Scenario: An unfurnished hand-over
+
+- **WHEN** the tenancy's record is empty
+- **THEN** the page says the room was handed over unfurnished
+
+#### Scenario: After closing
+
+- **WHEN** a closed tenancy is opened
+- **THEN** each item shows both conditions, and anything worse is marked
+
+### Requirement: Closing a tenancy checks the furniture in, and offers to charge for damage
+
+The move-out form SHALL list the hand-over record and let each item be given a condition
+at return, from the same fixed set.
+
+It SHALL state that this is optional and that leaving items unchecked records them as
+unchecked rather than as returned in good order. A form that quietly treats "I did not
+look" as "it is fine" is worse than one that records nothing.
+
+Where items come back worse than they were handed over, the application SHALL offer to
+raise an ad-hoc invoice for them, with the amount prefilled from the values on the
+hand-over record and the items named in its description.
+
+It SHALL be an OFFER, not an automatic charge, and SHALL be refusable: wear the owner
+decides to absorb is the common case, and a charge raised without a decision would be
+found later by the tenant rather than by the owner.
+
+The form SHALL NOT offer to deduct from the deposit. Money kept back is charged on an
+invoice; the deposit then settles against it, as it already does.
+
+#### Scenario: Checking in
+
+- **WHEN** the owner records a move-out and marks each item's condition
+- **THEN** the tenancy records both conditions for every item
+
+#### Scenario: Damage found
+
+- **WHEN** an item handed over in good condition is marked damaged
+- **THEN** the form offers an ad-hoc invoice with that item named and its hand-over value filled in
+
+#### Scenario: Declining to charge
+
+- **WHEN** the owner declines the offer
+- **THEN** the move-out is recorded, the conditions are kept, and no invoice is issued
+
+#### Scenario: Skipping the check
+
+- **WHEN** the owner records a move-out without marking anything
+- **THEN** it succeeds, the items are recorded as unchecked, and no charge is offered
+
+#### Scenario: Nothing is taken from the deposit
+
+- **WHEN** damage is charged
+- **THEN** it is charged on an invoice, and the deposit settles against that invoice rather than being reduced directly
+
+#### Scenario: An unfurnished tenancy
+
+- **WHEN** a tenancy with an empty hand-over record is closed
+- **THEN** the form shows no check-in section at all
+
