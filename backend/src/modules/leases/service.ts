@@ -1,5 +1,7 @@
 import { Prisma } from "@/generated/prisma/client.js";
 import { prisma } from "@/lib/prisma.js";
+import { checkInFurniture, handoverRowsFor } from "@/modules/furniture/service.js";
+import type { CheckInFurnitureInput } from "@/modules/furniture/schema.js";
 import { issueLeasePortalToken } from "@/modules/tenant-portal/service.js";
 import { roomBuildingWhere, withinScope, type BuildingScope } from "@/middleware/staff-scope.js";
 import { paginate, toSkipTake } from "@/lib/pagination.js";
@@ -367,6 +369,30 @@ export async function createLease(input: CreateLeaseInput, scope: BuildingScope 
         })),
       });
     }
+
+    /*
+      What this tenant is handed, frozen now.
+
+      Inside the transaction for the same reason the default fees above are: a
+      tenancy with no hand-over record cannot be checked back in, and the
+      absence would be discovered at move-out — the worst possible moment.
+
+      An EMPTY list is written as an empty record, not skipped. "Handed over
+      with nothing" is a fact; "nobody wrote it down" is not, and the screens
+      have to tell them apart for every tenancy signed before this existed.
+    */
+    const handover = await handoverRowsFor(tx, input.roomId, created.startDate);
+    if (handover.length > 0) {
+      await tx.leaseFurniture.createMany({
+        data: handover.map((row) => ({ ...row, leaseId: created.id })),
+      });
+    }
+    // Stamped even when the list is empty — that stamp is the whole difference
+    // between "handed over unfurnished" and "nobody ever wrote one down".
+    await tx.lease.update({
+      where: { id: created.id },
+      data: { furnitureRecordedAt: new Date() },
+    });
 
     // The link the tenant pays through, issued with the tenancy rather than on
     // request. A tenancy without one is a tenancy whose bills cannot be paid,
@@ -840,6 +866,30 @@ export async function extendLease(id: number, input: ExtendLeaseInput) {
       data: { reference: buildLeaseReference(room.roomCode, successor.startDate, successor.id) },
     });
 
+    /*
+      The successor's own hand-over record, taken from what the room holds on
+      changeover day.
+
+      A renewal IS a different tenancy, so it gets its own — at today's
+      conditions, which have moved on since the first hand-over. Without this,
+      a renewed tenancy could never be checked in at all.
+
+      The predecessor's items are deliberately left UNCHECKED rather than
+      copied across as "returned fine": nobody inspected anything, because
+      nobody moved out. That is exactly the state the nullable column exists to
+      record.
+    */
+    const successorHandover = await handoverRowsFor(tx, lease.roomId, handover);
+    if (successorHandover.length > 0) {
+      await tx.leaseFurniture.createMany({
+        data: successorHandover.map((row) => ({ ...row, leaseId: successor.id })),
+      });
+    }
+    await tx.lease.update({
+      where: { id: successor.id },
+      data: { furnitureRecordedAt: new Date() },
+    });
+
     // A renewal is a different tenancy, so it gets its own link. The
     // predecessor keeps its own, which still reaches its own unpaid bills.
     await issueLeasePortalToken(tx, successor.id);
@@ -917,6 +967,7 @@ export async function recordMoveOut(
   moveOutDate: Date,
   endMeterReading: number,
   overdueCharges: { buildingServiceFeeId: number; amount: number }[] = [],
+  furniture: CheckInFurnitureInput = [],
 ) {
   const lease = await findLeaseOrThrow(id);
 
@@ -980,6 +1031,20 @@ export async function recordMoveOut(
     });
 
     await issueFinalInvoice(tx, forIssue, moveOutDate, endMeterReading, new Date());
+
+    /*
+      The furniture, checked back in.
+
+      Records conditions and NOTHING ELSE: no deposit is touched and no invoice
+      is raised by this operation. Damage reaches money through an ad-hoc
+      invoice the owner decides on, which is the one path that already exists —
+      charging automatically would mean a tenant finding out before the owner
+      had decided.
+
+      Inside the move-out's transaction so a closed tenancy and its check-in
+      cannot disagree.
+    */
+    await checkInFurniture(tx, id, furniture, moveOutDate);
 
     // Days beyond the agreed term get their own bill, because no agreement
     // covers them and nothing can be calculated for them. Issued even when the

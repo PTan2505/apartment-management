@@ -1,4 +1,6 @@
 import { z } from "zod";
+
+import { checkInFurnitureSchema } from "@/modules/furniture/schema.js";
 import { paginationQueryFields } from "@/lib/pagination.js";
 
 const isoDate = z.coerce.date();
@@ -124,6 +126,17 @@ export const moveOutSchema = z.object({
       }),
     )
     .default([]),
+  /*
+    Conditions at return, for the items somebody actually looked at.
+
+    Defaults to an empty list, and an empty list means NOBODY CHECKED — not
+    "everything came back fine". A move-out that has to happen at ten at night
+    must not wait on an inventory, and a form where skipping means "fine" turns
+    a tenancy nobody inspected into a tenancy inspected and cleared.
+
+    Items left out of the list stay unchecked individually, for the same reason.
+  */
+  furniture: checkInFurnitureSchema.default([]),
 });
 
 /**
