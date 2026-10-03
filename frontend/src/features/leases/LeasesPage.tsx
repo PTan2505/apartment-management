@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Pagination } from "@/components/Pagination";
 import { useBuildings } from "@/features/buildings/hooks";
 import { ContractTemplateBar } from "@/features/contract-template/ContractTemplateBar";
+import { ResidenceFormBar } from "@/features/visitors/ResidenceFormBar";
 import { useCustomers } from "@/features/customers/hooks";
 import { useLeaseCount, useLeases } from "@/features/leases/hooks";
 import { LeaseFormDialog } from "@/features/leases/LeaseFormDialog";
@@ -293,6 +294,12 @@ export function LeasesPage() {
 
       {/* The blank contract to print, above the list it is signed from. */}
       <ContractTemplateBar />
+      {/*
+        Beside the blank contract, because they are the same kind of thing: the
+        two blank papers the business keeps, consulted occasionally, while this
+        screen is about tenancies.
+      */}
+      <ResidenceFormBar />
 
       <ListSurface>
         <Box>

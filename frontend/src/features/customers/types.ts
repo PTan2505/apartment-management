@@ -13,6 +13,14 @@ export interface Customer {
    */
   hasIdCardFront: boolean
   hasIdCardBack: boolean
+  /**
+   * The number printed on that card, as text — null when nobody has said.
+   *
+   * Unlike the two flags above this IS the value and not a fact about one: a
+   * photograph cannot be typed into a form, and this is the box copied onto the
+   * residence paperwork.
+   */
+  idCardNumber: string | null
   createdAt: string
   updatedAt: string
 }

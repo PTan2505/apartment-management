@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as customersApi from '@/features/customers/api'
-import type { CustomerFormOutput } from '@/features/customers/schema'
+import type { CustomerPayload } from '@/features/customers/schema'
 import type { ListCustomersParams } from '@/features/customers/types'
 
 const CUSTOMERS_KEY = ['customers'] as const
@@ -64,7 +64,7 @@ function useInvalidateCustomers() {
 export function useCreateCustomer() {
   const invalidate = useInvalidateCustomers()
   return useMutation({
-    mutationFn: (input: CustomerFormOutput) => customersApi.createCustomer(input),
+    mutationFn: (input: CustomerPayload) => customersApi.createCustomer(input),
     onSuccess: invalidate,
   })
 }
@@ -72,7 +72,7 @@ export function useCreateCustomer() {
 export function useUpdateCustomer() {
   const invalidate = useInvalidateCustomers()
   return useMutation({
-    mutationFn: ({ id, input }: { id: number; input: CustomerFormOutput }) =>
+    mutationFn: ({ id, input }: { id: number; input: CustomerPayload }) =>
       customersApi.updateCustomer(id, input),
     onSuccess: invalidate,
   })
